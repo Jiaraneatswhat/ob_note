@@ -4787,4 +4787,36 @@ String rowSql = "select  " +
 " sum(vc) over(partition by id order by et range between interval '2' second preceding and current row) " 
 // 将[ts-2000,ts]范围的通过同一个窗口计算
 ```
+- 窗口的复用
+- 当需要通过一个窗口实现多个聚合逻辑时会报错
+```java
+String multiSql = "select  " +  
+        " id, ts, vc, " +  
+        " sum(vc) over(partition by id order by pt rows between unbounded preceding and current row) sumVc, " +  
+        " min(vc) over(...) minVc, " +  
+        " max(vc) over(...) maxVc, " +  
+        " from t1";
+// 此时可以将窗口进行复用
+String multiSql = "select  " +  
+        " id, ts, vc, " +  
+        " sum(vc) over w sumVc, " +  
+        " min(vc) over w minVc, " +  
+        " max(vc) over w maxVc " +  
+        " from t1 " +  
+        " window w as (partition by id order by pt rows between unbounded preceding and current row)";
+```
+## 7.5 Join
+### 7.5.1 CommonJoin
+- `commonjoin` 指普通的 `inner join`，`left join` 等，两张表进行 join 时，表中的数据会缓存在状态中，占用资源会越来越大，可以通过配置状态的 `ttl` 来回收
+```java
+// inner join每关联一条向结果表中增加一条 +I 的数据
+tblEnv.sqlQuery("select t1.id, t1.vc, t2.id, t2.vc " +  
+        " from t1 join t2 " +  
+        " on t1.id = t2.id").execute().print();  
+env.execute()
+
+// left join取左表全部数据
+// 一开始如过左面没有关联成功，就会增加一条 +I 的数据，等关联成功时，会删除之前关联的结果(-D) ，生成一条新的结果
+// left join 会产生 -D 的数据，只能通过Kafka-upsert写出
+```
 

@@ -4849,12 +4849,28 @@ String joinSql = "select t1.id, t2.name " +
 
 ## 7.6 Catalog
 - Catalog 是库的上一级，用于区分相同库下相同的表名
+- Catalog 提供了元数据信息，例如数据库、表、分区、视图以及数据库或其他外部系统中存储的函数和信息
 ```java
 /*
  * Catalog接口
  *   -> AbstractCatalog抽象类
  *       -> AbstractJdbcCatalog 
+ *             -> JdbcCatalog
+ *             -> MySqlCatalog
+ *             -> PostgresCatalog
  *       -> GenericInMemoryCatalog
  *       -> HiveCatalog
 */
 ```
+### 7.6.1 默认 Catalog
+```java
+// default_catalog
+System.out.println(tblEnv.getCurrentCatalog());  
+// default_database
+System.out.println(tblEnv.getCurrentDatabase());
+// 默认使用GenericInMemoryCatalog，会将Calalog的信息存在内存中
+```
+### 7.6.2 JdbcCatalog
+- `AbstractJdbcCatalog` 有三个子类
+- `JdbcCatalog` 可以直接对接 `JDBC` 中的库和表，无需创建 `Flink` 的表映射，即可读取
+- 

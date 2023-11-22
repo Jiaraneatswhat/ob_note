@@ -1,0 +1,4137 @@
+# 1. HDFS
+- HDFS 的架构
+![[hdfs.svg]]
+## 1.1 HDFS 的启动
+### 1.1 脚本
+#### 1.1.1 start-dfs.sh
+```shell
+#---------------------------------------------------------
+# namenodes
+# 索取namenode的配置
+NAMENODES=$("${HADOOP_HDFS_HOME}/bin/hdfs" getconf -namenodes 2>/dev/null)
+
+if [[ -z "${NAMENODES}" ]]; then
+  NAMENODES=$(hostname)
+fi
+
+# 通过hdfs namenode 启动namenode
+echo "Starting namenodes on [${NAMENODES}]"
+hadoop_uservar_su hdfs namenode "${HADOOP_HDFS_HOME}/bin/hdfs" \
+    --workers \
+    --config "${HADOOP_CONF_DIR}" \
+    --hostnames "${NAMENODES}" \
+    --daemon start \
+    namenode ${nameStartOpt}
+
+HADOOP_JUMBO_RETCOUNTER=$?
+
+#---------------------------------------------------------
+# datanodes (using default workers file)
+
+echo "Starting datanodes"
+# 通过hdfs datanode 启动namenode
+hadoop_uservar_su hdfs datanode "${HADOOP_HDFS_HOME}/bin/hdfs" \
+    --workers \
+    --config "${HADOOP_CONF_DIR}" \
+    --daemon start \
+    datanode ${dataStartOpt}
+(( HADOOP_JUMBO_RETCOUNTER=HADOOP_JUMBO_RETCOUNTER + $? ))
+
+#---------------------------------------------------------
+# secondary namenodes (if any)
+
+SECONDARY_NAMENODES=$("${HADOOP_HDFS_HOME}/bin/hdfs" getconf -secondarynamenodes 2>/dev/null)
+
+if [[ -n "${SECONDARY_NAMENODES}" ]]; then
+
+  if [[ "${NAMENODES}" =~ , ]]; then
+
+    hadoop_error "WARNING: Highly available NameNode is configured."
+    hadoop_error "WARNING: Skipping SecondaryNameNode."
+
+  else
+
+    if [[ "${SECONDARY_NAMENODES}" == "0.0.0.0" ]]; then
+      SECONDARY_NAMENODES=$(hostname)
+    fi
+
+    echo "Starting secondary namenodes [${SECONDARY_NAMENODES}]"
+    # # 通过hdfs secondarynamenode 启动secondarynamenode
+    hadoop_uservar_su hdfs secondarynamenode "${HADOOP_HDFS_HOME}/bin/hdfs" \
+      --workers \
+      --config "${HADOOP_CONF_DIR}" \
+      --hostnames "${SECONDARY_NAMENODES}" \
+      --daemon start \
+      secondarynamenode
+    (( HADOOP_JUMBO_RETCOUNTER=HADOOP_JUMBO_RETCOUNTER + $? ))
+  fi
+fi
+```
+#### 1.1.2 hdfs
+```shell
+#!/usr/bin/env bash
+## @description  Default command handler for hadoop command
+## @audience     public
+## @stability    stable
+## @replaceable  no
+## @param        CLI arguments
+function hdfscmd_case
+{
+  subcmd=$1
+  shift
+
+  case ${subcmd} in
+   # 设置HADOOP_SUBCMD_SUPPORTDAEMONIZATION为true，以及类名
+    datanode)
+      HADOOP_SUBCMD_SUPPORTDAEMONIZATION="true"
+      HADOOP_SECURE_CLASSNAME="org.apache.hadoop.hdfs.server.datanode.SecureDataNodeStarter"
+      HADOOP_CLASSNAME='org.apache.hadoop.hdfs.server.datanode.DataNode'
+      hadoop_deprecate_envvar HADOOP_SECURE_DN_PID_DIR HADOOP_SECURE_PID_DIR
+      hadoop_deprecate_envvar HADOOP_SECURE_DN_LOG_DIR HADOOP_SECURE_LOG_DIR
+    ;;
+    # 客户端交互时的shell
+    dfs)
+      HADOOP_CLASSNAME=org.apache.hadoop.fs.FsShell
+    ;;
+    # namenode
+    namenode)
+      HADOOP_SUBCMD_SUPPORTDAEMONIZATION="true"
+      HADOOP_CLASSNAME='org.apache.hadoop.hdfs.server.namenode.NameNode'
+      hadoop_add_param HADOOP_OPTS hdfs.audit.logger "-Dhdfs.audit.logger=${HDFS_AUDIT_LOGGER}"
+    ;;
+    # 2NN
+    secondarynamenode)
+      HADOOP_SUBCMD_SUPPORTDAEMONIZATION="true"
+      HADOOP_CLASSNAME='org.apache.hadoop.hdfs.server.namenode.SecondaryNameNode'
+      hadoop_add_param HADOOP_OPTS hdfs.audit.logger "-Dhdfs.audit.logger=${HDFS_AUDIT_LOGGER}"
+    ;;
+    ...
+   esac
+}
+
+# let's locate libexec...
+if [[ -n "${HADOOP_HOME}" ]]; then
+  HADOOP_DEFAULT_LIBEXEC_DIR="${HADOOP_HOME}/libexec"
+else
+  bin=$(cd -P -- "$(dirname -- "${MYNAME}")" >/dev/null && pwd -P)
+  HADOOP_DEFAULT_LIBEXEC_DIR="${bin}/../libexec"
+fi
+
+HADOOP_LIBEXEC_DIR="${HADOOP_LIBEXEC_DIR:-$HADOOP_DEFAULT_LIBEXEC_DIR}"
+HADOOP_NEW_CONFIG=true
+# 定位到libexec目录，如果存在hdfs-config.sh则执行
+if [[ -f "${HADOOP_LIBEXEC_DIR}/hdfs-config.sh" ]]; then
+  # shellcheck source=./hadoop-hdfs-project/hadoop-hdfs/src/main/bin/hdfs-config.sh
+  . "${HADOOP_LIBEXEC_DIR}/hdfs-config.sh"
+else
+  echo "ERROR: Cannot execute ${HADOOP_LIBEXEC_DIR}/hdfs-config.sh." 2>&1
+  exit 1
+fi
+
+# 调用/libexec/hadoop-functions.sh中定义的函数，准备执行命令
+hadoop_generic_java_subcmd_handler
+```
+#### 1.1.3 hadoop-functions.sh
+```java 
+function hadoop_generic_java_subcmd_handler
+{
+  ...
+  # do the hard work of launching a daemon or just executing our interactive
+  # java class
+  # 判断是否在安全模式下
+  if [[ "${HADOOP_SUBCMD_SUPPORTDAEMONIZATION}" = true ]]; then
+    ...
+  else
+    hadoop_java_exec "${HADOOP_SUBCMD}" "${HADOOP_CLASSNAME}" "${HADOOP_SUBCMD_ARGS[@]}"
+  fi
+}
+
+# 运行java进程
+function hadoop_java_exec
+{
+  # run a java command.  this is used for
+  # non-daemons
+
+  local command=$1
+  local class=$2
+  shift 2
+
+  hadoop_debug "Final CLASSPATH: ${CLASSPATH}"
+  hadoop_debug "Final HADOOP_OPTS: ${HADOOP_OPTS}"
+  hadoop_debug "Final JAVA_HOME: ${JAVA_HOME}"
+  hadoop_debug "java: ${JAVA}"
+  hadoop_debug "Class name: ${class}"
+  hadoop_debug "Command line options: $*"
+
+  export CLASSPATH
+  #shellcheck disable=SC2086
+  exec "${JAVA}" "-Dproc_${command}" ${HADOOP_OPTS} "${class}" "$@"
+}
+```
+### 1.2 启动 NameNode
+#### 1.2.1 启动 9870 端口 服务
+##### 1.2.1.1 NameNode.main()
+```java
+public static void main(String argv[]) throws Exception {
+    if (DFSUtil.parseHelpArgument(argv, NameNode.USAGE, System.out, true)) {
+        System.exit(0);
+    }
+
+    try {
+        StringUtils.startupShutdownMessage(NameNode.class, argv, LOG);
+        // 创建namenode
+        NameNode namenode = createNameNode(argv, null);
+        if (namenode != null) {
+            namenode.join();
+        }
+    }
+}
+```
+##### 1.2.1.2 createNameNode()
+```java
+public static NameNode createNameNode(String argv[], Configuration conf)
+    throws IOException {
+    LOG.info("createNameNode " + Arrays.asList(argv));
+    // 初始化传进来的conf为null
+    if (conf == null)
+        // 创建HdfsConfiguration对象，会调用父类Configuration的构造器，加载默认参数
+        conf = new HdfsConfiguration();
+    // 解析两次参数
+    // Parse out some generic args into Configuration.
+    GenericOptionsParser hParser = new GenericOptionsParser(conf, argv);
+    argv = hParser.getRemainingArgs();
+    // Parse the rest, NN specific args.
+    StartupOption startOpt = parseArguments(argv);
+    if (startOpt == null) {
+        printUsage(System.err);
+        return null;
+    }
+    setStartupOption(conf, startOpt);
+
+    boolean aborted = false;
+    switch (startOpt) {
+        // 初始化namenode:
+        case FORMAT:
+            aborted = format(conf, startOpt.getForceFormat(),
+                             startOpt.getInteractiveFormat());
+            terminate(aborted ? 1 : 0);
+            return null; // avoid javac warning
+        ...
+        // 启动时调用
+        default:
+	        // 注册用于JMX监控的MBean对象
+            DefaultMetricsSystem.initialize("NameNode");
+            return new NameNode(conf);
+    }
+}
+```
+##### 1.2.1.3 new NameNode()
+```java
+public NameNode(Configuration conf) throws IOException {
+    this(conf, NamenodeRole.NAMENODE);
+}
+// NamenodeRole是一个枚举类，定义了nn的状态
+// NAMENODE  ("NameNode"),
+// BACKUP    ("Backup Node"),
+// CHECKPOINT("Checkpoint Node");
+protected NameNode(Configuration conf, NamenodeRole role)
+    throws IOException {
+    ...
+    try {
+        initializeGenericKeys(conf, nsId, namenodeId);
+        // 初始化
+        initialize(getConf());
+        state.prepareToEnterState(haContext);
+        try {
+            haContext.writeLock();
+            state.enterState(haContext);
+        } finally {
+            haContext.writeUnlock();
+        }
+    } catch (IOException e) {
+        ...
+}
+```
+##### 1.2.1.4 initialize()
+```java
+protected void initialize(Configuration conf) throws IOException {
+    if (conf.get(HADOOP_USER_GROUP_METRICS_PERCENTILES_INTERVALS) == null) {
+        String intervals = conf.get(DFS_METRICS_PERCENTILES_INTERVALS_KEY);
+        if (intervals != null) {
+            conf.set(HADOOP_USER_GROUP_METRICS_PERCENTILES_INTERVALS,
+                     intervals);
+        }
+    }
+
+    UserGroupInformation.setConfiguration(conf);
+    loginAsNameNodeUser(conf);
+	// 初始化度量系统
+    NameNode.initMetrics(conf, this.getRole());
+    StartupProgressMetrics.register(startupProgress);
+	
+	...
+	// nn的角色为NAMENODE时        
+    if (NamenodeRole.NAMENODE == role) {
+        startHttpServer(conf);
+    }
+	// 加载元数据
+    loadNamesystem(conf);
+    startAliasMapServerIfNecessary(conf);
+	//创建PRCServer
+    rpcServer = createRpcServer(conf);
+
+    initReconfigurableBackoffKey();
+
+    if (clientNamenodeAddress == null) {
+        // This is expected for MiniDFSCluster. Set it now using 
+        // the RPC server's bind address.
+        clientNamenodeAddress = 
+            NetUtils.getHostPortString(getNameNodeAddress());
+        LOG.info("Clients are to use " + clientNamenodeAddress + " to access"
+                 + " this namenode/service.");
+    }
+    if (NamenodeRole.NAMENODE == role) {
+        httpServer.setNameNodeAddress(getNameNodeAddress());
+        httpServer.setFSImage(getFSImage());
+        if (levelDBAliasMapServer != null) {
+            httpServer.setAliasMap(levelDBAliasMapServer.getAliasMap());
+        }
+    }
+	// 检查启动资源
+    startCommonServices(conf);
+    startMetricsLogger(conf);
+}
+```
+##### 1.2.1.5 startHttpServer()
+```java
+private void startHttpServer(final Configuration conf) throws IOException {
+    // 新建NameNodeHttpServer对象
+    httpServer = new NameNodeHttpServer(conf, this, getHttpServerBindAddress(conf));
+    // 启动server
+    httpServer.start();
+    httpServer.setStartupProgress(startupProgress);
+}
+
+protected InetSocketAddress getHttpServerBindAddress(Configuration conf) {
+    InetSocketAddress bindAddress = getHttpServerAddress(conf);
+
+    // If DFS_NAMENODE_HTTP_BIND_HOST_KEY exists then it overrides the
+    // host name portion of DFS_NAMENODE_HTTP_ADDRESS_KEY.
+    final String bindHost = conf.getTrimmed(DFS_NAMENODE_HTTP_BIND_HOST_KEY);
+    if (bindHost != null && !bindHost.isEmpty()) {
+        bindAddress = new InetSocketAddress(bindHost, bindAddress.getPort());
+    }
+
+    return bindAddress;
+}
+
+protected InetSocketAddress getHttpServerAddress(Configuration conf) {
+    return getHttpAddress(conf);
+}
+/*
+ DFSConfigKeys.java中定义了:
+ DFS_NAMENODE_HTTP_ADDRESS_DEFAULT = "0.0.0.0:" +  DFS_NAMENODE_HTTP_PORT_DEFAULT;
+ DFS_NAMENODE_HTTP_PORT_DEFAULT =
+      HdfsClientConfigKeys.DFS_NAMENODE_HTTP_PORT_DEFAULT;
+ HdfsClientConfigKeys中定义了默认的端口号
+ int DFS_NAMENODE_HTTP_PORT_DEFAULT = 9870;
+*/
+public static InetSocketAddress getHttpAddress(Configuration conf) {
+    return  NetUtils.createSocketAddr(
+        conf.getTrimmed(DFS_NAMENODE_HTTP_ADDRESS_KEY, DFS_NAMENODE_HTTP_ADDRESS_DEFAULT));
+} // 通过 NetUtils.java 创建一个 Socket 地址
+
+void start() throws IOException {
+    ...
+        // 创建一个hadoop封装的HttpServer的Builder对象
+        HttpServer2.Builder builder = DFSUtil.httpServerTemplateForNNAndJN(conf,
+                                                                           httpAddr, httpsAddr, "hdfs",
+                                                                           DFSConfigKeys.DFS_NAMENODE_KERBEROS_INTERNAL_SPNEGO_PRINCIPAL_KEY, DFSConfigKeys.DFS_NAMENODE_KEYTAB_FILE_KEY);
+	...
+	// 创建httpServer对象
+    httpServer = builder.build();
+	...
+    // 配置Servlet
+    setupServlets(httpServer);
+    // 启动WebServer
+    httpServer.start();
+
+    int connIdx = 0;
+    if (policy.isHttpEnabled()) {
+        httpAddress = httpServer.getConnectorAddress(connIdx++);
+        conf.set(DFSConfigKeys.DFS_NAMENODE_HTTP_ADDRESS_KEY,
+                 NetUtils.getHostPortString(httpAddress));
+    }
+
+    if (policy.isHttpsEnabled()) {
+        httpsAddress = httpServer.getConnectorAddress(connIdx);
+        conf.set(DFSConfigKeys.DFS_NAMENODE_HTTPS_ADDRESS_KEY,
+                 NetUtils.getHostPortString(httpsAddress));
+    }
+}
+```
+#### 1.2.2 加载文件系统
+```java
+protected void loadNamesystem(Configuration conf) throws IOException {
+    this.namesystem = FSNamesystem.loadFromDisk(conf);
+}
+
+static FSNamesystem loadFromDisk(Configuration conf) throws IOException {
+
+    checkConfiguration(conf);
+    // 新建FSImage对象
+    FSImage fsImage = new FSImage(conf,
+                                  // 获取NamespaceDirs和NamespaceEditsDirs
+                                  FSNamesystem.getNamespaceDirs(conf),
+                                  FSNamesystem.getNamespaceEditsDirs(conf));
+    FSNamesystem namesystem = new FSNamesystem(conf, fsImage, false);
+    StartupOption startOpt = NameNode.getStartupOption(conf);
+    // RECOVER模式会进入安全模式
+    if (startOpt == StartupOption.RECOVER) {
+        namesystem.setSafeMode(SafeModeAction.SAFEMODE_ENTER);
+    }
+
+    long loadStart = monotonicNow();
+    try {
+        // 加载镜像文件
+        namesystem.loadFSImage(startOpt);
+    } catch (IOException ioe) {
+        LOG.warn("Encountered exception loading fsimage", ioe);
+        fsImage.close();
+        throw ioe;
+    }
+    return namesystem;
+}
+```
+##### 1.2.2.1 获取文件路径
+```java
+// FSNamesystem.java
+// namespace位置
+public static Collection<URI> getNamespaceDirs(Configuration conf) {
+    return getStorageDirs(conf, DFS_NAMENODE_NAME_DIR_KEY);
+}
+
+private static Collection<URI> getStorageDirs(Configuration conf,
+                                              String propertyName) {
+    Collection<String> dirNames = conf.getTrimmedStringCollection(propertyName);
+    StartupOption startOpt = NameNode.getStartupOption(conf);
+    // StartupOption枚举类中定义: IMPORT  ("-importCheckpoint")
+    if(startOpt == StartupOption.IMPORT) {
+        ...
+    } else if (dirNames.isEmpty()) {
+        dirNames = Collections.singletonList(
+            // 默认值"file:///tmp/hadoop/dfs/name"
+            DFSConfigKeys.DFS_NAMENODE_EDITS_DIR_DEFAULT);
+    }
+    return Util.stringCollectionAsURIs(dirNames);
+}
+// edits文件位置
+public static List<URI> getNamespaceEditsDirs(Configuration conf)
+    throws IOException {
+    return getNamespaceEditsDirs(conf, true);
+}
+
+public static List<URI> getNamespaceEditsDirs(Configuration conf,
+                                              boolean includeShared)
+    throws IOException {
+    // Use a LinkedHashSet so that order is maintained while we de-dup
+    // the entries.
+    LinkedHashSet<URI> editsDirs = new LinkedHashSet<URI>();
+	...
+    // DFS_NAMENODE_EDITS_DIR_KEY默认值"dfs.namenode.edits.dir"
+    for (URI dir : getStorageDirs(conf, DFS_NAMENODE_EDITS_DIR_KEY)) {
+        if (!editsDirs.add(dir)) {
+            LOG.warn("Edits URI " + dir + " listed multiple times in " + 
+                     DFS_NAMENODE_SHARED_EDITS_DIR_KEY + " and " +
+                     DFS_NAMENODE_EDITS_DIR_KEY + ". Ignoring duplicates.");
+        }
+    }
+    if (editsDirs.isEmpty()) {
+        // If this is the case, no edit dirs have been explicitly configured.
+        // Image dirs are to be used for edits too.
+        return Lists.newArrayList(getNamespaceDirs(conf));
+    } else {
+        return Lists.newArrayList(editsDirs);
+    }
+}
+```
+##### 1.2.2.2 加载 FSImage 文件
+```java
+private void loadFSImage(StartupOption startOpt) throws IOException {
+    final FSImage fsImage = getFSImage();
+
+    // format before starting up if requested
+    // 格式化
+    if (startOpt == StartupOption.FORMAT) {
+        // reuse current id
+        fsImage.format(this, fsImage.getStorage().determineClusterId(), false);
+
+        startOpt = StartupOption.REGULAR;
+    }
+    boolean success = false;
+    writeLock();
+    try {
+        // 创建MetaRecoveryContext对象用于读取fsImage文件
+        MetaRecoveryContext recovery = startOpt.createRecoveryContext();
+        final boolean staleImage
+            // 读取fsImage
+            = fsImage.recoverTransitionRead(startOpt, this, recovery);
+        if (RollingUpgradeStartupOption.ROLLBACK.matches(startOpt)) {
+            rollingUpgradeInfo = null;
+        }
+}
+
+// FsImage.java
+boolean recoverTransitionRead(StartupOption startOpt, FSNamesystem target,
+                              MetaRecoveryContext recovery)
+    throws IOException {
+    assert startOpt != StartupOption.FORMAT : 
+    "NameNode formatting should be performed before reading the image";
+	
+    // 获取路径
+    Collection<URI> imageDirs = storage.getImageDirectories();
+    Collection<URI> editsDirs = editLog.getEditURIs();
+
+    switch(startOpt) {
+        case UPGRADE:
+        case UPGRADEONLY:
+            doUpgrade(target);
+            return false; // upgrade saved image already
+        case IMPORT:
+            doImportCheckpoint(target);
+            return false; // import checkpoint saved image already
+        case ROLLBACK:
+            throw new AssertionError("Rollback is now a standalone command, " +
+                                     "NameNode should not be starting with this option.");
+        case REGULAR:
+        // 启动时只进行加载
+        default:
+            // just load the image
+    }
+    return loadFSImage(target, startOpt, recovery);
+}
+
+private boolean loadFSImage(FSNamesystem target, StartupOption startOpt,
+                            MetaRecoveryContext recovery)
+    throws IOException {
+    ...
+    FSImageFile imageFile = null;
+    for (int i = 0; i < imageFiles.size(); i++) {
+        try {
+            imageFile = imageFiles.get(i);
+            loadFSImageFile(target, recovery, imageFile, startOpt);
+            break;
+        } catch (IllegalReservedPathException ie) {...}
+    }
+    ...
+    return needToSave;
+}
+
+void loadFSImageFile(FSNamesystem target, MetaRecoveryContext recovery,
+                     FSImageFile imageFile, StartupOption startupOption) throws IOException {
+    LOG.info("Planning to load image: " + imageFile);
+    StorageDirectory sdForProperties = imageFile.sd;
+    storage.readProperties(sdForProperties, startupOption);
+
+    if (NameNodeLayoutVersion.supports(
+        LayoutVersion.Feature.TXID_BASED_LAYOUT, getLayoutVersion())) {
+        ...
+    } else if (NameNodeLayoutVersion.supports(
+        // 通过CHECKSUM校验完整性
+        LayoutVersion.Feature.FSIMAGE_CHECKSUM, getLayoutVersion())) {
+        String md5 = storage.getDeprecatedProperty(
+            NNStorage.DEPRECATED_MESSAGE_DIGEST_PROPERTY);
+        if (md5 == null) {...}
+        // 加载fsImage
+        loadFSImage(imageFile.getFile(), new MD5Hash(md5), target, recovery,
+                    false);
+    } else {
+        // We don't have any record of the md5sum
+        loadFSImage(imageFile.getFile(), null, target, recovery, false);
+    }
+}
+
+private void loadFSImage(File curFile, MD5Hash expectedMd5,
+                         FSNamesystem target, MetaRecoveryContext recovery,
+                         boolean requireSameLayoutVersion) throws IOException {
+    // BlockPoolId is required when the FsImageLoader loads the rolling upgrade
+    // information. Make sure the ID is properly set.
+    target.setBlockPoolId(this.getBlockPoolID());
+	
+    // 通过LoaderDelegator对象来加载文件
+    FSImageFormat.LoaderDelegator loader = FSImageFormat.newLoader(conf, target);
+    loader.load(curFile, requireSameLayoutVersion);
+
+    // 检验完整性
+    MD5Hash readImageMd5 = loader.getLoadedImageMd5();
+    if (expectedMd5 != null &&
+        !expectedMd5.equals(readImageMd5)) {
+        throw new IOException("Image file " + curFile +
+                              " is corrupt with MD5 checksum of " + readImageMd5 +
+                              " but expecting " + expectedMd5);
+    }
+
+    long txId = loader.getLoadedImageTxId();
+    LOG.info("Loaded image for txid " + txId + " from " + curFile);
+    lastAppliedTxId = txId;
+    storage.setMostRecentCheckpointInfo(txId, curFile.lastModified());
+}
+```
+#### 1.2.3 开启 RPC 服务
+```java
+protected NameNodeRpcServer createRpcServer(Configuration conf)
+    throws IOException {
+    return new NameNodeRpcServer(conf, this);
+}
+
+// NameNodeRpcServer.java
+public NameNodeRpcServer(Configuration conf, NameNode nn)
+    throws IOException {
+    this.nn = nn;
+    this.namesystem = nn.getNamesystem();
+    this.retryCache = namesystem.getRetryCache();
+    this.metrics = NameNode.getNameNodeMetrics();
+    ...
+    InetSocketAddress serviceRpcAddr = nn.getServiceRpcServerAddress(conf);
+    if (serviceRpcAddr != null) {
+        // 创建server
+        serviceRpcServer = new RPC.Builder(conf)
+            .setProtocol(
+            org.apache.hadoop.hdfs.protocolPB.ClientNamenodeProtocolPB.class)
+            .setInstance(clientNNPbService)
+            .setBindAddress(bindHost)
+            .setPort(serviceRpcAddr.getPort())
+            .setNumHandlers(serviceHandlerCount)
+            .setVerbose(false)
+            .setSecretManager(namesystem.getDelegationTokenSecretManager())
+            .build();
+}
+```
+#### 1.2.4 启动资源检查
+```java
+private void startCommonServices(Configuration conf) throws IOException {
+    namesystem.startCommonServices(conf, haContext);
+}
+
+void startCommonServices(Configuration conf, HAContext haContext) throws IOException {
+    this.registerMBean(); // register the MBean for the FSNamesystemState
+    writeLock();
+    this.haContext = haContext;
+    try {
+        // 新建一个NameNodeResourceChecker对象检查资源
+        // 在实例化时，会通过getRequiredNamespaceEditsDirs()获取需要检查的路径
+        //  其中DFS_NAMENODE_DU_RESERVED_DEFAULT默认值是1024 * 1024 * 100
+        nnResourceChecker = new NameNodeResourceChecker(conf);
+        // 检查资源
+        checkAvailableResources();
+        assert !blockManager.isPopulatingReplQueues();
+        StartupProgress prog = NameNode.getStartupProgress();
+        prog.beginPhase(Phase.SAFEMODE);
+        long completeBlocksTotal = getCompleteBlocksTotal();
+        prog.setTotal(Phase.SAFEMODE, STEP_AWAITING_REPORTED_BLOCKS,
+                      completeBlocksTotal);
+        // 激活blockManager
+        blockManager.activate(conf, completeBlocksTotal);
+    }
+}
+```
+##### 1.2.4.1 资源检查
+```java
+void checkAvailableResources() {
+    long resourceCheckTime = monotonicNow();
+    Preconditions.checkState(nnResourceChecker != null,
+                             "nnResourceChecker not initialized");
+    hasResourcesAvailable = nnResourceChecker.hasAvailableDiskSpace();
+    resourceCheckTime = monotonicNow() - resourceCheckTime;
+    NameNode.getNameNodeMetrics().addResourceCheckTime(resourceCheckTime);
+}
+
+public boolean hasAvailableDiskSpace() {
+    return NameNodeResourcePolicy.areResourcesAvailable(
+    volumes.values(), minimumRedundantVolumes);
+}
+
+// NameNodeResourcePolicy.java
+static boolean areResourcesAvailable(
+    Collection<? extends CheckableNameNodeResource> resources,
+    int minimumRedundantResources) {
+	...
+    for (CheckableNameNodeResource resource : resources) {
+        if (!resource.isRequired()) {
+            redundantResourceCount++;
+            // 判断是否可用
+            if (!resource.isResourceAvailable()) {
+                disabledRedundantResourceCount++;
+            }
+        } else {
+            requiredResourceCount++;
+            if (!resource.isResourceAvailable()) {
+                // Short circuit - a required resource is not available.
+                return false;
+            }
+        }
+    }
+}
+
+// CheckableNameNodeResource接口有两个实现类：NameNodeResourceChecker以及JournalAndStream
+// NameNodeResourceChecker.java
+@Override
+public boolean isResourceAvailable() {
+    long availableSpace = df.getAvailable();
+    // 检查大小是否够100M
+    if (availableSpace < duReserved) {
+        LOG.warn("Space available on volume '" + volume + "' is "
+                 + availableSpace +
+                 ", which is below the configured reserved amount " + duReserved);
+        return false;
+    } else {
+        return true;
+    }
+}
+```
+##### 1.2.4.2 激活 BlockManager，进行心跳和安全模式的管理
+```java
+// BlockManager.java
+public void activate(Configuration conf, long blockTotal) {
+    pendingReconstruction.start();
+    datanodeManager.activate(conf);
+    this.redundancyThread.setName("RedundancyMonitor");
+    this.redundancyThread.start();
+    this.markedDeleteBlockScrubberThread.
+        setName("MarkedDeleteBlockScrubberThread");
+    this.markedDeleteBlockScrubberThread.start();
+    this.blockReportThread.start();
+    mxBeanName = MBeans.register("NameNode", "BlockStats", this);
+    // 启动安全模式
+    bmSafeMode.activate(blockTotal);
+  }
+```
+###### 1.2.4.2.1 HeartbeatManager 进行心跳检查
+```java
+// DataNodeManager.java
+void activate(final Configuration conf) {
+    datanodeAdminManager.activate(conf);
+    heartbeatManager.activate();
+}
+
+// HeartbeatManager.java
+void activate() {
+    heartbeatThread.start();
+}
+
+private final Daemon heartbeatThread = new Daemon(new Monitor());
+
+@Override
+public void run() {
+    while(namesystem.isRunning()) {
+        restartHeartbeatStopWatch();
+        try {
+            final long now = Time.monotonicNow();
+            // lastHeartbeatCheck距离现在已经超过了heartbeatRecheckInterval
+            if (lastHeartbeatCheck + heartbeatRecheckInterval < now) {
+                // 进行check
+                heartbeatCheck();
+                // 更新check时间
+                lastHeartbeatCheck = now;
+            }
+    }
+}
+
+void heartbeatCheck() {
+    final DatanodeManager dm = blockManager.getDatanodeManager();
+    // It's OK to check safe mode w/o taking the lock here, we re-check
+    // for safe mode after taking the lock before removing a datanode.
+    if (namesystem.isInStartupSafeMode()) {
+        return;
+    }
+    boolean allAlive = false;
+    while (!allAlive) {
+        // locate the first dead node.
+        DatanodeDescriptor dead = null;
+
+        // locate the first failed storage that isn't on a dead node.
+        DatanodeStorageInfo failedStorage = null;
+
+        // check the number of stale storages
+        int numOfStaleStorages = 0;
+        List<DatanodeDescriptor> staleNodes = new ArrayList<>();
+        synchronized(this) {
+            // 遍历DN
+            for (DatanodeDescriptor d : datanodes) {
+                // check if an excessive GC pause has occurred
+                if (shouldAbortHeartbeatCheck(0)) {
+                    return;
+                }
+                // isDatanodeDead判断是否死亡
+                if (dead == null && dm.isDatanodeDead(d)) {
+                    stats.incrExpiredHeartbeats();
+                    dead = d;
+                    // remove the node from stale list to adjust the stale list size
+                    // before setting the stale count of the DatanodeManager
+                    removeNodeFromStaleList(d);
+                } else {...}
+}
+
+boolean isDatanodeDead(DatanodeDescriptor node) {
+    return (node.getLastUpdateMonotonic() <
+            (monotonicNow() - heartbeatExpireInterval));
+}
+
+this.heartbeatExpireInterval = 2 * heartbeatRecheckInterval
+        + 10 * 1000 * heartbeatIntervalSeconds; // 10min30s
+
+heartbeatRecheckInterval = conf.getInt(
+        DFSConfigKeys.DFS_NAMENODE_HEARTBEAT_RECHECK_INTERVAL_KEY, 
+        DFSConfigKeys.DFS_NAMENODE_HEARTBEAT_RECHECK_INTERVAL_DEFAULT); 
+
+public static final int DFS_NAMENODE_HEARTBEAT_RECHECK_INTERVAL_DEFAULT = 5 * 60 * 1000; // 5mins
+
+heartbeatIntervalSeconds = conf.getTimeDuration(
+        DFSConfigKeys.DFS_HEARTBEAT_INTERVAL_KEY,
+        DFSConfigKeys.DFS_HEARTBEAT_INTERVAL_DEFAULT, TimeUnit.SECONDS);
+
+// DFS_HEARTBEAT_INTERVAL_DEFAULT = 3; --> 3s
+```
+###### 1.2.4.2.2 BlockManagerSafeMode 安全模式管理
+```java
+// BlockManagerSafeMode.java
+void activate(long total) {
+    // total: 初始块的数量
+    assert namesystem.hasWriteLock();
+    assert status == BMSafeModeStatus.OFF;
+
+    startTime = monotonicNow();
+    setBlockTotal(total); // total * 0.999f
+    if (areThresholdsMet()) {
+        boolean exitResult = leaveSafeMode(false);
+        Preconditions.checkState(exitResult, "Failed to leave safe mode.");
+    } else {
+        // enter safe mode
+        status = BMSafeModeStatus.PENDING_THRESHOLD;
+        initializeReplQueuesIfNecessary();
+        reportStatus("STATE* Safe mode ON.", true);
+        lastStatusReport = monotonicNow();
+    }
+}
+
+void setBlockTotal(long total) {
+    assert namesystem.hasWriteLock();
+    synchronized (this) {
+        this.blockTotal = total;
+        this.blockThreshold = (long) (total * threshold);
+    }
+    this.blockReplQueueThreshold = (long) (total * replQueueThreshold);
+}
+// BlockManagerSafeMode的属性
+//this.threshold = conf.getFloat(DFS_NAMENODE_SAFEMODE_THRESHOLD_PCT_KEY,
+//        DFS_NAMENODE_SAFEMODE_THRESHOLD_PCT_DEFAULT);
+//DFS_NAMENODE_SAFEMODE_THRESHOLD_PCT_DEFAULT = 0.999f;
+
+private boolean areThresholdsMet() {
+    assert namesystem.hasWriteLock();
+    // blockSafe: 安全启动的block个数
+    synchronized (this) {
+        boolean isBlockThresholdMet = (blockSafe >= blockThreshold);
+        boolean isDatanodeThresholdMet = true;
+        // datanodeThreshold默认0
+        if (isBlockThresholdMet && datanodeThreshold > 0) {
+            int datanodeNum = blockManager.getDatanodeManager().
+                getNumLiveDataNodes();
+            isDatanodeThresholdMet = (datanodeNum >= datanodeThreshold);
+        }
+        return isBlockThresholdMet && isDatanodeThresholdMet;
+    }
+}
+```
+### 1.3 启动 DataNode
+#### 1.3.1 创建 DN 对象
+```java
+public static void main(String args[]) {
+    if (DFSUtil.parseHelpArgument(args, DataNode.USAGE, System.out, true)) {
+        System.exit(0);
+    }
+
+    secureMain(args, null);
+}
+
+public static void secureMain(String args[], SecureResources resources) {
+    int errorCode = 0;
+    try {
+        StringUtils.startupShutdownMessage(DataNode.class, args, LOG);
+        // 创建DataNode
+        DataNode datanode = createDataNode(args, null, resources);
+        if (datanode != null) {
+            // 线程阻塞
+            datanode.join();
+        }
+        ...
+    }
+}
+
+public static DataNode createDataNode(String args[], Configuration conf,
+                                      SecureResources resources) throws IOException {
+    // 初始化DataNode，返回DataNode对象
+    DataNode dn = instantiateDataNode(args, conf, resources);
+    if (dn != null) {
+        // 启动DataNode后台线程
+        dn.runDatanodeDaemon();
+    }
+    return dn;
+}
+
+public static DataNode instantiateDataNode(String args [], Configuration conf,
+                                           SecureResources resources) throws IOException {
+    if (conf == null)
+        conf = new HdfsConfiguration();
+
+    if (args != null) {
+        // parse generic hadoop options
+        GenericOptionsParser hParser = new GenericOptionsParser(conf, args);
+        args = hParser.getRemainingArgs();
+    }
+
+    if (!parseArguments(args, conf)) {
+        printUsage(System.err);
+        return null;
+    }
+    // 获取存储位置
+    // DFS_DATANODE_DATA_DIR_KEY = "dfs.datanode.data.dir"
+    Collection<StorageLocation> dataLocations = getStorageLocations(conf);
+    return makeInstance(dataLocations, conf, resources);
+}
+
+static DataNode makeInstance(Collection<StorageLocation> dataDirs,
+                             Configuration conf, SecureResources resources) throws IOException {
+    List<StorageLocation> locations;
+    StorageLocationChecker storageLocationChecker =
+        new StorageLocationChecker(conf, new Timer());
+    try {
+        // 确认可以创建dataDirs及其父目录
+        locations = storageLocationChecker.check(conf, dataDirs);
+    } catch (InterruptedException ie) {
+        throw new IOException("Failed to instantiate DataNode", ie);
+    }
+    DefaultMetricsSystem.initialize("DataNode");
+
+    assert locations.size() > 0 : "number of data directories should be > 0";
+    return new DataNode(conf, locations, storageLocationChecker, resources);
+}
+
+DataNode(final Configuration conf,
+         final List<StorageLocation> dataDirs,
+         final StorageLocationChecker storageLocationChecker,
+         final SecureResources resources) throws IOException {
+    ...
+    this.blockScanner = new BlockScanner(this);
+    ...
+    try {
+        hostName = getHostName(conf);
+        LOG.info("Configured hostname is {}", hostName);
+        // 启动DataNode
+        startDataNode(dataDirs, resources);
+    } catch (IOException ie) {
+        shutdown();
+        throw ie;
+    }
+    final int dncCacheMaxSize =
+        conf.getInt(DFS_DATANODE_NETWORK_COUNTS_CACHE_MAX_SIZE_KEY,
+                    DFS_DATANODE_NETWORK_COUNTS_CACHE_MAX_SIZE_DEFAULT) ;
+    // 构建者设计模式
+    datanodeNetworkCounts =
+        CacheBuilder.newBuilder()
+        .maximumSize(dncCacheMaxSize)
+        .build(new CacheLoader<String, Map<String, Long>>() {
+            @Override
+            public Map<String, Long> load(String key) {
+                final Map<String, Long> ret = new ConcurrentHashMap<>();
+                ret.put(NETWORK_ERRORS, 0L);
+                return ret;
+            }
+        });
+
+    initOOBTimeout();
+    this.storageLocationChecker = storageLocationChecker;
+}
+```
+#### 1.3.2 启动 DN
+```java
+// 确定路径和资源启动DataNode
+void startDataNode(List<StorageLocation> dataDirectories,
+                   SecureResources resources
+                  ) throws IOException {
+    ...
+    
+    storage = new DataStorage();
+
+    // global DN settings
+    registerMXBean();
+    // 初始化TcpPeerServer用于接收tcp请求, 实例化DataXceiverServer，用于接收客户端已经其他DataNode节点之间的数据服务，并设置成守护进程的方式在后台运行
+    initDataXceiver();
+    // 启动HttpServer
+    startInfoServer();
+    pauseMonitor = new JvmPauseMonitor();
+    pauseMonitor.init(getConf());
+    pauseMonitor.start();
+
+    // BlockPoolTokenSecretManager is required to create ipc server.
+    this.blockPoolTokenSecretManager = new BlockPoolTokenSecretManager();
+	...
+    // 初始化RPC的服务
+    initIpcServer();
+    ...
+    // 创建了BlockPoolManager
+    // BlockPool，一个集群就有一个BlockPool 
+    blockPoolManager = new BlockPoolManager(this);
+     // 周期性与NameNode通信，保持心跳，汇报情况
+    blockPoolManager.refreshNamenodes(getConf());
+
+    // Create the ReadaheadPool from the DataNode context so we can
+    // exit without having to explicitly shutdown its thread pool.
+    readaheadPool = ReadaheadPool.getInstance();
+    saslClient = new SaslDataTransferClient(dnConf.getConf(),
+                                            dnConf.saslPropsResolver, dnConf.trustedChannelResolver);
+    saslServer = new SaslDataTransferServer(dnConf, blockPoolTokenSecretManager);
+    startMetricsLogger();
+
+    if (dnConf.diskStatsEnabled) {
+        diskMetrics = new DataNodeDiskMetrics(this,
+                                              dnConf.outliersReportIntervalMs, getConf());
+    }
+}
+```
+##### 1.3.2.1 启动 DataXceiver 服务，接收客户端和其他 DN 发送的数据
+```java
+private void initDataXceiver() throws IOException {
+    // find free port or use privileged port provided
+    TcpPeerServer tcpPeerServer;
+    if (secureResources != null) {
+        // 新建一个TcpPeerServer对象
+        tcpPeerServer = new TcpPeerServer(secureResources);
+    } else {...}
+    ...
+    // 通过TcpPeerServer对象创建DataXceiverServer的对象
+    // DataXceiverServer用于接收或发送块数据，可以监听客户端或其他dataNode的请求
+    xserver = new DataXceiverServer(tcpPeerServer, getConf(), this);
+    this.dataXceiverServer = new Daemon(threadGroup, xserver);
+    this.threadGroup.setDaemon(true); // 设置为守护进程
+}
+
+
+```
+##### 1.3.2.2 启动 HttpServer
+```java
+private void startInfoServer()
+    throws IOException {
+    // SecureDataNodeStarter will bind the privileged port to the channel if
+    // the DN is started by JSVC, pass it along.
+    ServerSocketChannel httpServerChannel = secureResources != null ?
+        secureResources.getHttpServerChannel() : null;
+	// 新建DatanodeHttpServer并启动
+    httpServer = new DatanodeHttpServer(getConf(), this, httpServerChannel);
+    httpServer.start();
+    if (httpServer.getHttpAddress() != null) {
+        infoPort = httpServer.getHttpAddress().getPort();
+    }
+    if (httpServer.getHttpsAddress() != null) {
+        infoSecurePort = httpServer.getHttpsAddress().getPort();
+    }
+}
+```
+##### 1.3.2.3 连接到 NN
+```java
+// BlockManager.java
+void refreshNamenodes(Configuration conf)
+    throws IOException {
+    LOG.info("Refresh request received for nameservices: " +
+             conf.get(DFSConfigKeys.DFS_NAMESERVICES));
+
+    Map<String, Map<String, InetSocketAddress>> newAddressMap = null;
+    Map<String, Map<String, InetSocketAddress>> newLifelineAddressMap = null;
+
+    try {
+        newAddressMap =
+            DFSUtil.getNNServiceRpcAddressesForCluster(conf);
+        newLifelineAddressMap =
+            DFSUtil.getNNLifelineRpcAddressesForCluster(conf);
+    } catch (IOException ioe) {
+        LOG.warn("Unable to get NameNode addresses.", ioe);
+    }
+
+    if (newAddressMap == null || newAddressMap.isEmpty()) {
+        throw new IOException("No services to connect, missing NameNode " +
+                              "address.");
+    }
+    // new Object()
+    synchronized (refreshNamenodesLock) {
+        doRefreshNamenodes(newAddressMap, newLifelineAddressMap);
+    }
+}
+
+// BlockPoolManager.java
+private void doRefreshNamenodes(
+    Map<String, Map<String, InetSocketAddress>> addrMap,
+    Map<String, Map<String, InetSocketAddress>> lifelineAddrMap)
+    throws IOException {
+    assert Thread.holdsLock(refreshNamenodesLock);
+
+    Set<String> toRefresh = Sets.newLinkedHashSet();
+    Set<String> toAdd = Sets.newLinkedHashSet();
+    Set<String> toRemove;
+
+    synchronized (this) {
+        // 循环遍历addrMap，一般只有一个nameservice，HA或联邦模式下会存在多个nameservice
+        for (String nameserviceId : addrMap.keySet()) {
+            if (bpByNameserviceId.containsKey(nameserviceId)) {
+                // 加入待fresh的LinkedHashSet中
+                toRefresh.add(nameserviceId);
+            } else {
+                toAdd.add(nameserviceId);
+            }
+        }
+
+        // 其他模式下存在需要添加的nameservice
+        if (!toAdd.isEmpty()) {
+            LOG.info("Starting BPOfferServices for nameservices: " +
+                     Joiner.on(",").useForNull("<default>").join(toAdd));
+			//遍历所有的联邦集群，一个联邦里面会有两个NameNode(HA)
+            //如果是2个联邦集群，那么这个地方就会有两个值
+     	    //BPOfferService 对应 一个联邦集群
+            for (String nsToAdd : toAdd) {
+                Map<String, InetSocketAddress> nnIdToAddr = addrMap.get(nsToAdd);
+                Map<String, InetSocketAddress> nnIdToLifelineAddr =
+                    lifelineAddrMap.get(nsToAdd);
+                ArrayList<InetSocketAddress> addrs =
+                    Lists.newArrayListWithCapacity(nnIdToAddr.size());
+                ArrayList<String> nnIds =
+                    Lists.newArrayListWithCapacity(nnIdToAddr.size());
+                ArrayList<InetSocketAddress> lifelineAddrs =
+                    Lists.newArrayListWithCapacity(nnIdToAddr.size());
+                for (String nnId : nnIdToAddr.keySet()) {
+                    addrs.add(nnIdToAddr.get(nnId));
+                    nnIds.add(nnId);
+                    lifelineAddrs.add(nnIdToLifelineAddr != null ?
+                                      nnIdToLifelineAddr.get(nnId) : null);
+                }
+                //一个联邦对应一个BPOfferService
+       		    //一个联邦里面的一个NameNode就是一个BPServiceActor
+        	    //也就是正常来说一个BPOfferService对应两个BPServiceActor
+                BPOfferService bpos = createBPOS(nsToAdd, nnIds, addrs,
+                                                 lifelineAddrs);
+                bpByNameserviceId.put(nsToAdd, bpos);
+                offerServices.add(bpos);
+            }
+        }
+        startAll();
+    }
+}
+```
+###### 1.3.2.3.1 开启 BPOfferService
+```java
+synchronized void startAll() throws IOException {
+    try {
+        UserGroupInformation.getLoginUser().doAs(
+            new PrivilegedExceptionAction<Object>() {
+                @Override
+                public Object run() throws Exception {
+                     // 遍历所有的BPOfferService
+                    for (BPOfferService bpos : offerServices) {
+                        bpos.start();
+                    }
+                    return null;
+                }
+            });
+    } catch (InterruptedException ex) {
+        IOException ioe = new IOException();
+        ioe.initCause(ex.getCause());
+        throw ioe;
+    }
+}
+
+void start() {
+    for (BPServiceActor actor : bpServices) {
+        // 一个BPOfferService里有多个actor
+      actor.start();
+    }
+}
+
+void start() {
+    if ((bpThread != null) && (bpThread.isAlive())) {
+        //Thread is started already
+        return;
+    }
+    bpThread = new Thread(this);
+    bpThread.setDaemon(true); // needed for JUnit testing
+
+    if (lifelineSender != null) {
+        lifelineSender.start();
+    }
+    // 调用run()
+    bpThread.start();
+}
+
+public void run() {
+    LOG.info(this + " starting to offer service");
+
+    try {
+        while (true) {
+            // init stuff
+            try {
+                // 向NN注册
+                connectToNNAndHandshake();
+                break;
+            } catch (IOException ioe) {
+                // Initial handshake, storage recovery or registration failed
+                runningState = RunningState.INIT_FAILED;
+                if (shouldRetryInit()) {
+                    // Retry until all namenode's of BPOS failed initialization
+                    LOG.error("Initialization failed for " + this + " "
+                              + ioe.getLocalizedMessage());
+                    // 注册失败sleep5s
+                    sleepAndLogInterrupts(5000, "initializing");
+                } else {
+                    runningState = RunningState.FAILED;
+                    LOG.error("Initialization failed for " + this + ". Exiting. ", ioe);
+                    return;
+                }
+            }
+        }
+
+        runningState = RunningState.RUNNING;
+        if (initialRegistrationComplete != null) {
+            initialRegistrationComplete.countDown();
+        }
+
+        while (shouldRun()) {
+            try {
+                // 注册结束发送心跳
+                offerService();
+            } catch (Exception ex) {
+                LOG.error("Exception in BPOfferService for " + this, ex);
+                sleepAndLogInterrupts(5000, "offering service");
+            }
+        }
+        runningState = RunningState.EXITED;
+    } catch (Throwable ex) {
+        LOG.warn("Unexpected exception in block pool " + this, ex);
+        runningState = RunningState.FAILED;
+    } finally {
+        LOG.warn("Ending block pool service for: " + this);
+        cleanUp();
+    }
+}
+```
+###### 1.3.2.3.2 连接到 NN 进行注册
+```java
+private void connectToNNAndHandshake() throws IOException {
+    // 通过DatanodeProtocolClientSideTranslatorPB对象获取NN的Proxy
+    bpNamenode = dn.connectToNN(nnAddr);
+
+    // 握手的第一阶段请求获取NN的信息
+    NamespaceInfo nsInfo = retrieveNamespaceInfo();
+
+    // Verify that this matches the other NN in this HA pair.
+    // This also initializes our block pool in the DN if we are
+    // the first NN connection for this BP.
+    bpos.verifyAndSetNamespaceInfo(this, nsInfo);
+
+    /* set thread name again to include NamespaceInfo when it's available. */
+    this.bpThread.setName(formatThreadName("heartbeating", nnAddr));
+
+    // 握手第二阶段-注册
+    register(nsInfo);
+}
+
+void register(NamespaceInfo nsInfo) throws IOException {
+    // The handshake() phase loaded the block pool storage
+    // off disk - so update the bpRegistration object from that info
+    DatanodeRegistration newBpRegistration = bpos.createRegistration();
+
+    LOG.info(this + " beginning handshake with NN");
+
+    while (shouldRun()) {
+        try {
+            // Use returned registration from namenode with updated fields
+            newBpRegistration = bpNamenode.registerDatanode(newBpRegistration);
+            // 注册完成
+            newBpRegistration.setNamespaceInfo(nsInfo);
+            bpRegistration = newBpRegistration;
+            break;
+        } catch(EOFException e) {...}
+
+    // random short delay - helps scatter the BR from all DNs
+    scheduler.scheduleBlockReport(dnConf.initialBlockReportDelayMs, true);
+}
+```
+###### 1.3.2.3.3 发送心跳
+```java
+private void offerService() throws Exception {
+    ...
+    //
+    // Now loop for a long time....
+    //
+    while (shouldRun()) {
+        try {
+            DataNodeFaultInjector.get().startOfferService();
+            final long startTime = scheduler.monotonicNow();
+
+            //
+            // Every so often, send heartbeat or block-report
+            //
+            final boolean sendHeartbeat = scheduler.isHeartbeatDue(startTime);
+            // 初始化HeartbeatResponse对象
+            HeartbeatResponse resp = null;
+            if (sendHeartbeat) {
+                //
+                // All heartbeat messages include following info:
+                // -- Datanode name
+                // -- data transfer port
+                // -- Total capacity
+                // -- Bytes remaining
+                //
+                boolean requestBlockReportLease = (fullBlockReportLeaseId == 0) &&
+                    scheduler.isBlockReportDue(startTime);
+                if (!dn.areHeartbeatsDisabledForTests()) {
+                    // 发送心跳
+                    resp = sendHeartBeat(requestBlockReportLease);
+                    ...
+}
+
+HeartbeatResponse sendHeartBeat(boolean requestBlockReportLease)
+    throws IOException {
+    // 调度下次的心跳
+    scheduler.scheduleNextHeartbeat();
+    // DataNode存储信息
+    StorageReport[] reports =
+        dn.getFSDataset().getStorageReports(bpos.getBlockPoolId());
+    if (LOG.isDebugEnabled()) {
+        LOG.debug("Sending heartbeat with " + reports.length +
+                  " storage reports from service actor: " + this);
+    }
+
+    final long now = monotonicNow();
+    // 将上次更新心跳的时间更新成现在的时间，准备进行心跳
+    scheduler.updateLastHeartbeatTime(now);
+    ...
+    // 获取NameNode代理对象bpNamenode，调用发送心跳的方法
+    HeartbeatResponse response = bpNamenode.sendHeartbeat(bpRegistration,
+        reports,
+        dn.getFSDataset().getCacheCapacity(),
+        dn.getFSDataset().getCacheUsed(),
+        dn.getXmitsInProgress(),
+        dn.getActiveTransferThreadCount(),
+        numFailedVolumes,
+        volumeFailureSummary,
+        requestBlockReportLease,
+        slowPeers,
+        slowDisks);
+    ...
+    return response;
+}
+
+long scheduleNextHeartbeat() {
+    // Numerical overflow is possible here and is okay.
+    // 
+    nextHeartbeatTime = monotonicNow() + heartbeatIntervalMs;
+    scheduleNextLifeline(nextHeartbeatTime);
+    return nextHeartbeatTime;
+}
+
+// bpNamenode获取的是NameNode的RPC代理对象, DatanodeProtocolClientSideTranslatorPB,对应的类实际上是NameNodeRpcServer
+public HeartbeatResponse sendHeartbeat(DatanodeRegistration nodeReg,
+      StorageReport[] report, long dnCacheCapacity, long dnCacheUsed,
+      int xmitsInProgress, int xceiverCount,
+      int failedVolumes, VolumeFailureSummary volumeFailureSummary,
+      boolean requestFullBlockReportLease,
+      @Nonnull SlowPeerReports slowPeers,
+      @Nonnull SlowDiskReports slowDisks)
+          throws IOException {
+    // 检查NameNode是否启动
+    checkNNStartup();
+    verifyRequest(nodeReg);
+    // 处理心跳
+    return namesystem.handleHeartbeat(nodeReg, report,
+        dnCacheCapacity, dnCacheUsed, xceiverCount, xmitsInProgress,
+        failedVolumes, volumeFailureSummary, requestFullBlockReportLease,
+        slowPeers, slowDisks);
+  }
+```
+##### 1.3.2.4 NN 收到心跳，进行处理
+```java
+// FSNamesystem.java
+HeartbeatResponse handleHeartbeat(DatanodeRegistration nodeReg,
+      StorageReport[] reports, long cacheCapacity, long cacheUsed,
+      int xceiverCount, int xmitsInProgress, int failedVolumes,
+      VolumeFailureSummary volumeFailureSummary,
+      boolean requestFullBlockReportLease,
+      @Nonnull SlowPeerReports slowPeers,
+      @Nonnull SlowDiskReports slowDisks)
+          throws IOException {
+    readLock();
+    try {
+      //get datanode commands
+      final int maxTransfer = blockManager.getMaxReplicationStreams()
+          - xmitsInProgress;
+      // 从FSNamesystem类中获取blockManager对象，通过DatanodeManager对DataNode发送的心跳信息进行处理，最后返回指令cmds
+      DatanodeCommand[] cmds = blockManager.getDatanodeManager().handleHeartbeat(
+          nodeReg, reports, getBlockPoolId(), cacheCapacity, cacheUsed,
+          xceiverCount, maxTransfer, failedVolumes, volumeFailureSummary,
+          slowPeers, slowDisks);
+
+      return new HeartbeatResponse(cmds, haState, rollingUpgradeInfo,
+          blockReportLeaseId);
+    } finally {
+      readUnlock("handleHeartbeat");
+    }
+  }
+
+// DatanodeManager.java
+public DatanodeCommand[] handleHeartbeat(DatanodeRegistration nodeReg,
+      StorageReport[] reports, final String blockPoolId,
+      long cacheCapacity, long cacheUsed, int xceiverCount, 
+      int maxTransfers, int failedVolumes,
+      VolumeFailureSummary volumeFailureSummary,
+      @Nonnull SlowPeerReports slowPeers,
+      @Nonnull SlowDiskReports slowDisks) throws IOException {
+    final DatanodeDescriptor nodeinfo;
+    try {
+      // 从DatanodeRegistration中获取Datanode信息
+      nodeinfo = getDatanode(nodeReg);
+    } catch (UnregisteredNodeException e) {
+      return new DatanodeCommand[]{RegisterCommand.REGISTER};
+    }
+    ...
+    // 更新心跳
+    heartbeatManager.updateHeartbeat(nodeinfo, reports, cacheCapacity,
+        cacheUsed, xceiverCount, failedVolumes, volumeFailureSummary);
+    ...
+    return new DatanodeCommand[0];
+  }
+
+synchronized void updateHeartbeat(final DatanodeDescriptor node,
+      StorageReport[] reports, long cacheCapacity, long cacheUsed,
+      int xceiverCount, int failedVolumes,
+      VolumeFailureSummary volumeFailureSummary) {
+    stats.subtract(node);
+    blockManager.updateHeartbeat(node, reports, cacheCapacity, 	cacheUsed,
+        xceiverCount, failedVolumes, volumeFailureSummary);
+    stats.add(node);
+}
+
+void updateHeartbeat(DatanodeDescriptor node, StorageReport[] reports,
+      long cacheCapacity, long cacheUsed, int xceiverCount, int failedVolumes,
+      VolumeFailureSummary volumeFailureSummary) {
+
+    for (StorageReport report: reports) {
+      providedStorageMap.updateStorage(node, report.getStorage());
+    }
+    node.updateHeartbeat(reports, cacheCapacity, cacheUsed, xceiverCount,
+        failedVolumes, volumeFailureSummary);
+  }
+// DatanodeDescriptor.java
+void updateHeartbeat(StorageReport[] reports, long cacheCapacity,
+      long cacheUsed, int xceiverCount, int volFailures,
+      VolumeFailureSummary volumeFailureSummary) {
+    updateHeartbeatState(reports, cacheCapacity, cacheUsed, xceiverCount,
+        volFailures, volumeFailureSummary);
+    heartbeatedSinceRegistration = true;
+  }
+
+void updateHeartbeatState(StorageReport[] reports, long cacheCapacity,
+      long cacheUsed, int xceiverCount, int volFailures,
+      VolumeFailureSummary volumeFailureSummary) {
+    // 更新存储状态
+    updateStorageStats(reports, cacheCapacity, cacheUsed, xceiverCount,
+        volFailures, volumeFailureSummary);
+    // 更新上次更新时间
+    setLastUpdate(Time.now());
+    setLastUpdateMonotonic(Time.monotonicNow());
+    rollBlocksScheduled(getLastUpdateMonotonic());
+  }
+```
+
+## 1.2 写流程
+
+### 1.2.1 创建 DataStreamer，用于后续传输数据
+#### 1.2.1.1 FileSystem.create()
+```java
+// 客户端发起写请求，调用create方法
+public FSDataOutputStream create(Path f) throws IOException {
+    return create(f, true);
+}
+
+public FSDataOutputStream create(Path f, boolean overwrite)
+    throws IOException {
+    return create(f, overwrite,
+                  getConf().getInt(IO_FILE_BUFFER_SIZE_KEY,
+                                   IO_FILE_BUFFER_SIZE_DEFAULT),
+                  getDefaultReplication(f),
+                  getDefaultBlockSize(f));
+}
+
+public FSDataOutputStream create(Path f,
+                                 boolean overwrite,
+                                 int bufferSize,
+                                 short replication,
+                                 long blockSize) throws IOException {
+    return create(f, overwrite, bufferSize, replication, blockSize, null);
+}
+
+public FSDataOutputStream create(Path f,
+                                 boolean overwrite,
+                                 int bufferSize,
+                                 short replication,
+                                 long blockSize,
+                                 Progressable progress
+                                ) throws IOException {
+    return this.create(f, FsCreateModes.applyUMask(
+        FsPermission.getFileDefault(), FsPermission.getUMask(getConf())),
+                       overwrite, bufferSize, replication, blockSize, progress);
+}
+
+// 抽象方法通过DistributedFileSystem来实现
+public abstract FSDataOutputStream create(Path f,
+                                          FsPermission permission,
+                                          boolean overwrite,
+                                          int bufferSize,
+                                          short replication,
+                                          long blockSize,
+                                          Progressable progress) throws IOException;
+```
+#### 1.2.1.2 DistributedFileSystem.create()
+```java
+// DistributedFileSystem.java
+@Override
+public FSDataOutputStream create(Path f, FsPermission permission,
+      boolean overwrite, int bufferSize, short replication, long blockSize,
+      Progressable progress) throws IOException {
+    return this.create(f, permission,
+                       overwrite ? EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE)
+                       : EnumSet.of(CreateFlag.CREATE), bufferSize, replication,
+                       blockSize, progress, null);
+    
+@Override
+public FSDataOutputStream create(
+  final Path f, final FsPermission permission,
+  final EnumSet<CreateFlag> cflags, final int bufferSize,
+  final short replication, final long blockSize,
+  final Progressable progress, final ChecksumOpt checksumOpt)
+  throws IOException {
+    statistics.incrementWriteOps(1);
+    storageStatistics.incrementOpCounter(OpType.CREATE);
+    Path absF = fixRelativePart(f);
+    // FileSystemLinkResolver是一个抽象类，定义了doCall方法和next方法
+    // public T doCall(final Path p)
+    // Params: p – Path on which to perform an operation 
+    // Returns: Generic type returned by operation
+    
+    // public T next(final FileSystem fs, final Path p)
+    // Params: fs – FileSystem with which to retry call, 
+    // p – Resolved Target of path
+	// Returns: Generic type determined by implementation
+    return new FileSystemLinkResolver<FSDataOutputStream>() {
+      @Override
+      public FSDataOutputStream doCall(final Path p) throws IOException {
+        // 调用完此处的create方法后，返回的DFSOutputStream对象传给safelyCreateWrappedOutputStream方法进行封装
+        // 通过DFSClient创建DFSOutputStream
+        final DFSOutputStream dfsos = dfs.create(getPathName(p), permission,
+            cflags, replication, blockSize, progress, bufferSize,
+            checksumOpt);
+        return safelyCreateWrappedOutputStream(dfsos);
+      }
+      @Override
+      public FSDataOutputStream next(final FileSystem fs, final Path p)
+          throws IOException {
+        return fs.create(p, permission, cflags, bufferSize,
+            replication, blockSize, progress, checksumOpt);
+      }
+}.resolve(this, absF);
+```
+#### 1.2.1.3 DFSClient.create()
+```java
+// 向文件树添加INodeFile，添加契约管理，启动DataStreamer，与NNRPCServer通信
+public DFSOutputStream create(String src, FsPermission permission,
+      EnumSet<CreateFlag> flag, short replication, long blockSize,
+      Progressable progress, int buffersize, ChecksumOpt checksumOpt)
+      throws IOException {
+    return create(src, permission, flag, true,
+        replication, blockSize, progress, buffersize, checksumOpt, null);
+}
+
+public DFSOutputStream create(String src, FsPermission permission,
+      EnumSet<CreateFlag> flag, boolean createParent, short replication,
+      long blockSize, Progressable progress, int buffersize,
+      ChecksumOpt checksumOpt, InetSocketAddress[] favoredNodes)
+      throws IOException {
+    return create(src, permission, flag, createParent, replication, blockSize,
+        progress, buffersize, checksumOpt, favoredNodes, null);
+}
+
+public DFSOutputStream create(String src, FsPermission permission,
+      EnumSet<CreateFlag> flag, boolean createParent, short replication,
+      long blockSize, Progressable progress, int buffersize,
+      ChecksumOpt checksumOpt, InetSocketAddress[] favoredNodes,
+      String ecPolicyName) throws IOException {
+    return create(src, permission, flag, createParent, replication, blockSize,
+        progress, buffersize, checksumOpt, favoredNodes, ecPolicyName, null);
+}
+
+public DFSOutputStream create(String src, FsPermission permission,
+      EnumSet<CreateFlag> flag, boolean createParent, short replication,
+      long blockSize, Progressable progress, int buffersize,
+      ChecksumOpt checksumOpt, InetSocketAddress[] favoredNodes,
+      String ecPolicyName, String storagePolicy)
+      throws IOException {
+    checkOpen();
+    final FsPermission masked = applyUMask(permission);
+    LOG.debug("{}: masked={}", src, masked);
+    
+    final DFSOutputStream result = DFSOutputStream.newStreamForCreate(this,
+        src, masked, flag, createParent, replication, blockSize, progress,
+        dfsClientConf.createChecksum(checksumOpt),
+        getFavoredNodesStr(favoredNodes), ecPolicyName, storagePolicy);
+    beginFileLease(result.getFileId(), result);
+    return result;
+}
+
+// DFSOutputStream.java
+static DFSOutputStream newStreamForCreate(DFSClient dfsClient, String src,
+      FsPermission masked, EnumSet<CreateFlag> flag, boolean createParent,
+      short replication, long blockSize, Progressable progress,
+      DataChecksum checksum, String[] favoredNodes, String ecPolicyName,
+      String storagePolicy)
+      throws IOException {
+    try (TraceScope ignored =
+             dfsClient.newPathTraceScope("newStreamForCreate", src)) {
+      HdfsFileStatus stat = null;
+
+      // Retry the create if we get a RetryStartFileException up to a maximum
+      // number of times
+      boolean shouldRetry = true;
+      int retryCount = CREATE_RETRY_COUNT;
+        // 不断重试确保创建成功
+      while (shouldRetry) {
+        shouldRetry = false;
+        try {
+          // NameNodeRPC.create()
+          stat = dfsClient.namenode.create(src, masked, dfsClient.clientName,
+              new EnumSetWritable<>(flag), createParent, replication,
+              blockSize, SUPPORTED_CRYPTO_VERSIONS, ecPolicyName,
+              storagePolicy);
+          break; // 成功break否则抛异常并重试
+        } catch (RemoteException re) {
+          ...
+      }
+      Preconditions.checkNotNull(stat, "HdfsFileStatus should not be null!");
+      final DFSOutputStream out;
+      if(stat.getErasureCodingPolicy() != null) {
+        out = new DFSStripedOutputStream(dfsClient, src, stat,
+            flag, progress, checksum, favoredNodes);
+      } else {
+        // 创建一个DataStreamer
+        out = new DFSOutputStream(dfsClient, src, stat,
+            flag, progress, checksum, favoredNodes, true);
+      }
+      // 启动
+      // start方法获取到DataStreamer并启动
+      // DataStreamer启动后还没有Packet进行传输，会阻塞
+      out.start();
+      return out;
+    }
+  }
+```
+#### 1.2.1.4 new DFSOutputStream()
+```java
+protected DFSOutputStream(DFSClient dfsClient, String src,
+    HdfsFileStatus stat, EnumSet<CreateFlag> flag, Progressable progress,
+    DataChecksum checksum, String[] favoredNodes, boolean createStreamer) {
+  this(dfsClient, src, flag, progress, stat, checksum);
+  this.shouldSyncBlock = flag.contains(CreateFlag.SYNC_BLOCK);
+  // 计算数据单元的值
+  // block(128M) packet(64k) chunk(512byte) chunksum(4byte)
+  computePacketChunkSize(dfsClient.getConf().getWritePacketSize(),
+      bytesPerChecksum);
+
+  if (createStreamer) {
+    // 新建DataStreamer对象
+    streamer = new DataStreamer(stat, null, dfsClient, src, progress,
+        checksum, cachingStrategy, byteArrayManager, favoredNodes,
+        addBlockFlags);
+  }
+}
+```
+
+### 1.2.2 开启 Rpc 服务，与 NN 交互
+#### 1.2.2.1 开启 Rpc 服务，向 NN 申请创建文件
+```java
+public HdfsFileStatus create(String src, FsPermission masked,
+      String clientName, EnumSetWritable<CreateFlag> flag,
+      boolean createParent, short replication, long blockSize,
+      CryptoProtocolVersion[] supportedVersions, String ecPolicyName,
+      String storagePolicy)
+      throws IOException {
+    // 检查NN的状态
+    checkNNStartup();
+    try {
+      PermissionStatus perm = new PermissionStatus(getRemoteUser()
+          .getShortUserName(), null, masked);
+      // 在namespace中创建一个file
+      status = namesystem.startFile(src, perm, clientName, clientMachine,
+          flag.get(), createParent, replication, blockSize, supportedVersions,
+          ecPolicyName, storagePolicy, cacheEntry != null);
+    } finally {
+      RetryCache.setState(cacheEntry, status != null, status);
+    }
+    metrics.incrFilesCreated();
+    metrics.incrCreateFileOps();
+    return status;
+}
+
+HdfsFileStatus startFile(String src, PermissionStatus permissions,
+      String holder, String clientMachine, EnumSet<CreateFlag> flag,
+      boolean createParent, short replication, long blockSize,
+      CryptoProtocolVersion[] supportedVersions, String ecPolicyName,
+      String storagePolicy, boolean logRetryCache) throws IOException {
+
+    HdfsFileStatus status;
+    try {
+      status = startFileInt(src, permissions, holder, clientMachine, flag,
+          createParent, replication, blockSize, supportedVersions, ecPolicyName,
+          storagePolicy, logRetryCache);
+    }
+    return status;
+  }
+
+private HdfsFileStatus startFileInt(String src,
+      PermissionStatus permissions, String holder, String clientMachine,
+      EnumSet<CreateFlag> flag, boolean createParent, short replication,
+      long blockSize, CryptoProtocolVersion[] supportedVersions,
+      String ecPolicyName, String storagePolicy, boolean logRetryCache)
+      throws IOException {
+
+      try {
+        stat = FSDirWriteFileOp.startFile(this, iip, permissions, holder, clientMachine, flag, createParent, replication, blockSize, feInfo, toRemoveBlocks, shouldReplicate, ecPolicyName, storagePolicy,
+            logRetryCache);
+      }
+    return stat;
+}
+```
+#### 1.2.2.2 NN 检查目录树
+```java
+// FSDirWriteFileOp.java
+static HdfsFileStatus startFile(
+      FSNamesystem fsn, INodesInPath iip,
+      PermissionStatus permissions, String holder, String clientMachine,
+      EnumSet<CreateFlag> flag, boolean createParent,
+      short replication, long blockSize,
+      FileEncryptionInfo feInfo, INode.BlocksMapUpdateInfo toRemoveBlocks,
+      boolean shouldReplicate, String ecPolicyName, String storagePolicy,
+      boolean logRetryEntry)
+      throws IOException {
+    assert fsn.hasWriteLock();
+    // 之前create方法中设置的是否覆盖
+    boolean overwrite = flag.contains(CreateFlag.OVERWRITE);
+    boolean isLazyPersist = flag.contains(CreateFlag.LAZY_PERSIST);
+
+    final String src = iip.getPath();
+    FSDirectory fsd = fsn.getFSDirectory();
+	
+    // inode已存在
+    if (iip.getLastINode() != null) {
+      if (overwrite) {
+        // 需要覆盖：删除替换
+        List<INode> toRemoveINodes = new ChunkedArrayList<>();
+        List<Long> toRemoveUCFiles = new ChunkedArrayList<>();
+        long ret = FSDirDeleteOp.delete(fsd, iip, toRemoveBlocks,
+                                        toRemoveINodes, toRemoveUCFiles, now());
+        if (ret >= 0) {
+          iip = INodesInPath.replace(iip, iip.length() - 1, null);
+          FSDirDeleteOp.incrDeletedFileCount(ret);
+          fsn.removeLeasesAndINodes(toRemoveUCFiles, toRemoveINodes, true);
+        }
+      } else {
+        // 否则抛异常
+        // If lease soft limit time is expired, recover the lease
+        fsn.recoverLeaseInternal(FSNamesystem.RecoverLeaseOp.CREATE_FILE, iip,
+                                 src, holder, clientMachine, false);
+        throw new FileAlreadyExistsException(src + " for client " +
+            clientMachine + " already exists");
+      }
+    }
+    fsn.checkFsObjectLimit();
+    INodeFile newNode = null;
+    // 创建父目录
+    INodesInPath parent =
+        FSDirMkdirOp.createAncestorDirectories(fsd, iip, permissions);
+    if (parent != null) {
+      // 添加至目录树中
+      iip = addFile(fsd, parent, iip.getLastLocalName(), permissions,
+          replication, blockSize, holder, clientMachine, shouldReplicate,
+          ecPolicyName, storagePolicy);
+      newNode = iip != null ? iip.getLastINode().asFile() : null;
+    }
+    if (newNode == null) {
+      throw new IOException("Unable to add " + src +  " to namespace");
+    }
+    // 添加契约
+    fsn.leaseManager.addLease(
+        newNode.getFileUnderConstructionFeature().getClientName(),
+        newNode.getId());
+    if (feInfo != null) {
+      FSDirEncryptionZoneOp.setFileEncryptionInfo(fsd, iip, feInfo,
+          XAttrSetFlag.CREATE);
+    }
+    setNewINodeStoragePolicy(fsd.getBlockManager(), iip, isLazyPersist);
+    fsd.getEditLog().logOpenFile(src, newNode, overwrite, logRetryEntry);
+    if (NameNode.stateChangeLog.isDebugEnabled()) {
+      NameNode.stateChangeLog.debug("DIR* NameSystem.startFile: added " +
+          src + " inode " + newNode.getId() + " " + holder);
+    }
+    return FSDirStatAndListingOp.getFileInfo(fsd, iip, false, false);
+  }
+
+private static INodesInPath addFile(
+      FSDirectory fsd, INodesInPath existing, byte[] localName,
+      PermissionStatus permissions, short replication, long preferredBlockSize,
+      String clientName, String clientMachine, boolean shouldReplicate,
+      String ecPolicyName, String storagePolicy) throws IOException {
+
+      ...
+      // 创建INode
+      INodeFile newNode = newINodeFile(fsd.allocateNewInodeId(), permissions,
+          modTime, modTime, replicationFactor, ecPolicyID, preferredBlockSize,
+          storagepolicyid, blockType);
+      newNode.setLocalName(localName);
+      newNode.toUnderConstruction(clientName, clientMachine);
+      // 将INode添加到namespace中
+      newiip = fsd.addINode(existing, newNode, permissions.getPermission());
+    } finally {
+      fsd.writeUnlock();
+    }
+    if (newiip == null) {
+      NameNode.stateChangeLog.info("DIR* addFile: failed to add " +
+          existing.getPath() + "/" + DFSUtil.bytes2String(localName));
+      return null;
+    }
+
+    if(NameNode.stateChangeLog.isDebugEnabled()) {
+      NameNode.stateChangeLog.debug("DIR* addFile: " +
+          DFSUtil.bytes2String(localName) + " is added");
+    }
+    return newiip;
+  }
+
+INodesInPath addINode(INodesInPath existing, INode child,
+                        FsPermission modes)
+      throws QuotaExceededException, UnresolvedLinkException {
+    cacheName(child);
+    writeLock();
+    try {
+      return addLastINode(existing, child, modes, true);
+    } finally {
+      writeUnlock();
+    }
+  }
+```
+#### 1.2.2.3 NN 返回可用的块
+```java
+// DataStreamer的run方法:
+public void run() {
+    TraceScope scope = null;
+    while (!streamerClosed && dfsClient.clientRunning) {
+      // if the Responder encountered an error, shutdown Responder
+      if (errorState.hasError()) {
+        closeResponder();
+      }
+      
+      DFSPacket one;
+      try {
+        // process datanode IO errors if any
+        boolean doSleep = processDatanodeOrExternalError();
+
+        synchronized (dataQueue) {
+          // 等待传送packet
+          while ((!shouldStop() && dataQueue.isEmpty()) || doSleep) {
+            long timeout = 1000;
+            if (stage == BlockConstructionStage.DATA_STREAMING) {
+              timeout = sendHeartbeat();
+            }
+            try {
+              dataQueue.wait(timeout);
+            } catch (InterruptedException  e) {
+              LOG.debug("Thread interrupted", e);
+            }
+            doSleep = false;
+          }
+          if (shouldStop()) {
+            continue;
+          }
+          // 产生了packet后，进行下面的逻辑
+          // get packet to be sent.
+          one = dataQueue.getFirst(); // regular data packet
+          
+		// 建立管道向NN申请block
+        if (stage == BlockConstructionStage.PIPELINE_SETUP_CREATE) {
+          LOG.debug("Allocating new block: {}", this);
+          // nextBlockOutputStream向NN申请block用于写入数据，以及选择存放block的DN的策略
+          setPipeline(nextBlockOutputStream());
+          initDataStreaming();
+        }
+          // 初始化DataStreaming服务，监听packet发送的状态
+          initDataStreaming();
+        }
+
+        if (one.isLastPacketInBlock()) {
+          // wait for all data packets have been successfully acked
+          waitForAllAcks();
+          if(shouldStop()) {
+            continue;
+          }
+          stage = BlockConstructionStage.PIPELINE_CLOSE;
+        }
+
+        // send the packet
+        SpanContext spanContext = null;
+        synchronized (dataQueue) {
+          // move packet from dataQueue to ackQueue
+          if (!one.isHeartbeatPacket()) {
+            if (scope != null) {
+              one.setSpan(scope.span());
+              spanContext = scope.span().getContext();
+              scope.close();
+            }
+            scope = null;
+            // 发送完的packet加入ackQueue
+            dataQueue.removeFirst();
+            ackQueue.addLast(one);
+            packetSendTime.put(one.getSeqno(), Time.monotonicNow());
+            // 唤醒wait线程
+            dataQueue.notifyAll();
+          }
+        }
+
+        LOG.debug("{} sending {}", this, one);
+
+        // write out data to remote datanode
+        try (TraceScope ignored = dfsClient.getTracer().
+            newScope("DataStreamer#writeTo", spanContext)) {
+          // 发送packet，向DN写数据
+          sendPacket(one);
+        } 
+    closeInternal();
+  }}
+
+protected LocatedBlock nextBlockOutputStream() throws IOException {
+    LocatedBlock lb;
+    DatanodeInfo[] nodes;
+    StorageType[] nextStorageTypes;
+    String[] nextStorageIDs;
+    int count = dfsClient.getConf().getNumBlockWriteRetry();
+    boolean success;
+    final ExtendedBlock oldBlock = block.getCurrentBlock();
+    do {
+      errorState.resetInternalError();
+      lastException.clear();
+
+      DatanodeInfo[] excluded = getExcludedNodes();
+      // 定位可用的块
+      lb = locateFollowingBlock(
+          excluded.length > 0 ? excluded : null, oldBlock);
+      block.setCurrentBlock(lb.getBlock());
+      block.setNumBytes(0);
+      bytesSent = 0;
+      accessToken = lb.getBlockToken();
+      nodes = lb.getLocations();
+      nextStorageTypes = lb.getStorageTypes();
+      nextStorageIDs = lb.getStorageIDs();
+
+      // Connect to first DataNode in the list.
+      // 连接DN
+      success = createBlockOutputStream(nodes, nextStorageTypes, nextStorageIDs,
+          0L, false);
+
+      if (!success) {
+        LOG.warn("Abandoning " + block);
+        dfsClient.namenode.abandonBlock(block.getCurrentBlock(),
+            stat.getFileId(), src, dfsClient.clientName);
+        block.setCurrentBlock(null);
+        final DatanodeInfo badNode = nodes[errorState.getBadNodeIndex()];
+        LOG.warn("Excluding datanode " + badNode);
+        excludedNodes.put(badNode, badNode);
+      }
+    } while (!success && --count >= 0);
+
+    if (!success) {
+      throw new IOException("Unable to create new block.");
+    }
+    return lb;
+  }
+```
+##### 1.2.2.3.1 locateFollowingBlock()
+```java
+private LocatedBlock locateFollowingBlock(DatanodeInfo[] excluded,
+      ExtendedBlock oldBlock) throws IOException {
+    return DFSOutputStream.addBlock(excluded, dfsClient, src, oldBlock,
+        stat.getFileId(), favoredNodes, addBlockFlags);
+}
+
+static LocatedBlock addBlock(DatanodeInfo[] excludedNodes,
+      DFSClient dfsClient, String src, ExtendedBlock prevBlock, long fileId,
+      String[] favoredNodes, EnumSet<AddBlockFlag> allocFlags)
+      throws IOException {
+    ...
+    while (true) {
+      try {
+        // 和NN通信
+        return dfsClient.namenode.addBlock(src, dfsClient.clientName, prevBlock,
+            excludedNodes, fileId, favoredNodes, allocFlags);
+      } catch (RemoteException e) {...}
+  
+```
+##### 1.2.2.3.2 addBlock()
+```java
+// NameNodeRpcServer.java
+public LocatedBlock addBlock(String src, String clientName,
+    ExtendedBlock previous, DatanodeInfo[] excludedNodes, long fileId,
+    String[] favoredNodes, EnumSet<AddBlockFlag> addBlockFlags)
+    throws IOException {
+  checkNNStartup();
+  LocatedBlock locatedBlock = namesystem.getAdditionalBlock(src, fileId,
+      clientName, previous, excludedNodes, favoredNodes, addBlockFlags);
+  return locatedBlock;
+}
+
+LocatedBlock getAdditionalBlock(
+      String src, long fileId, String clientName, ExtendedBlock previous,
+      DatanodeInfo[] excludedNodes, String[] favoredNodes,
+      EnumSet<AddBlockFlag> flags) throws IOException {
+    // 选择块
+    DatanodeStorageInfo[] targets = FSDirWriteFileOp.chooseTargetForNewBlock(
+        blockManager, src, excludedNodes, favoredNodes, flags, r);
+    return lb;
+}
+
+static DatanodeStorageInfo[] chooseTargetForNewBlock(
+      BlockManager bm, String src, DatanodeInfo[] excludedNodes,
+      String[] favoredNodes, EnumSet<AddBlockFlag> flags,
+      ValidateAddBlockResult r) throws IOException {
+	...
+    // choose targets for the new block to be allocated.
+    return bm.chooseTarget4NewBlock(src, r.numTargets, clientNode,
+                                    excludedNodesSet, r.blockSize,
+                                    favoredNodesList, r.storagePolicyID,
+                                    r.blockType, r.ecPolicy, flags);
+}
+
+public DatanodeStorageInfo[] chooseTarget4NewBlock(final String src,
+      final int numOfReplicas, final Node client,
+      final Set<Node> excludedNodes,
+      final long blocksize,
+      final List<String> favoredNodes,
+      final byte storagePolicyID,
+      final BlockType blockType,
+      final ErasureCodingPolicy ecPolicy,
+      final EnumSet<AddBlockFlag> flags) throws IOException {
+    
+    final DatanodeStorageInfo[] targets = blockplacement.chooseTarget(src,
+        numOfReplicas, client, excludedNodes, blocksize, 
+        favoredDatanodeDescriptors, storagePolicy, flags);
+    return targets;
+}
+```
+##### 1.2.2.3.3 chooseTarget()
+```java
+// BlockPlacementPolicy.java
+DatanodeStorageInfo[] chooseTarget(String src,
+      int numOfReplicas, Node writer,
+      Set<Node> excludedNodes,
+      long blocksize,
+      List<DatanodeDescriptor> favoredNodes,
+      BlockStoragePolicy storagePolicy,
+      EnumSet<AddBlockFlag> flags) {
+    // This class does not provide the functionality of placing
+    // a block in favored datanodes. The implementations of this class
+    // are expected to provide this functionality
+
+    return chooseTarget(src, numOfReplicas, writer, 
+        new ArrayList<DatanodeStorageInfo>(numOfReplicas), false,
+        excludedNodes, blocksize, storagePolicy, flags);
+}
+
+// BlockPlacementPolicyDefault.java
+public DatanodeStorageInfo[] chooseTarget(String srcPath,
+                                    int numOfReplicas,
+                                    Node writer,
+                                    List<DatanodeStorageInfo> chosenNodes,
+                                    boolean returnChosenNodes,
+                                    Set<Node> excludedNodes,
+                                    long blocksize,
+                                    final BlockStoragePolicy storagePolicy,
+                                    EnumSet<AddBlockFlag> flags) {
+    return chooseTarget(numOfReplicas, writer, chosenNodes, returnChosenNodes,
+        excludedNodes, blocksize, storagePolicy, flags, null);
+}
+
+private DatanodeStorageInfo[] chooseTarget(int numOfReplicas,
+                                    Node writer,
+                                    List<DatanodeStorageInfo> chosenStorage,
+                                    boolean returnChosenNodes,
+                                    Set<Node> excludedNodes,
+                                    long blocksize,
+                                    final BlockStoragePolicy storagePolicy,
+                                    EnumSet<AddBlockFlag> addBlockFlags,
+                                    EnumMap<StorageType, Integer> sTypes) {
+    ...
+    if (avoidLocalNode && results == null) {
+      results = new ArrayList<>(chosenStorage);
+      Set<Node> excludedNodeCopy = new HashSet<>(excludedNodes);
+      if (writer != null) {
+        excludedNodeCopy.add(writer);
+      }
+      // 选择本地节点
+      localNode = chooseTarget(numOfReplicas, writer,
+          excludedNodeCopy, blocksize, maxNodesPerRack, results,
+          avoidStaleNodes, storagePolicy,
+          EnumSet.noneOf(StorageType.class), results.isEmpty(), sTypes);
+}
+
+private Node chooseTarget(final int numOfReplicas,
+                            Node writer,
+                            final Set<Node> excludedNodes,
+                            final long blocksize,
+                            final int maxNodesPerRack,
+                            final List<DatanodeStorageInfo> results,
+                            final boolean avoidStaleNodes,
+                            final BlockStoragePolicy storagePolicy,
+                            final EnumSet<StorageType> unavailableStorages,
+                            final boolean newBlock,
+                            EnumMap<StorageType, Integer> storageTypes) {
+    ...
+    try {
+      // 机架感知
+      writer = chooseTargetInOrder(numOfReplicas, writer, excludedNodes, blocksize,
+          maxNodesPerRack, results, avoidStaleNodes, newBlock, storageTypes);
+    } 
+    
+    return writer;
+}
+
+protected Node chooseTargetInOrder(int numOfReplicas, 
+                                 Node writer,
+                                 final Set<Node> excludedNodes,
+                                 final long blocksize,
+                                 final int maxNodesPerRack,
+                                 final List<DatanodeStorageInfo> results,
+                                 final boolean avoidStaleNodes,
+                                 final boolean newBlock,
+                                 EnumMap<StorageType, Integer> storageTypes)
+                                 throws NotEnoughReplicasException {
+    final int numOfResults = results.size();
+    if (numOfResults == 0) {
+      // 第一块选择本地机架  
+      DatanodeStorageInfo storageInfo = chooseLocalStorage(writer,
+          excludedNodes, blocksize, maxNodesPerRack, results, avoidStaleNodes,
+          storageTypes, true);
+
+      writer = (storageInfo != null) ? storageInfo.getDatanodeDescriptor()
+                                     : null;
+
+      if (--numOfReplicas == 0) {
+        return writer;
+      }
+    }
+    final DatanodeDescriptor dn0 = results.get(0).getDatanodeDescriptor();
+    // 第二块选择与dn0不同的节点
+    if (numOfResults <= 1) {
+      chooseRemoteRack(1, dn0, excludedNodes, blocksize, maxNodesPerRack,
+          results, avoidStaleNodes, storageTypes);
+      if (--numOfReplicas == 0) {
+        return writer;
+      }
+    }
+    // 第三块
+    if (numOfResults <= 2) {
+      final DatanodeDescriptor dn1 = results.get(1).getDatanodeDescriptor();
+      // 如果dn0、dn1在同一个机架上，则选择与dn0不同的机架
+      if (clusterMap.isOnSameRack(dn0, dn1)) {
+        chooseRemoteRack(1, dn0, excludedNodes, blocksize, maxNodesPerRack,
+            results, avoidStaleNodes, storageTypes);
+      } else if (newBlock){
+        // 否则选择和dn1不同的机架
+        chooseLocalRack(dn1, excludedNodes, blocksize, maxNodesPerRack,
+            results, avoidStaleNodes, storageTypes);
+      } else {
+        chooseLocalRack(writer, excludedNodes, blocksize, maxNodesPerRack,
+            results, avoidStaleNodes, storageTypes);
+      }
+      if (--numOfReplicas == 0) {
+        return writer;
+      }
+    }
+    chooseRandom(numOfReplicas, NodeBase.ROOT, excludedNodes, blocksize,
+        maxNodesPerRack, results, avoidStaleNodes, storageTypes);
+    return writer;
+}
+```
+### 1.2.3 与 DN 建立连接，发送数据
+#### 1.2.3.1 与 DN 建立连接
+```java
+boolean createBlockOutputStream(DatanodeInfo[] nodes,
+      StorageType[] nodeStorageTypes, String[] nodeStorageIDs,
+      long newGS, boolean recoveryFlag) {
+    int refetchEncryptionKey = 1;
+    while (true) {
+      boolean result = false;
+      DataOutputStream out = null;
+      try {
+		// 获取socket的输入/出流用于后续发送packet
+        OutputStream unbufOut = NetUtils.getOutputStream(s, writeTimeout);
+        InputStream unbufIn = NetUtils.getInputStream(s, readTimeout);
+        IOStreamPair saslStreams = dfsClient.saslClient.socketSend(s,
+            unbufOut, unbufIn, dfsClient, accessToken, nodes[0]);
+        unbufOut = saslStreams.out;
+        unbufIn = saslStreams.in;
+        out = new DataOutputStream(new BufferedOutputStream(unbufOut,
+            DFSUtilClient.getSmallBufferSize(dfsClient.getConfiguration())));
+        blockReplyStream = new DataInputStream(unbufIn);
+
+        // 发送写入块的请求
+        new Sender(out).writeBlock(...);
+
+        // receive ack for connect
+
+      return result;
+    }
+  }
+
+// Sender.writeBlock()
+public void writeBlock(final ExtendedBlock blk,
+      final StorageType storageType,
+      final Token<BlockTokenIdentifier> blockToken,
+      final String clientName,
+      final DatanodeInfo[] targets,
+      final StorageType[] targetStorageTypes,
+      final DatanodeInfo source,
+      final BlockConstructionStage stage,
+      final int pipelineSize,
+      final long minBytesRcvd,
+      final long maxBytesRcvd,
+      final long latestGenerationStamp,
+      DataChecksum requestedChecksum,
+      final CachingStrategy cachingStrategy,
+      final boolean allowLazyPersist,
+      final boolean pinning,
+      final boolean[] targetPinnings,
+      final String storageId,
+      final String[] targetStorageIds) throws IOException {
+      
+    send(out, Op.WRITE_BLOCK, proto.build());
+}
+
+private static void send(final DataOutputStream out, final Op opcode,
+      final Message proto) throws IOException {
+    LOG.trace("Sending DataTransferOp {}: {}",
+        proto.getClass().getSimpleName(), proto);
+    op(out, opcode);
+    proto.writeDelimitedTo(out);
+    out.flush();
+}
+```
+#### 1.2.3.2 initDataStreaming()
+```java
+// 返回到DataStreamer的run方法中
+private void initDataStreaming() {
+    // 创建并启动ResponseProcessor线程
+    response = new ResponseProcessor(nodes);
+    // ResponseProcessor是DataStreamer的私有内部类
+    response.start();
+    stage = BlockConstructionStage.DATA_STREAMING;
+    lastPacket = Time.monotonicNow();
+}
+
+@Override
+public void run() {
+    setName("ResponseProcessor for block " + block);
+    // 返回DN写数据结果
+    PipelineAck ack = new PipelineAck();
+
+    TraceScope scope = null;
+    while (!responderClosed && dfsClient.clientRunning && !isLastPacketInBlock) {
+        // process responses from datanodes.
+        try {
+            // read an ack from the pipeline
+            // 读取下游处理结果
+            ack.readFields(blockReplyStream);
+
+            synchronized (dataQueue) {
+                lastAckedSeqno = seqno;
+                pipelineRecoveryCount = 0;
+                // 发送成功从ack队列移除
+                ackQueue.removeFirst();
+    
+                packetSendTime.remove(seqno);
+                dataQueue.notifyAll();
+
+                one.releaseBuffer(byteArrayManager);
+            }
+        } catch (Throwable e) {...}
+    }
+}
+```
+
+#### 1.2.3.3 发送数据
+##### 1.2.3.3.1 write()
+```java
+// 通过最初创建的FSDataOutputStream调用write方法
+// fos.write()
+@Override
+    public void write(byte[] b) throws IOException {
+        write(b, 0, b.length);
+}
+
+// 调用FSOutputSummer的run方法
+public synchronized void write(int b) throws IOException {
+    buf[count++] = (byte)b;
+    if(count == buf.length) {
+      // 写文件
+      flushBuffer();
+    }
+}
+
+protected synchronized void flushBuffer() throws IOException {
+    flushBuffer(false, true);
+}
+
+protected synchronized int flushBuffer(boolean keep,
+      boolean flushPartial) throws IOException {
+    int bufLen = count;
+    int partialLen = bufLen % sum.getBytesPerChecksum();
+    int lenToFlush = flushPartial ? bufLen : bufLen - partialLen;
+    // 没有需要flush的数据时检验checksum
+    if (lenToFlush != 0) {
+      writeChecksumChunks(buf, 0, lenToFlush);
+      if (!flushPartial || keep) {
+        count = partialLen;
+        System.arraycopy(buf, bufLen - count, buf, 0, count);
+      } else {
+        count = 0;
+      }
+    }
+
+    // total bytes left minus unflushed bytes left
+    return count - (bufLen - lenToFlush);
+}
+
+private void writeChecksumChunks(byte b[], int off, int len)
+  throws IOException {
+    // 计算chunk的校验和
+    sum.calculateChunkedSums(b, off, len, checksum, 0);
+    TraceScope scope = createWriteTraceScope();
+    try {
+      // 先写chunk和checksum，够127个形成一个packet
+      // 按chunk的大小遍历数据
+      for (int i = 0; i < len; i += sum.getBytesPerChecksum()) {
+        int chunkLen = Math.min(sum.getBytesPerChecksum(), len - i);
+        int ckOffset = i / sum.getBytesPerChecksum() * getChecksumSize();
+        // 向chunk写数据
+        writeChunk(b, off + i, chunkLen, checksum, ckOffset,
+            getChecksumSize());
+      }
+    } finally {
+      if (scope != null) {
+        scope.close();
+      }
+    }
+}
+```
+##### 1.2.3.3.2 writeChunk()
+```java
+// DFSOutputStream.java
+protected synchronized void writeChunk(byte[] b, int offset, int len,
+      byte[] checksum, int ckoff, int cklen) throws IOException {
+	// 创建Packet
+    writeChunkPrepare(len, ckoff, cklen);
+	// 向packet写chunk的校验和
+    currentPacket.writeChecksum(checksum, ckoff, cklen);
+    // 向packet里写入一个chunk
+    currentPacket.writeData(b, offset, len);
+    // 计算写入了多少个chunk，写满了127个就成为一个完整的packet
+    currentPacket.incNumChunks();
+    getStreamer().incBytesCurBlock(len);
+
+    // If packet is full, enqueue it for transmission
+    // packet写满或block写满后将packet加入队列，队列满的时候阻塞
+    if (currentPacket.getNumChunks() == currentPacket.getMaxChunks() ||
+        getStreamer().getBytesCurBlock() == blockSize) {
+      enqueueCurrentPacketFull();
+    }
+}
+
+private synchronized void writeChunkPrepare(int buflen,
+      int ckoff, int cklen) throws IOException {
+    if (currentPacket == null) {
+      // 创建一个packet
+      currentPacket = createPacket(packetSize, chunksPerPacket, getStreamer().getBytesCurBlock(), getStreamer().getAndIncCurrentSeqno(), false);
+    }
+}
+
+protected DFSPacket createPacket(int packetSize, int chunksPerPkt,
+      long offsetInBlock, long seqno, boolean lastPacketInBlock)
+      throws InterruptedIOException {
+
+    return new DFSPacket(buf, chunksPerPkt, offsetInBlock, seqno,
+        getChecksumSize(), lastPacketInBlock);
+  }
+```
+##### 1.2.3.3.3 enqueueCurrentPacketFull
+```java
+// 将packet加入队列
+synchronized void enqueueCurrentPacketFull() throws IOException {
+    // 加入队列
+    enqueueCurrentPacket();
+    adjustChunkBoundary();
+    // 一个block写完后，再创建一个空的packet标识块的结束
+    endBlock();
+}
+
+void enqueueCurrentPacket() throws IOException {
+    getStreamer().waitAndQueuePacket(currentPacket);
+    currentPacket = null;
+}
+
+void waitAndQueuePacket(DFSPacket packet) throws IOException {
+    synchronized (dataQueue) {
+        try {
+            // If queue is full, then wait till we have enough space
+            boolean firstWait = true;
+       
+            // 第一次进入，队列不是满的
+            checkClosed();
+            queuePacket(packet);
+        } catch (ClosedChannelException cce) {
+            LOG.debug("Closed channel exception", cce);
+        }
+    }
+}
+
+void queuePacket(DFSPacket packet) {
+    synchronized (dataQueue) {
+      if (packet == null) return;
+      packet.addTraceParent(Tracer.getCurrentSpan());
+      dataQueue.addLast(packet);
+      lastQueuedSeqno = packet.getSeqno();
+      LOG.debug("Queued {}, {}", packet, this);
+      // 唤醒dataQueue
+      dataQueue.notifyAll();
+    }
+}
+
+// 创建空的block标志结束
+void endBlock() throws IOException {
+    if (getStreamer().getBytesCurBlock() == blockSize) {
+      setCurrentPacketToEmpty();
+      enqueueCurrentPacket();
+      getStreamer().setBytesCurBlock(0);
+      lastFlushOffset = 0;
+    }
+}
+
+void setCurrentPacketToEmpty() throws InterruptedIOException {
+    // 创建一个空的packet
+    currentPacket = createPacket(0, 0, getStreamer().getBytesCurBlock(),
+        getStreamer().getAndIncCurrentSeqno(), true);
+    currentPacket.setSyncBlock(shouldSyncBlock);
+}
+```
+### 1.2.4 DN 开启 DataXceiver 服务，接收数据返回 ack
+#### 1.2.4.1 DataXceiver.run()
+```java
+// DN启动时作为守护进程
+public void run() {
+    Peer peer = null;
+    while (datanode.shouldRun && !datanode.shutdownForUpgrade) {
+      try {
+        peer = peerServer.accept();
+
+        // Make sure the xceiver count is not exceeded
+        int curXceiverCount = datanode.getXceiverCount();
+        if (curXceiverCount > maxXceiverCount) {
+          throw new IOException("Xceiver count " + curXceiverCount
+              + " exceeds the limit of concurrent xcievers: "
+              + maxXceiverCount);
+        }
+		// 通过DataXceiverServer创建启动DataXceiver线程
+        new Daemon(datanode.threadGroup,
+            DataXceiver.create(peer, datanode, this))
+            .start();
+    closeAllPeers();
+}
+
+public static DataXceiver create(Peer peer, DataNode dn,
+                                 DataXceiverServer dataXceiverServer) throws IOException {
+    return new DataXceiver(peer, dn, dataXceiverServer);
+}
+
+public void run() {
+    int opsProcessed = 0;
+    Op op = null;
+    try {
+        ...
+            // protected void initialize(final DataInputStream in) {
+            // this.in = in;
+            // }
+            super.initialize(new DataInputStream(input));
+
+        // We process requests in a loop, and stay around for a short timeout.
+        // This optimistic behaviour allows the other end to reuse connections.
+        // Setting keepalive timeout to 0 disable this behavior.
+        do {
+            updateCurrentThreadName("Waiting for operation #" + (opsProcessed + 1));
+
+            try {
+                    // 读取操作的类型，此处传入的是Sender在writeBlock时传入的Op.WRITE_BLOCK
+                    op = readOp();
+            } 
+                processOp(op);
+            ++opsProcessed;
+        }
+    } 
+}
+
+protected final void processOp(Op op) throws IOException {
+    switch(op) {
+    case WRITE_BLOCK:
+      opWriteBlock(in);
+      break;
+    default:
+      throw new IOException("Unknown op " + op + " in data stream");
+    }
+}
+```
+#### 1.2.4.2 opWriteBlock()
+```java
+// Receiver.java
+private void opWriteBlock(DataInputStream in) throws IOException {
+    final OpWriteBlockProto proto = OpWriteBlockProto.parseFrom(vintPrefixed(in));
+    final DatanodeInfo[] targets = PBHelperClient.convert(proto.getTargetsList());
+    TraceScope traceScope = continueTraceSpan(proto.getHeader(),
+        proto.getClass().getSimpleName());
+    try {
+      writeBlock(...);
+    } 
+}
+
+public void writeBlock(final ExtendedBlock block,
+      final StorageType storageType, 
+      final Token<BlockTokenIdentifier> blockToken,
+      final String clientname,
+      final DatanodeInfo[] targets,
+      final StorageType[] targetStorageTypes,
+      final DatanodeInfo srcDataNode,
+      final BlockConstructionStage stage,
+      final int pipelineSize,
+      final long minBytesRcvd,
+      final long maxBytesRcvd,
+      final long latestGenerationStamp,
+      DataChecksum requestedChecksum,
+      CachingStrategy cachingStrategy,
+      boolean allowLazyPersist,
+      final boolean pinning,
+      final boolean[] targetPinnings,
+      final String storageId,
+      final String[] targetStorageIds) throws IOException {
+    
+    // 开始写    
+    try {
+      final Replica replica;
+      if (isDatanode || 
+          stage != BlockConstructionStage.PIPELINE_CLOSE_RECOVERY) {
+        // open a block receiver
+        // 创建BlockReceiver
+        setCurrentBlockReceiver(getBlockReceiver(block, storageType, in,
+            peer.getRemoteAddressString(),
+            peer.getLocalAddressString(),
+            stage, latestGenerationStamp, minBytesRcvd, maxBytesRcvd,
+            clientname, srcDataNode, datanode, requestedChecksum,
+            cachingStrategy, allowLazyPersist, pinning, storageId));
+        replica = blockReceiver.getReplica();
+      } else {...}
+      storageUuid = replica.getStorageUuid();
+      isOnTransientStorage = replica.isOnTransientStorage();
+
+      //
+      // Connect to downstream machine, if appropriate
+      // 如果存在多个节点
+      if (targets.length > 0) {
+        InetSocketAddress mirrorTarget = null;
+        // Connect to backup machine
+        mirrorNode = targets[0].getXferAddr(connectToDnViaHostname);
+        LOG.debug("Connecting to datanode {}", mirrorNode);
+        mirrorTarget = NetUtils.createSocketAddr(mirrorNode);
+        mirrorSock = datanode.newSocket();
+        try {
+
+          DataNodeFaultInjector.get().failMirrorConnection();
+
+          int timeoutValue = dnConf.socketTimeout +
+              (HdfsConstants.READ_TIMEOUT_EXTENSION * targets.length);
+          int writeTimeout = dnConf.socketWriteTimeout +
+              (HdfsConstants.WRITE_TIMEOUT_EXTENSION * targets.length);
+          NetUtils.connect(mirrorSock, mirrorTarget, timeoutValue);
+          mirrorSock.setTcpNoDelay(dnConf.getDataTransferServerTcpNoDelay());
+          mirrorSock.setSoTimeout(timeoutValue);
+          mirrorSock.setKeepAlive(true);
+          if (dnConf.getTransferSocketSendBufferSize() > 0) {
+            mirrorSock.setSendBufferSize(
+                dnConf.getTransferSocketSendBufferSize());
+          }
+
+          OutputStream unbufMirrorOut = NetUtils.getOutputStream(mirrorSock,
+              writeTimeout);
+          InputStream unbufMirrorIn = NetUtils.getInputStream(mirrorSock);
+          DataEncryptionKeyFactory keyFactory =
+            datanode.getDataEncryptionKeyFactoryForBlock(block);
+          SecretKey secretKey = null;
+          if (dnConf.overwriteDownstreamDerivedQOP) {
+            String bpid = block.getBlockPoolId();
+            BlockKey blockKey = datanode.blockPoolTokenSecretManager
+                .get(bpid).getCurrentKey();
+            secretKey = blockKey.getKey();
+          }
+          IOStreamPair saslStreams = datanode.saslClient.socketSend(
+              mirrorSock, unbufMirrorOut, unbufMirrorIn, keyFactory,
+              blockToken, targets[0], secretKey);
+          unbufMirrorOut = saslStreams.out;
+          unbufMirrorIn = saslStreams.in;
+          mirrorOut = new DataOutputStream(new BufferedOutputStream(unbufMirrorOut,
+              smallBufferSize));
+          mirrorIn = new DataInputStream(unbufMirrorIn);
+
+          String targetStorageId = null;
+          if (targetStorageIds.length > 0) {
+            // Older clients may not have provided any targetStorageIds
+            targetStorageId = targetStorageIds[0];
+          }
+          if (targetPinnings != null && targetPinnings.length > 0) {
+            // 向下一个DN发送写信息
+            new Sender(mirrorOut).writeBlock(originalBlock, targetStorageTypes[0],
+                blockToken, clientname, targets, targetStorageTypes,
+                srcDataNode, stage, pipelineSize, minBytesRcvd, maxBytesRcvd,
+                latestGenerationStamp, requestedChecksum, cachingStrategy,
+                allowLazyPersist, targetPinnings[0], targetPinnings,
+                targetStorageId, targetStorageIds);
+          } else {
+            new Sender(mirrorOut).writeBlock(originalBlock, targetStorageTypes[0],
+                blockToken, clientname, targets, targetStorageTypes,
+                srcDataNode, stage, pipelineSize, minBytesRcvd, maxBytesRcvd,
+                latestGenerationStamp, requestedChecksum, cachingStrategy,
+                allowLazyPersist, false, targetPinnings,
+                targetStorageId, targetStorageIds);
+          }
+  }
+```
+#### 1.2.4.3 DN 将数据持久化到磁盘
+```java
+BlockReceiver getBlockReceiver(
+      final ExtendedBlock block, final StorageType storageType,
+      final DataInputStream in,
+      final String inAddr, final String myAddr,
+      final BlockConstructionStage stage,
+      final long newGs, final long minBytesRcvd, final long maxBytesRcvd,
+      final String clientname, final DatanodeInfo srcDataNode,
+      final DataNode dn, DataChecksum requestedChecksum,
+      CachingStrategy cachingStrategy,
+      final boolean allowLazyPersist,
+      final boolean pinning,
+      final String storageId) throws IOException {
+    return new BlockReceiver(block, storageType, in,
+        inAddr, myAddr, stage, newGs, minBytesRcvd, maxBytesRcvd,
+        clientname, srcDataNode, dn, requestedChecksum,
+        cachingStrategy, allowLazyPersist, pinning, storageId);
+}
+
+BlockReceiver(final ExtendedBlock block, final StorageType storageType,
+      final DataInputStream in,
+      final String inAddr, final String myAddr,
+      final BlockConstructionStage stage, 
+      final long newGs, final long minBytesRcvd, final long maxBytesRcvd, 
+      final String clientname, final DatanodeInfo srcDataNode,
+      final DataNode datanode, DataChecksum requestedChecksum,
+      CachingStrategy cachingStrategy,
+      final boolean allowLazyPersist,
+      final boolean pinning,
+      final String storageId) throws IOException {
+      ...
+      this.isDatanode = clientname.length() == 0;
+      // Open local disk out
+      if (isDatanode) { //replication or move
+        replicaHandler =
+            datanode.data.createTemporary(storageType, storageId, block, false);
+      } else {
+        switch (stage) {
+        // 第一次进入为PIPELINE_SETUP_CREATE阶段
+        case PIPELINE_SETUP_CREATE:
+          // 写磁盘
+          replicaHandler = datanode.data.createRbw(storageType, storageId,
+              block, allowLazyPersist);
+          datanode.notifyNamenodeReceivingBlock(
+              block, replicaHandler.getReplica().getStorageUuid());
+          break;
+        case PIPELINE_SETUP_STREAMING_RECOVERY:
+        }
+}
+
+// FsDatasetImpl.java
+public ReplicaHandler createRbw(
+      StorageType storageType, String storageId, ExtendedBlock b,
+      boolean allowLazyPersist) throws IOException {
+      // create a new block
+      FsVolumeReference ref = null;
+
+      // Use ramdisk only if block size is a multiple of OS page size.
+      // This simplifies reservation for partially used replicas
+      // significantly.
+      if (allowLazyPersist &&
+          lazyWriter != null &&
+          b.getNumBytes() % cacheManager.getOsPageSize() == 0 &&
+          reserveLockedMemory(b.getNumBytes())) {
+        try {
+          // First try to place the block on a transient volume.
+          ref = volumes.getNextTransientVolume(b.getNumBytes());
+          datanode.getMetrics().incrRamDiskBlocksWrite();
+        } catch (DiskOutOfSpaceException de) {
+          // Ignore the exception since we just fall back to persistent storage.
+          LOG.warn("Insufficient space for placing the block on a transient "
+              + "volume, fall back to persistent storage: "
+              + de.getMessage());
+        } finally {
+          if (ref == null) {
+            cacheManager.release(b.getNumBytes());
+          }
+        }
+      }
+}
+```
+#### 1.2.4.4 DataStreamer 写 Packet
+```java
+// run()
+private void sendPacket(DFSPacket packet) throws IOException {
+    // write out data to remote datanode
+    try {
+      packet.writeTo(blockStream);
+      blockStream.flush();
+    } catch (IOException e) {
+      // HDFS-3398 treat primary DN is down since client is unable to
+      // write to primary DN. If a failed or restarting node has already
+      // been recorded by the responder, the following call will have no
+      // effect. Pipeline recovery can handle only one node error at a
+      // time. If the primary node fails again during the recovery, it
+      // will be taken out then.
+      errorState.markFirstNodeIfNotMarked();
+      throw e;
+    }
+    lastPacket = Time.monotonicNow();
+}
+
+// DFSPacket.java
+public synchronized void writeTo(DataOutputStream stm) throws IOException {
+    checkBuffer();
+
+    final int dataLen = dataPos - dataStart;
+    final int checksumLen = checksumPos - checksumStart;
+    final int pktLen = HdfsConstants.BYTES_IN_INTEGER + dataLen + checksumLen;
+
+    PacketHeader header = new PacketHeader(
+        pktLen, offsetInBlock, seqno, lastPacketInBlock, dataLen, syncBlock);
+
+    if (checksumPos != dataStart) {
+      // Move the checksum to cover the gap. This can happen for the last
+      // packet or during an hflush/hsync call.
+      System.arraycopy(buf, checksumStart, buf,
+          dataStart - checksumLen , checksumLen);
+      checksumPos = dataStart;
+      checksumStart = checksumPos - checksumLen;
+    }
+
+    final int headerStart = checksumStart - header.getSerializedSize();
+    assert checksumStart + 1 >= header.getSerializedSize();
+    assert headerStart >= 0;
+    assert headerStart + header.getSerializedSize() == checksumStart;
+
+    // Copy the header data into the buffer immediately preceding the checksum
+    // data.
+    System.arraycopy(header.getBytes(), 0, buf, headerStart,
+        header.getSerializedSize());
+
+    // corrupt the data for testing.
+    if (DFSClientFaultInjector.get().corruptPacket()) {
+      buf[headerStart+header.getSerializedSize() + checksumLen + dataLen-1] ^=
+          0xff;
+    }
+
+    // Write the now contiguous full packet to the output stream.
+    // 写数据
+    stm.write(buf, headerStart,
+        header.getSerializedSize() + checksumLen + dataLen);
+}
+```
+## 1.3 读流程
+### 1.3.1 开启 FSDataInputStream
+```java
+public FSDataInputStream open(Path f) throws IOException {
+    return open(f, getConf().getInt(IO_FILE_BUFFER_SIZE_KEY,
+        IO_FILE_BUFFER_SIZE_DEFAULT));
+}
+
+// DistributedFileSystem.java
+public FSDataInputStream open(Path f, final int bufferSize)
+      throws IOException {
+    statistics.incrementReadOps(1);
+    storageStatistics.incrementOpCounter(OpType.OPEN);
+    Path absF = fixRelativePart(f);
+    return new FileSystemLinkResolver<FSDataInputStream>() {
+      @Override
+      public FSDataInputStream doCall(final Path p) throws IOException {
+        final DFSInputStream dfsis =
+            dfs.open(getPathName(p), bufferSize, verifyChecksum);
+        try {
+          return dfs.createWrappedInputStream(dfsis);
+        } catch (IOException ex){
+          dfsis.close();
+          throw ex;
+        }
+      }
+   }
+}
+    
+// DFSClient.java
+public DFSInputStream open(String src, int buffersize, boolean verifyChecksum)
+      throws IOException {
+    checkOpen();
+    //    Get block info from namenode
+    try (TraceScope ignored = newPathTraceScope("newDFSInputStream", src)) {
+      LocatedBlocks locatedBlocks = getLocatedBlocks(src, 0);
+      return openInternal(locatedBlocks, src, verifyChecksum);
+    }
+}
+```
+### 1.3.2 向 NN 建立连接，获取块地址
+```java
+public LocatedBlocks getLocatedBlocks(String src, long start)
+      throws IOException {
+    return getLocatedBlocks(src, start, dfsClientConf.getPrefetchSize());
+}
+
+public LocatedBlocks getLocatedBlocks(String src, long start, long length)
+      throws IOException {
+    try (TraceScope ignored = newPathTraceScope("getBlockLocations", src)) {
+      return callGetBlockLocations(namenode, src, start, length);
+    }
+}
+
+static LocatedBlocks callGetBlockLocations(ClientProtocol namenode,
+      String src, long start, long length)
+      throws IOException {
+    try {
+      return namenode.getBlockLocations(src, start, length);
+    } 
+}
+
+// 通过NNRPCServer获取块位置
+public LocatedBlocks getBlockLocations(String src, 
+                                          long offset, 
+                                          long length) 
+      throws IOException {
+    checkNNStartup();
+    metrics.incrGetBlockLocations();
+    LocatedBlocks locatedBlocks =
+        namesystem.getBlockLocations(getClientMachine(), src, offset, length);
+    return locatedBlocks;
+}
+
+// FSNamesystem.java
+LocatedBlocks getBlockLocations(String clientMachine, String srcArg,
+      long offset, long length) throws IOException {
+    final String operationName = "open";
+    checkOperation(OperationCategory.READ);
+    GetBlockLocationsResult res = null;
+    // FSPermissionChecker检查权限
+    final FSPermissionChecker pc = getPermissionChecker();
+    FSPermissionChecker.setOperationType(operationName);
+    final INode inode;
+    try {
+      readLock();
+      try {
+        checkOperation(OperationCategory.READ);
+        // 获取块位置
+        res = FSDirStatAndListingOp.getBlockLocations(
+            dir, pc, srcArg, offset, length, true);
+        inode = res.getIIp().getLastINode();
+    ...  
+    LocatedBlocks blocks = res.blocks;
+    sortLocatedBlocks(clientMachine, blocks);
+    return blocks;
+      }
+    }
+}
+
+// FSDirStatAndListingOp.java        
+static GetBlockLocationsResult getBlockLocations(
+      FSDirectory fsd, FSPermissionChecker pc, String src, long offset,
+      long length, boolean needBlockToken) throws IOException {
+    Preconditions.checkArgument(offset >= 0,
+        "Negative offset is not supported. File: " + src);
+    Preconditions.checkArgument(length >= 0,
+        "Negative length is not supported. File: " + src);
+    BlockManager bm = fsd.getBlockManager();
+    fsd.readLock();
+    try {
+      // 检查权限以及路径
+      final INodesInPath iip = fsd.resolvePath(pc, src, DirOp.READ);
+      src = iip.getPath();
+      final INodeFile inode = INodeFile.valueOf(iip.getLastINode(), src);
+      if (fsd.isPermissionEnabled()) {
+        fsd.checkPathAccess(pc, iip, FsAction.READ);
+        fsd.checkUnreadableBySuperuser(pc, iip);
+      }
+      
+      final LocatedBlocks blocks = bm.createLocatedBlocks(
+          inode.getBlocks(iip.getPathSnapshotId()), fileSize, isUc, offset,
+          length, needBlockToken, iip.isSnapshot(), feInfo, ecPolicy);
+}
+
+// BlockManager.java
+public LocatedBlocks createLocatedBlocks(final BlockInfo[] blocks,
+      final long fileSizeExcludeBlocksUnderConstruction,
+      final boolean isFileUnderConstruction, final long offset,
+      final long length, final boolean needBlockToken,
+      final boolean inSnapshot, FileEncryptionInfo feInfo,
+      ErasureCodingPolicy ecPolicy)
+      throws IOException {
+    assert namesystem.hasReadLock();
+    if (blocks == null) {...}
+    else {
+      // blocks不是快照，长度也不是0
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("blocks = {}", java.util.Arrays.asList(blocks));
+      }
+
+	  // 创建块列表
+      createLocatedBlockList(locatedBlocks, blocks, offset, length, mode);
+      return locations;
+    }
+}
+
+private void createLocatedBlockList(
+      LocatedBlockBuilder locatedBlocks,
+      final BlockInfo[] blocks,
+      final long offset, final long length,
+      final AccessMode mode) throws IOException {
+    
+    do {
+      locatedBlocks.addBlock(
+          createLocatedBlock(locatedBlocks, blocks[curBlk], curPos, mode));
+      curPos += blocks[curBlk].getNumBytes();
+      curBlk++;
+    }
+}
+
+private LocatedBlock createLocatedBlock(LocatedBlockBuilder locatedBlocks,  
+    final BlockInfo blk, final long pos, final AccessMode mode)  
+        throws IOException {  
+  // 从DatanodeStorageInfo中获取到块信息
+  final LocatedBlock lb = createLocatedBlock(locatedBlocks, blk, pos);  
+  if (mode != null) {  
+    setBlockToken(lb, mode);  
+  }  
+  return lb;  
+}
+```
+### 1.3.3 读取数据
+```java
+// 获取块位置后，返回DFSClient中的open()继续执行
+private DFSInputStream openInternal(LocatedBlocks locatedBlocks, String src,
+      boolean verifyChecksum) throws IOException {
+    if (locatedBlocks != null) {
+      // 使用了EC策略时，返回DFSStripedInputStream，否则返回DFSInputStream
+      // 在 HDFS 中，EC 文件是以 stripe 的形式进行存储
+      ErasureCodingPolicy ecPolicy = locatedBlocks.getErasureCodingPolicy();
+      if (ecPolicy != null) {
+        return new DFSStripedInputStream(this, src, verifyChecksum, ecPolicy,
+            locatedBlocks);
+      }
+      return new DFSInputStream(this, src, verifyChecksum, locatedBlocks);
+    } else {
+      throw new IOException("Cannot open filename " + src);
+    }
+}
+
+// 通过DFSInputStream读取数据
+public int read(long position, byte[] buffer, int offset, int length)
+      throws IOException {
+    validatePositionedReadArgs(position, buffer, offset, length);
+    if (length == 0) {
+      return 0;
+    }
+    ByteBuffer bb = ByteBuffer.wrap(buffer, offset, length);
+    return pread(position, bb);
+}
+
+private int pread(long position, ByteBuffer buffer)
+      throws IOException {
+    failures = 0;
+    // 获取LocatedBlocks的长度
+    long filelen = getFileLength();
+
+    // 指定范围获取数据
+    List<LocatedBlock> blockRange = getBlockRange(position, realLen);
+    int remaining = realLen;
+    CorruptedBlocks corruptedBlocks = new CorruptedBlocks();
+    // 遍历block列表，读取需要的block的数据
+    for (LocatedBlock blk : blockRange) {
+      long targetStart = position - blk.getStartOffset();
+      int bytesToRead = (int) Math.min(remaining,
+          blk.getBlockSize() - targetStart);
+      long targetEnd = targetStart + bytesToRead - 1;
+      try {
+        if (dfsClient.isHedgedReadsEnabled() && !blk.isStriped()) {
+          hedgedFetchBlockByteRange(blk, targetStart,
+              targetEnd, buffer, corruptedBlocks);
+        } else {
+          // 读数据
+          fetchBlockByteRange(blk, targetStart, targetEnd,
+              buffer, corruptedBlocks);
+        }
+      }
+}
+```
+#### 1.3.3.1 getBlockRange()
+```java
+private List<LocatedBlock> getBlockRange(long offset,
+      long length)  throws IOException {
+    // getFileLength(): returns total file length
+    // locatedBlocks.getFileLength(): returns length of completed blocks
+    if (offset >= getFileLength()) {
+      throw new IOException("Offset: " + offset +
+        " exceeds file length: " + getFileLength());
+    }
+    synchronized(infoLock) {
+      final List<LocatedBlock> blocks;
+      // block两种状态：已完成以及未完成
+      final long lengthOfCompleteBlk = locatedBlocks.getFileLength();
+      final boolean readOffsetWithinCompleteBlk = offset < lengthOfCompleteBlk;
+      final boolean readLengthPastCompleteBlk = offset + length > lengthOfCompleteBlk;
+
+      if (readOffsetWithinCompleteBlk) {
+        //get the blocks of finalized (completed) block range
+        blocks = getFinalizedBlockRange(offset,
+          Math.min(length, lengthOfCompleteBlk - offset));
+      } else {
+        blocks = new ArrayList<>(1);
+      }
+
+      // get the blocks from incomplete block range
+      if (readLengthPastCompleteBlk) {
+        blocks.add(locatedBlocks.getLastLocatedBlock());
+      }
+
+      return blocks;
+    }
+}
+
+private List<LocatedBlock> getFinalizedBlockRange(
+      long offset, long length) throws IOException {
+    synchronized(infoLock) {
+      assert (locatedBlocks != null) : "locatedBlocks is null";
+      List<LocatedBlock> blockRange = new ArrayList<>();
+      // search cached blocks first
+      long remaining = length;
+      long curOff = offset;
+      while(remaining > 0) {
+        // 从NN中取一个块并缓存
+        LocatedBlock blk = fetchBlockAt(curOff, remaining, true);
+        assert curOff >= blk.getStartOffset() : "Block not found";
+        blockRange.add(blk);
+        long bytesRead = blk.getStartOffset() + blk.getBlockSize() - curOff;
+        remaining -= bytesRead;
+        curOff += bytesRead;
+      }
+      return blockRange;
+    }
+}
+
+private LocatedBlock fetchBlockAt(long offset, long length, boolean useCache)
+      throws IOException {
+    synchronized(infoLock) {
+      updateBlockLocationsStamp();
+      // 从缓存的locatedBlocks查找offset所在block在链表中的位置
+      int targetBlockIdx = locatedBlocks.findBlock(offset);
+      if (targetBlockIdx < 0) { // block is not cached
+        targetBlockIdx = LocatedBlocks.getInsertIndex(targetBlockIdx);
+        useCache = false;
+      }
+      if (!useCache) { // fetch blocks
+        final LocatedBlocks newBlocks = (length == 0)
+            ? dfsClient.getLocatedBlocks(src, offset)
+            : dfsClient.getLocatedBlocks(src, offset, length);
+        if (newBlocks == null || newBlocks.locatedBlockCount() == 0) {
+          throw new EOFException("Could not find target position " + offset);
+        }
+        // Update the LastLocatedBlock, if offset is for last block.
+        if (offset >= locatedBlocks.getFileLength()) {
+          locatedBlocks = newBlocks;
+          lastBlockBeingWrittenLength = getLastBlockLength();
+        } else {
+          locatedBlocks.insertRange(targetBlockIdx,
+              newBlocks.getLocatedBlocks());
+        }
+      }
+      return locatedBlocks.get(targetBlockIdx);
+    }
+}
+```
+#### 1.3.3.2 fetchBlockByteRange()
+```java
+protected void fetchBlockByteRange(LocatedBlock block, long start, long end,
+      ByteBuffer buf, CorruptedBlocks corruptedBlocks)
+      throws IOException {
+    while (true) {
+      DNAddrPair addressPair = chooseDataNode(block, null);
+      // Latest block, if refreshed internally
+      block = addressPair.block;
+      try {
+        // 读数据
+        actualGetFromOneDataNode(addressPair, start, end, buf,
+            corruptedBlocks);
+        return;
+      } catch (IOException e) {
+        checkInterrupted(e); // check if the read has been interrupted
+        // Ignore other IOException. Already processed inside the function.
+        // Loop through to try the next node.
+      }
+    }
+}
+
+private DNAddrPair chooseDataNode(LocatedBlock block,
+      Collection<DatanodeInfo> ignoredNodes) throws IOException {
+    return chooseDataNode(block, ignoredNodes, true);
+}
+
+private DNAddrPair chooseDataNode(LocatedBlock block,
+      Collection<DatanodeInfo> ignoredNodes, boolean refetchIfRequired)
+      throws IOException {
+    while (true) {
+      // 选择一个最佳的node
+      DNAddrPair result = getBestNodeDNAddrPair(block, ignoredNodes);
+      if (result != null) {
+        return result;
+      } else if (refetchIfRequired) {
+        block = refetchLocations(block, ignoredNodes);
+      } else {
+        return null;
+      }
+    }
+}
+
+void actualGetFromOneDataNode(final DNAddrPair datanode, final long startInBlk,
+      final long endInBlk, ByteBuffer buf, CorruptedBlocks corruptedBlocks)
+      throws IOException {
+    DFSClientFaultInjector.get().startFetchFromDatanode();
+    int refetchToken = 1; // only need to get a new access token once
+    int refetchEncryptionKey = 1; // only need to get a new encryption key once
+    final int len = (int) (endInBlk - startInBlk + 1);
+    LocatedBlock block = datanode.block;
+    while (true) {
+      BlockReader reader = null;
+      try {
+        DFSClientFaultInjector.get().fetchFromDatanodeException();
+        // 创建reader
+        // new BlockReaderFactory(...).build();
+        reader = getBlockReader(block, startInBlk, len, datanode.addr,
+            datanode.storageType, datanode.info);
+
+        //Behave exactly as the readAll() call
+        ByteBuffer tmp = buf.duplicate();
+        tmp.limit(tmp.position() + len);
+        tmp = tmp.slice();
+        int nread = 0;
+        int ret;
+        while (true) {
+          // 读取逻辑
+          // BlockReader有四个实现类
+          // 1. BlockReaderLocalLegacy以及BlockReaderLocal适用于DFS客户端和NN在同一节点的情况
+          // 2. BlockReaderRemote
+          // 3. ExternalBlockReader
+          ret = reader.read(tmp);
+          if (ret <= 0) {
+            break;
+          }
+          nread += ret;
+        }
+        buf.position(buf.position() + nread);
+	  ...
+      } finally {
+        if (reader != null) {
+          // 关闭reader
+          reader.close();
+        }
+      }
+    }
+}
+```
+## 1.4 文件系统
+- `NameNode` 会维护文件系统的命名空间，`hdfs` 文件系统的命名空间是以"/" 为根目录开始的整棵目录树，整棵目录树是通过 `FSDirectory` 类来管理的
+- 在 `HDFS` 中，无论是目录还是文件，在文件系统目录树中都被看做是一个 `INode` 节点，如果是目录，则对应的类是 `INodeDirectory`，如果是文件，则对应的类是 `INodeFile`；`INodeDirectory` 类以及 `INodeFile` 类都是 `INode` 的子类。其中 `INodeDirectory` 中包含一个成员集合变量 `children`，如果该目录下有子目录或者文件，其子目录或文件的 `INode` 引用就会被保存在 `children` 集合中。`HDFS` 就是通过这种方式维护整个文件
+### 1.4.1 INode
+```java
+// 基础抽象类，其内部保存了hdfs文件和目录共有的基本属性；包括当前节点的父节点的INode对象的引用、
+// 文件、目录名、用户组、访问权限等, INode类中只有一个属性parent，表明当前INode的父目录
+// 内部定义了公共属性字段对应的方法:
+// userName：文件/目录所属用户名
+// groupName：文件/目录所属用户组
+// fsPermission：文件或者目录权限
+// modificationTime：上次修改时间
+// accessTime：上次访问时间
+// 以及INode的元数据信息
+// id：INode的id
+// name：文件/目录的名称
+// fullPathName：文件/目录的完整路径
+// parent：文件/目录的父节点
+
+public abstract class INode implements INodeAttributes, Diff.Element<byte[]> {
+    public static final Logger LOG = LoggerFactory.getLogger(INode.class);
+
+    /** parent is either an {@link INodeDirectory} or an {@link INodeReference}.*/
+    private INode parent = null;
+    ...
+}
+```
+### 1.4.2 INodeFile
+```java
+// 在文件系统目录树中，使用INodeFile抽象成一个hdfs文件，它也是INode的子类。INodeFile中包含了两个文件特有的属性：文件信息头header和文件对应的数据块信息blocks
+
+public class INodeFile extends INodeWithAdditionalFields
+    implements INodeFileAttributes, BlockCollection {
+    // 定义了两个属性文件信息头header和文件对应的数据块信息blocks
+    // 使用了和INode.permission一样的方法，在一个长整形变量里保存了文件的副本系数和文件数据块的大小
+    // 高16字节存放着副本系数，低48位存放了数据块大小
+    private long header = 0L;
+    
+    // 保存了文件拥有的所有数据块信息，数组元素类型是BlockInfo。BlockInfo类继承自Block类
+    // 保存了数据块与文件、数据块与数据节点的对应关系
+  	private BlockInfo[] blocks;
+    ...
+}
+```
+### 1.4.3 INodeDirectory
+```java
+// INodeDirectory抽象了HDFS中的目录，目录里面保存了文件和其他子目录。
+// 在INodeDirectory实现中的体现是其成员变量children，它是一个用于保存INode的列表。
+// INodeDirectory中的大部分方法都是在操作这个列表，如创建子目录项、查询或遍历子目录项、替换子目录项
+public class INodeDirectory extends INodeWithAdditionalFields
+    implements INodeDirectoryAttributes {
+    ...
+    private List<INode> children = null;
+   
+}
+```
+### 1.4.4 FSNamesystem
+`FSNamesystem` 是瞬态和持久`namespace`状态的容器，并在 `NameNode` 上完成所有记录工作
+主要作用有：
+- 是 `BlockManager`、`DatanodeManager`、`DelegationTokens`、`LeaseManager` 等服务的容器
+- 委托处理修改或检查`namespace`的 `RPC`调用
+- 任何只涉及块的东西（例如块报告），它都委托给 `BlockManager`
+- 任何只涉及文件信息（例如权限、mkdirs）的操作，它都会委托给 `FSDirectory`
+- 任何跨越上述两个组件的东西在这里协调
+- 记录变动到`FsEditLog`
+```java
+public class FSNamesystem implements Namesystem, FSNamesystemMBean,
+NameNodeMXBean, ReplicatedBlocksMBean, ECBlockGroupsMBean {
+	// 操作文件时通过dir来调用
+    FSDirectory dir;
+    // 操作块时委托BlockManager
+    private BlockManager blockManager;
+    final LeaseManager leaseManager = new LeaseManager(this); 
+}
+```
+## 1.5 块管理
+### 1.5.1 Block
+`Block`继承结构为基类`Block`,`BlockInfo`继承自`Block`，`BlocksMap`是`BlockInfo`的一个`hashmap`存储
+```java
+// Block需要在NameNode，DataNodes间进行传输，所以进行了序列化
+public class Block implements Writable, Comparable<Block> {
+    // 主要属性
+    private long blockId;
+    private long numBytes;
+    private long generationStamp;
+}
+```
+### 1.5.2 BlockInfo
+```java
+// BlockInfo维护了块所在的BlockCollection，以及该Block备份到了哪几个DataNodes中
+public abstract class BlockInfo extends Block
+    implements LightWeightGSet.LinkedElement {
+    
+    private short replication;
+    private volatile long bcId;
+    // triplets存放的是引用的三元组，表示BlockInfo被复制在多个DN中
+    // triplets[3*i]存储DatanodeStorageInfo对象，表示Block所在的DN
+    // triplets[3*i+1]以及triplets[3*i+2]存储BlockInfoContiguous对象，表示Block所在的DN前一个以及后一个Block
+    // 通过triplets可以获取块信息
+    protected Object[] triplets;
+}
+```
+### 1.5.3 BlocksMap
+```java
+class BlocksMap {
+  // 内部定义了StorageIterator用于遍历存储信息
+  public static class StorageIterator implements Iterator<DatanodeStorageInfo> {...}
+  // BlocksMap通过GSet来存储块和块信息的映射
+  private GSet<Block, BlockInfo> blocks;
+}
+```
+### 1.5.4 DatanodeStorageInfo
+```java
+/**
+ * A Datanode has one or more storages. A storage in the Datanode is represented
+ * by this class.
+ */
+public class DatanodeStorageInfo{
+  // NN对DN的抽象
+  // DatanodeDescriptor继承了DatanodeID，DatanodeID封装了DN相关的一些基本信息，如ip，host等
+  private final DatanodeDescriptor dn;
+  private final String storageID;
+  private StorageType storageType; //存储类型，disk，ssd等
+  private State state;
+
+  private long capacity; 
+  private long dfsUsed;
+  private volatile long remaining;
+  private long blockPoolUsed;
+
+  private volatile BlockInfoContiguous blockList = null;
+  private int numBlocks = 0;
+
+  // The ID of the last full block report which updated this storage.
+  private long lastBlockReportId = 0;
+
+  /** The number of block reports received */
+  private int blockReportCount = 0;
+```
+### 1.5.5 BlockManager
+```java
+// BlockManager功能之一用于维护NN中的数据块信息，存储的信息包括两个部分：
+// Block与其所在DN的对应关系，通过BlockInfo中triplets保存的DatanodeStorageInfo进行保存
+// 而BlockInfo存储在BlocksMap中，另一部分是DN与其所保存的Block之间的关系，通过DatanodeStorageInfo中的blockList进行保存
+// BlockManager通过修改这两部分数据来修改数据块
+public class BlockManager implements BlockStatsMXBean {
+    
+    // 几个重要属性
+    private final Namesystem namesystem;
+    private final DatanodeManager datanodeManager;
+  	private final HeartbeatManager heartbeatManager;
+	...
+}
+
+// FSNamesystem初始化时会创建BlockManager对象：
+public BlockManager(final Namesystem namesystem, boolean haEnabled,
+      final Configuration conf) throws IOException {
+    // 默认副本数 -> 3
+    this.defaultReplication = conf.getInt(DFSConfigKeys.DFS_REPLICATION_KEY,
+        DFSConfigKeys.DFS_REPLICATION_DEFAULT);
+    // 最大默认副本数 -> 512 最小默认副本数 -> 1
+    final int maxR = conf.getInt(DFSConfigKeys.DFS_REPLICATION_MAX_KEY,
+        DFSConfigKeys.DFS_REPLICATION_MAX_DEFAULT);
+    final int minR = conf.getInt(DFSConfigKeys.DFS_NAMENODE_REPLICATION_MIN_KEY,
+        DFSConfigKeys.DFS_NAMENODE_REPLICATION_MIN_DEFAULT);
+    // 块报告期间要记录信息的最大块数 -> 1000l
+    this.maxNumBlocksToLog =
+        conf.getLong(DFSConfigKeys.DFS_MAX_NUM_BLOCKS_TO_LOG_KEY,
+            DFSConfigKeys.DFS_MAX_NUM_BLOCKS_TO_LOG_DEFAULT);
+}
+```
+## 1.6 契约机制
+- `HDFS`中的契约机制，同一时间只允许一个客户端获取`NameNode`上一个文件的契约，然后才可以向获取契约的文件写入数据。其他客户端尝试获取文件契约的时候只能等待，从而保证同一时间只有一个客户端在写一个文件。客户端获取到契约后，开启一个线程向`NN`请求文件续约，NN后台也有监控契约的线程，如果没有续约，或是没有继续写入文件，契约就会过期，交给别的客户端来写
+### 1.6.1 addLease()
+```java
+// 写操作时FSDirWriteFileOp的startFile方法中会调用addLease()
+fsn.leaseManager.addLease(
+        newNode.getFileUnderConstructionFeature().getClientName(),
+        newNode.getId());
+// LeaseManager.java
+synchronized Lease addLease(String holder, long inodeId) {
+    Lease lease = getLease(holder);
+    if (lease == null) {
+      lease = new Lease(holder);
+      // 没有lease的话添加一个lease对象做绑定
+      // leases通过HashMap保存leaseHolder -> Lease的映射
+      leases.put(holder, lease);
+    } else {
+      renewLease(lease);
+    }
+    // 再将inodeId和lease对象放进TreeSet里
+    leasesById.put(inodeId, lease);
+    lease.files.add(inodeId);
+    return lease;
+}
+```
+### 1.6.2 Lease
+- 文件契约就是将文件和`Lease`对象存在`HashMap`和`TreeMap`中，每个文件有只能有一个契约，就通过比较来选择最新的契约
+```java
+// Lease是LeaseManager的内部类
+/*
+ * A Lease governs all the locks held by a single client.
+ * For each client there's a corresponding lease, whose
+ * timestamp is updated when the client periodically
+ * checks in.  If the client dies and allows its lease to
+ * expire, all the corresponding locks can be released.
+*/
+class Lease {
+    private final String holder;
+    private long lastUpdate;
+    private final HashSet<Long> files = new HashSet<>();
+
+    /** Only LeaseManager object can create a lease */
+    private Lease(String h) {
+      this.holder = h;
+      renew();
+    }
+    /** Only LeaseManager object can renew a lease */
+    private void renew() {
+      this.lastUpdate = monotonicNow();
+    }
+
+    /** Does this lease contain any path? */
+    boolean hasFiles() {return !files.isEmpty();}
+
+    boolean removeFile(long inodeId) {
+      return files.remove(inodeId);
+    }
+
+    private Collection<Long> getFiles() {...}
+
+    String getHolder() {...}
+  }
+```
+### 1.6.3 beginFileLease()
+```java
+// FDSClient调用newStreamForCreate时，返回的DFSOutputStream传给beginFileLease方法，用于续约
+private void beginFileLease(final long inodeId, final DFSOutputStream out)
+      throws IOException {
+    synchronized (filesBeingWritten) {
+      putFileBeingWritten(inodeId, out);
+      LeaseRenewer renewer = getLeaseRenewer();
+      // 执行LeaseRenewer内部定义的run方法
+      boolean result = renewer.put(this);
+      if (!result) {
+        // Existing LeaseRenewer cannot add another Daemon, so remove existing
+        // and add new one.
+        LeaseRenewer.remove(renewer);
+        renewer = getLeaseRenewer();
+        renewer.put(this);
+      }
+    }
+}
+
+// 通过renew续约
+private void renew() throws IOException {
+    final List<DFSClient> copies;
+    synchronized(this) {
+      copies = new ArrayList<>(dfsclients);
+    }
+    //sort the client names for finding out repeated names.
+    Collections.sort(copies, new Comparator<DFSClient>() {
+      @Override
+      public int compare(final DFSClient left, final DFSClient right) {
+        return left.getClientName().compareTo(right.getClientName());
+      }
+    });
+    String previousName = "";
+    for (final DFSClient c : copies) {
+      //skip if current client name is the same as the previous name.
+      if (!c.getClientName().equals(previousName)) {
+        // 遍历Client续约
+        // nameNodeRpcServer.renewLease()调用FSNamesystem的renewLease()再调用LeaseManager的renewLease()
+        if (!c.renewLease()) {
+          LOG.debug("Did not renew lease for client {}", c);
+          continue;
+        }
+        previousName = c.getClientName();
+        LOG.debug("Lease renewed for client {}", previousName);
+      }
+    }
+  }
+```
+### 1.6.4 checkLeases()
+```java
+// LeaseManager中有一个内部类Monitor用于监控契约
+class Monitor implements Runnable {
+    final String name = getClass().getSimpleName();
+
+    /** Check leases periodically. */
+    @Override
+    public void run() {
+        for(; shouldRunMonitor && fsnamesystem.isRunning(); ) {
+            boolean needSync = false;
+			try {
+				if (!fsnamesystem.isInSafeMode()) {
+					needSync = checkLeases(candidates);
+				}
+        }
+    }
+}
+
+private synchronized boolean checkLeases(Collection<Lease> leasesToCheck) {
+    ...
+    //检查契约 
+    for (Lease leaseToCheck : leasesToCheck) {
+      if (isMaxLockHoldToReleaseLease(start)) {
+        break;
+      }
+      // 检查是否超时 
+      if (!leaseToCheck.expiredHardLimit(Time.monotonicNow())) {
+        continue;
+      }
+      // 将检查完需要移除的契约添加至ArrayList removing中
+      for(Long id : removing) {
+        removeLease(leaseToCheck, id);
+      }
+    }
+    return needSync;
+}
+```
+### 1.6.5 removeLease()
+```java
+private synchronized void removeLease(Lease lease, long inodeId) {
+  leasesById.remove(inodeId);
+  if (!lease.removeFile(inodeId)) {
+    LOG.debug("inode {} not found in lease.files (={})", inodeId, lease);
+  }
+  if (!lease.hasFiles()) {
+    if (leases.remove(lease.holder) == null) {
+      LOG.error("{} not found", lease);
+    }
+  }
+}
+```
+# 2. MR
+## 2.1 提交 Job
+### 2.1.1 waitForCompletion()
+```java
+public class Job extends JobContextImpl implements JobContext, AutoCloseable {
+
+    public enum JobState {DEFINE, RUNNING}; //定义枚举变量JobState
+    private JobState state = JobState.DEFINE; //创建的Job的JobState默认为DEFINE
+
+    public static Job getInstance() throws IOException {
+        return getInstance(new Configuration()); //public的构造器均为@Depracated，通过getInstance方法返回示例对象
+    }
+
+    public static Job getInstance(Configuration conf) throws IOException {
+        JobConf jobConf = new JobConf(conf);
+        return new Job(jobConf); //调用default的构造器
+    }
+
+    //提交时调用
+    public boolean waitForCompletion(boolean verbose
+                                    ) throws IOException, InterruptedException,
+    ClassNotFoundException {
+        if (state == JobState.DEFINE) { //RUNNING态的job不会提交第二次
+            submit(); //提交Job
+        }
+        if (verbose) {
+            monitorAndPrintJob(); //设置verbose打印日志信息
+        } else {...}
+        return isSuccessful();
+    }
+}
+```
+### 2.1.2 submit()
+```java
+public void submit() 
+    throws IOException, InterruptedException, ClassNotFoundException {
+    // 确保当前Job的状态为DEFINE
+    ensureState(JobState.DEFINE);
+    // 处理新旧API
+    setUseNewAPI();
+    // 返回XXXRunner对象用于提交Job
+    connect();
+
+    //getJobSubmitter()方法返回包含集群信息的JobSubmitter对象
+    final JobSubmitter submitter = 
+        getJobSubmitter(cluster.getFileSystem(), cluster.getClient());
+
+    //private JobStatus status;
+    //JobContextImpl.java -> protected UserGroupInformation ugi;
+    //public <T> T doAs(PrivilegedExceptionAction<T> action) doAs对象返回的是泛型类型的值
+    status = ugi.doAs(new PrivilegedExceptionAction<JobStatus>() { //返回JobStatus对象
+        public JobStatus run() throws IOException, InterruptedException, 
+        ClassNotFoundException {
+            // 提交
+            return submitter.submitJobInternal(Job.this, cluster);
+        }
+    });
+    state = JobState.RUNNING;
+    LOG.info("The url to track the job: " + getTrackingURL());
+}
+
+synchronized void connect()
+    throws IOException, InterruptedException, ClassNotFoundException {
+    if (cluster == null) {
+        cluster = 
+            ugi.doAs(new PrivilegedExceptionAction<Cluster>() {
+                public Cluster run()
+                    throws IOException, InterruptedException, 
+                ClassNotFoundException {
+                    return new Cluster(getConfiguration()); //返回Cluster对象, 传给doAs方法, 将Cluster对象赋给cluster
+                }
+            });
+    }
+}
+```
+### 2.1.3 new Cluster()
+```java
+public Cluster(Configuration conf) throws IOException {
+    this(null, conf);
+}
+
+public Cluster(InetSocketAddress jobTrackAddr, Configuration conf) 
+    throws IOException {
+    this.conf = conf;
+    this.ugi = UserGroupInformation.getCurrentUser();
+    initialize(jobTrackAddr, conf);
+}
+
+private void initialize(InetSocketAddress jobTrackAddr, Configuration conf)
+      throws IOException {
+
+    for (ClientProtocolProvider provider : providerList) {
+      try {
+        if (jobTrackAddr == null) {
+          clientProtocol = provider.create(conf); //create有两个实现类
+        } else {
+          clientProtocol = provider.create(jobTrackAddr, conf);
+        }
+    }
+}
+
+// 根据运行Job位置的不同，create有两个实现类:LocalClientProtocolProvider和YarnClientProtocolProvider
+public ClientProtocol create(Configuration conf) throws IOException {
+    String framework =
+        /* MRConfig类中定义的FRAMEWORK_NAME = "mapreduce.framework.name"
+                           LOCAL_FRAMEWORK_NAME = "local"
+        */
+        conf.get(MRConfig.FRAMEWORK_NAME, MRConfig.LOCAL_FRAMEWORK_NAME);
+    if (!MRConfig.LOCAL_FRAMEWORK_NAME.equals(framework)) {
+        return null;
+    }
+    //local的情况下设置map数为1
+    conf.setInt(JobContext.NUM_MAPS, 1);
+    //返回LocalJobRunner对象
+    return new LocalJobRunner(conf);
+}
+```
+### 2.1.4 submitJobInternal()
+```java
+// JobSubmitter.java
+// 通过Cluster提交任务
+JobStatus submitJobInternal(Job job, Cluster cluster) 
+  throws ClassNotFoundException, InterruptedException, IOException {
+
+    //检查输出路径是否设置，或者是否已经存在
+    checkSpecs(job);
+
+    Configuration conf = job.getConfiguration();
+    addMRFrameworkToDistributedCache(conf);
+	
+    //通过Cluster对象和conf获取staging文件夹的路径
+    Path jobStagingArea = JobSubmissionFiles.getStagingDir(cluster, conf);
+   
+   // 通过Inet获得ip
+    InetAddress ip = InetAddress.getLocalHost();
+    if (ip != null) {
+      //通过ip得到提交的地址，hostname并通过conf设置
+      submitHostAddress = ip.getHostAddress();
+      submitHostName = ip.getHostName();
+      conf.set(MRJobConfig.JOB_SUBMITHOST,submitHostName);
+      conf.set(MRJobConfig.JOB_SUBMITHOSTADDR,submitHostAddress);
+    }
+    JobID jobId = submitClient.getNewJobID();
+    job.setJobID(jobId);
+    //将staging路径歌jobId拼接成最终存放切片文件, 配置文件等的目录
+    Path submitJobDir = new Path(jobStagingArea, jobId.toString());
+    
+    try{
+      ...
+      // 切片
+      int maps = writeSplits(job, submitJobDir);
+      conf.setInt(MRJobConfig.NUM_MAPS, maps);
+      LOG.info("number of splits:" + maps);
+
+      int maxMaps = conf.getInt(MRJobConfig.JOB_MAX_MAP,
+          MRJobConfig.DEFAULT_JOB_MAX_MAP);
+      ...
+      // 上传配置文件
+      writeConf(conf, submitJobFile);
+      
+      //
+      // Now, actually submit the job (using the submit name)
+      //
+
+      status = submitClient.submitJob(
+          jobId, submitJobDir.toString(), job.getCredentials());
+}
+```
+#### 2.1.4.1 checkSpecs()
+```java
+private void checkSpecs(Job job) throws ClassNotFoundException, 
+      InterruptedException, IOException {
+    JobConf jConf = (JobConf)job.getConfiguration();
+          
+    /*
+        getUseNewMapper和getUseNewReducer返回boolean
+       
+        public boolean getUseNewMapper() {
+            return getBoolean("mapred.mapper.new-api", false);
+        } 
+        */
+    if (jConf.getNumReduceTasks() == 0 ? 
+        jConf.getUseNewMapper() : jConf.getUseNewReducer()) {
+      org.apache.hadoop.mapreduce.OutputFormat<?, ?> output =
+        ReflectionUtils.newInstance(job.getOutputFormatClass(),
+          job.getConfiguration()); //output默认是TextOutputFormat
+      output.checkOutputSpecs(job); //通过output调用
+    } else {
+      jConf.getOutputFormat().checkOutputSpecs(jtFs, jConf);
+    }
+}
+
+public Class<? extends OutputFormat<?,?>> getOutputFormatClass() 
+     throws ClassNotFoundException {
+    return (Class<? extends OutputFormat<?,?>>) 
+      conf.getClass(OUTPUT_FORMAT_CLASS_ATTR, TextOutputFormat.class);
+} //返回TextOutputFormat的Class对象
+
+//TextOutputFormat没有重写checkOutputSpecs方法，直接调用抽象父类OutputFormat的方法
+public void checkOutputSpecs(JobContext job
+    ) throws FileAlreadyExistsException, IOException{
+
+    Path outDir = getOutputPath(job);
+    if (outDir == null) {
+      throw new InvalidJobConfException("Output directory not set.");
+    }
+
+    TokenCache.obtainTokensForNamenodes(job.getCredentials(),
+        new Path[] { outDir }, job.getConfiguration());
+
+    if (outDir.getFileSystem(job.getConfiguration()).exists(outDir)) {
+      throw new FileAlreadyExistsException("Output directory " + outDir + " already exists");
+    }
+}
+```
+#### 2.1.4.2 writeSplits()
+```java
+private int writeSplits(org.apache.hadoop.mapreduce.JobContext job,
+      Path jobSubmitDir) throws IOException,
+      InterruptedException, ClassNotFoundException {
+    JobConf jConf = (JobConf)job.getConfiguration();
+    int maps;
+    if (jConf.getUseNewMapper()) {
+      maps = writeNewSplits(job, jobSubmitDir); // 使用新API，调用writeNewSplits()
+    } else {
+      maps = writeOldSplits(jConf, jobSubmitDir);
+    }
+    return maps;	
+}
+
+private <T extends InputSplit>
+  int writeNewSplits(JobContext job, Path jobSubmitDir) throws IOException,
+      InterruptedException, ClassNotFoundException {
+    Configuration conf = job.getConfiguration();
+    
+    //默认返回TextInputFormat
+    InputFormat<?, ?> input =
+      ReflectionUtils.newInstance(job.getInputFormatClass(), conf);
+	//通过List存放切片对象
+    List<InputSplit> splits = input.getSplits(job);
+    T[] array = (T[]) splits.toArray(new InputSplit[splits.size()]);
+
+    // sort the splits into order based on size, so that the biggest
+    // go first
+    Arrays.sort(array, new SplitComparator());
+    JobSplitWriter.createSplitFiles(jobSubmitDir, conf, 
+        jobSubmitDir.getFileSystem(conf), array);
+    return array.length;
+}
+```
+#### 2.1.4.3 getSplits()
+```java
+//TextInputFormat没有重写抽象父类的方法，调用的是FileInputFormat的方法
+public List<InputSplit> getSplits(JobContext job) throws IOException {
+    StopWatch sw = new StopWatch().start();
+    
+    long minSize = Math.max(getFormatMinSplitSize(), getMinSplitSize(job));
+    long maxSize = getMaxSplitSize(job);
+
+    // generate splits
+    List<InputSplit> splits = new ArrayList<InputSplit>();
+    List<FileStatus> files = listStatus(job);
+
+    boolean ignoreDirs = !getInputDirRecursive(job)
+      && job.getConfiguration().getBoolean(INPUT_DIR_NONRECURSIVE_IGNORE_SUBDIRS, false);
+    for (FileStatus file: files) {
+      	...
+        // 可切，不是压缩文件    
+        if (isSplitable(job, path)) {
+          long blockSize = file.getBlockSize();
+          // 计算切片大小
+          long splitSize = computeSplitSize(blockSize, minSize, maxSize);
+
+          long bytesRemaining = length;
+          while (((double) bytesRemaining)/splitSize > SPLIT_SLOP) {
+            int blkIndex = getBlockIndex(blkLocations, length-bytesRemaining);
+            // 创建FileSplit对象添加至集合中
+            splits.add(makeSplit(path, length-bytesRemaining, splitSize,
+                        blkLocations[blkIndex].getHosts(),
+                        blkLocations[blkIndex].getCachedHosts()));
+            bytesRemaining -= splitSize;
+          }
+
+          if (bytesRemaining != 0) {
+            int blkIndex = getBlockIndex(blkLocations, length-bytesRemaining);
+            splits.add(makeSplit(path, length-bytesRemaining, bytesRemaining,
+                       blkLocations[blkIndex].getHosts(),
+                       blkLocations[blkIndex].getCachedHosts()));
+          }
+        } else { // not splitable
+          splits.add(makeSplit(path, 0, length, blkLocations[0].getHosts(), blkLocations[0].getCachedHosts()));
+        }
+      } else { 
+        //Create empty hosts array for zero length files
+        splits.add(makeSplit(path, 0, length, new String[0]));
+      }
+    }
+    // Save the number of input files for metrics/loadgen
+    return splits;
+}
+
+// 切片最小和最大大小计算
+public static long getMinSplitSize(JobContext job) {
+    return job.getConfiguration().getLong(SPLIT_MINSIZE, 1L);
+}
+public static final String SPLIT_MINSIZE = 
+    "mapreduce.input.fileinputformat.split.minsize";
+
+protected long getFormatMinSplitSize() {
+    return 1;
+}
+
+public static long getMaxSplitSize(JobContext context) {
+    return context.getConfiguration().getLong(SPLIT_MAXSIZE, 
+                                              Long.MAX_VALUE);
+}
+
+public static final String SPLIT_MAXSIZE = 
+    "mapreduce.input.fileinputformat.split.maxsize";
+
+// 计算切片大小
+protected long computeSplitSize(long blockSize, long minSize,
+                                  long maxSize) {
+    return Math.max(minSize, Math.min(maxSize, blockSize));
+}
+
+protected FileSplit makeSplit(Path file, long start, long length, 
+                                String[] hosts) {
+    return new FileSplit(file, start, length, hosts);
+}
+```
+#### 2.1.4.4 createSplitFiles()
+```java
+// 1.7中返回的splits集合按大小排序后，通过JobSplitWriter的createSplitFiles方法，生成最终的切片文件
+public static <T extends InputSplit> void createSplitFiles(Path jobSubmitDir, 
+      Configuration conf, FileSystem fs, T[] splits) 
+  throws IOException, InterruptedException {
+    // 创建切片文件
+    FSDataOutputStream out = createFile(fs, 
+        JobSubmissionFiles.getJobSplitFile(jobSubmitDir), conf);
+    // 向out中写入切片信息
+    SplitMetaInfo[] info = writeNewSplits(conf, splits, out);
+    out.close();
+    // 再写一次元数据
+    writeJobSplitMetaInfo(fs,JobSubmissionFiles.getJobSplitMetaFile(jobSubmitDir), 
+        new FsPermission(JobSubmissionFiles.JOB_FILE_PERMISSION), splitVersion,
+        info);
+}
+
+private static <T extends InputSplit> 
+    SplitMetaInfo[] writeNewSplits(Configuration conf, 
+                                   T[] array, FSDataOutputStream out)
+    throws IOException, InterruptedException {
+	// 切片元数据
+    SplitMetaInfo[] info = new SplitMetaInfo[array.length];
+    if (array.length != 0) {
+        SerializationFactory factory = new SerializationFactory(conf);
+        int i = 0;
+        int maxBlockLocations = conf.getInt(MRConfig.MAX_BLOCK_LOCATIONS_KEY,
+                                            MRConfig.MAX_BLOCK_LOCATIONS_DEFAULT);
+        long offset = out.getPos();
+        for(T split: array) {
+            long prevCount = out.getPos();
+            Text.writeString(out, split.getClass().getName());
+            // 通过工厂模式获取序列化器
+            Serializer<T> serializer = 
+                factory.getSerializer((Class<T>) split.getClass());
+            serializer.open(out);
+            // 序列化
+            serializer.serialize(split);
+            long currCount = out.getPos();
+            String[] locations = split.getLocations();
+            if (locations.length > maxBlockLocations) {
+                LOG.warn("Max block location exceeded for split: "
+                         + split + " splitsize: " + locations.length +
+                         " maxsize: " + maxBlockLocations);
+                locations = Arrays.copyOf(locations, maxBlockLocations);
+            }
+            info[i++] = 
+                new JobSplit.SplitMetaInfo( 
+                locations, offset,
+                split.getLength());
+            offset += currCount - prevCount;
+        }
+    }
+    return info;
+}
+```
+#### 2.1.4.5 writeConf()
+```java
+private void writeConf(Configuration conf, Path jobFile) 
+      throws IOException {
+    // Write job file to JobTracker's fs        
+    FSDataOutputStream out = 
+      FileSystem.create(jtFs, jobFile, 
+                        new FsPermission(JobSubmissionFiles.JOB_FILE_PERMISSION));
+    try {
+      conf.writeXml(out);
+    } finally {
+      out.close();
+    }
+}
+```
+#### 2.1.4.6 submitJob()
+```java
+// 最终的提交也分Local和Yarn两种模式
+// Local
+public org.apache.hadoop.mapreduce.JobStatus submitJob(
+      org.apache.hadoop.mapreduce.JobID jobid, String jobSubmitDir,
+      Credentials credentials) throws IOException {
+    // 此处的Job是LocalJobRunner的内部类
+    Job job = new Job(JobID.downgrade(jobid), jobSubmitDir);
+    job.job.setCredentials(credentials);
+    return job.status;
+}
+```
+### 2.1.5 准备开始执行 Job
+```java
+public Job(JobID jobid, String jobSubmitDir) throws IOException {
+      this.systemJobDir = new Path(jobSubmitDir);
+      this.systemJobFile = new Path(systemJobDir, "job.xml");
+      this.id = jobid;
+      // 通过job.xml生成JobConf对象
+      JobConf conf = new JobConf(systemJobFile);
+      this.localFs = FileSystem.getLocal(conf);
+      String user = UserGroupInformation.getCurrentUser().getShortUserName();
+      this.localJobDir = localFs.makeQualified(new Path(
+          new Path(conf.getLocalPath(jobDir), user), jobid.toString()));
+      this.localJobFile = new Path(this.localJobDir, id + ".xml");
+
+      // Manage the distributed cache.  If there are files to be copied,
+      // this will trigger localFile to be re-written again.
+      localDistributedCacheManager = new LocalDistributedCacheManager();
+      localDistributedCacheManager.setup(conf);
+      
+      // Write out configuration file.  Instead of copying it from
+      // systemJobFile, we re-write it, since setup(), above, may have
+      // updated it.
+      OutputStream out = localFs.create(localJobFile);
+      try {
+        conf.writeXml(out);
+      } finally {
+        out.close();
+      }
+      this.job = new JobConf(localJobFile);
+
+      // Job (the current object) is a Thread, so we wrap its class loader.
+      if (localDistributedCacheManager.hasLocalClasspaths()) {
+        setContextClassLoader(localDistributedCacheManager.makeClassLoader(
+                getContextClassLoader()));
+      }
+      
+      profile = new JobProfile(job.getUser(), id, systemJobFile.toString(), 
+                               "http://localhost:8080/", job.getJobName());
+      status = new JobStatus(id, 0.0f, 0.0f, JobStatus.RUNNING, 
+          profile.getUser(), profile.getJobName(), profile.getJobFile(), 
+          profile.getURL().toString());
+	  // private HashMap<JobID, Job> jobs = new HashMap<JobID, Job>();
+      jobs.put(id, this);
+	  ...
+      this.start();
+}
+
+public void run() {
+	// 获取ReduceTask个数    
+	int numReduceTasks = job.getNumReduceTasks();
+	outputCommitter.setupJob(jContext);
+	status.setSetupProgress(1.0f);
+	// 
+	List<RunnableWithThrowable> mapRunnables = getMapTaskRunnables(
+		taskSplitMetaInfos, jobId, mapOutputFiles);
+		  
+	initCounters(mapRunnables.size(), numReduceTasks);
+	ExecutorService mapService = createMapExecutor();
+	runTasks(mapRunnables, mapService, "map");
+
+	try {
+	  if (numReduceTasks > 0) {
+		List<RunnableWithThrowable> reduceRunnables = getReduceTaskRunnables(
+			jobId, mapOutputFiles);
+		ExecutorService reduceService = createReduceExecutor();
+		runTasks(reduceRunnables, reduceService, "reduce");
+	  }
+	} finally {
+	  for (MapOutputFile output : mapOutputFiles.values()) {
+		output.removeAll();
+	  }
+	}
+	// delete the temporary directory in output directory
+	outputCommitter.commitJob(jContext);
+	status.setCleanupProgress(1.0f);
+}
+```
+### 2.1.6 getMapTaskRunnables()
+```java
+// 创建一个MapTaskRunnable对象
+protected List<RunnableWithThrowable> getMapTaskRunnables(
+        TaskSplitMetaInfo [] taskInfo, JobID jobId,
+        Map<TaskAttemptID, MapOutputFile> mapOutputFiles) {
+
+      int numTasks = 0;
+      ArrayList<RunnableWithThrowable> list =
+          new ArrayList<RunnableWithThrowable>();
+      for (TaskSplitMetaInfo task : taskInfo) {
+        list.add(new MapTaskRunnable(task, numTasks++, jobId,
+            mapOutputFiles));
+      }
+
+      return list;
+}
+
+// 启动Task
+private void runTasks(List<RunnableWithThrowable> runnables,
+        ExecutorService service, String taskType) throws Exception {
+      // Start populating the executor with work units.
+      // They may begin running immediately (in other threads).
+      // 遍历task的runnable对象
+      for (Runnable r : runnables) {
+        service.submit(r);
+      }
+      ...
+}
+
+//AbstractExecutorService.java
+public Future<?> submit(Runnable task) {
+        if (task == null) throw new NullPointerException();
+    	// 返回一个FutureTask对象
+        RunnableFuture<Void> ftask = newTaskFor(task, null);
+        execute(ftask);
+        return ftask;
+}
+
+//ThreadPoolExecutor.java
+public void execute(Runnable command) {
+        if (command == null)
+            throw new NullPointerException();
+        // 线程池有资源，addWorker创建Worker对象来调度启动MapRunable线程，开始MapTask
+        // Worker有一个thread属性，与线程绑定后，会调用线程的start
+        int c = ctl.get();
+        if (workerCountOf(c) < corePoolSize) {
+            if (addWorker(command, true))
+                return;
+            c = ctl.get();
+        }
+        if (isRunning(c) && workQueue.offer(command)) {
+            int recheck = ctl.get();
+            if (! isRunning(recheck) && remove(command))
+                reject(command);
+            else if (workerCountOf(recheck) == 0)
+                addWorker(null, false);
+        }
+        else if (!addWorker(command, false))
+            reject(command);
+}
+
+private boolean addWorker(Runnable firstTask, boolean core) {
+        retry:
+        for (int c = ctl.get();;) {
+            // Check if queue empty only if necessary.
+            if (runStateAtLeast(c, SHUTDOWN)
+                && (runStateAtLeast(c, STOP)
+                    || firstTask != null
+                    || workQueue.isEmpty()))
+                return false;
+
+            for (;;) {
+                if (workerCountOf(c)
+                    >= ((core ? corePoolSize : maximumPoolSize) & COUNT_MASK))
+                    return false;
+                if (compareAndIncrementWorkerCount(c))
+                    break retry;
+                c = ctl.get();  // Re-read ctl
+                if (runStateAtLeast(c, SHUTDOWN))
+                    continue retry;
+                // else CAS failed due to workerCount change; retry inner loop
+            }
+        }
+
+        boolean workerStarted = false;
+        boolean workerAdded = false;
+        Worker w = null;
+        try {
+            // 创建worker
+            w = new Worker(firstTask);
+            final Thread t = w.thread;
+            if (t != null) {
+                final ReentrantLock mainLock = this.mainLock;
+                mainLock.lock();
+                try {
+                    // Recheck while holding lock.
+                    // Back out on ThreadFactory failure or if
+                    // shut down before lock acquired.
+                    int c = ctl.get();
+
+                    if (isRunning(c) ||
+                        (runStateLessThan(c, STOP) && firstTask == null)) {
+                        if (t.getState() != Thread.State.NEW)
+                            throw new IllegalThreadStateException();
+                        workers.add(w);
+                        workerAdded = true;
+                        int s = workers.size();
+                        if (s > largestPoolSize)
+                            largestPoolSize = s;
+                    }
+                } finally {
+                    mainLock.unlock();
+                }
+                if (workerAdded) {
+                    // 启动线程
+                    t.start();
+                    workerStarted = true;
+                }
+            }
+        } finally {
+            if (! workerStarted)
+                addWorkerFailed(w);
+        }
+        return workerStarted;
+}
+```
+## 2.2 Map
+

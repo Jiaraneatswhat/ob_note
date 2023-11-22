@@ -1,0 +1,21 @@
+{
+	"nodes":[
+		{"id":"fd0ed683d8852d62","type":"file","file":"images/svg/flink/submit/CliFrontend.svg","x":-1240,"y":-449,"width":1400,"height":403},
+		{"id":"b87494ec452be61d","type":"file","file":"images/svg/flink/submit/start_cluster.svg","x":-1240,"y":120,"width":1558,"height":367},
+		{"id":"363598fc3881b829","type":"file","file":"images/svg/flink/submit/ready4create.svg","x":-1240,"y":680,"width":2538,"height":380},
+		{"id":"af76e8074e9a13e9","type":"file","file":"images/svg/flink/submit/create_jmaster.svg","x":-1240,"y":1280,"width":5600,"height":983},
+		{"id":"db196852a1ffa558","type":"file","file":"images/svg/flink/submit/jm1.svg","x":-1240,"y":2420,"width":5563,"height":1008},
+		{"id":"b3036371f730f13b","type":"file","file":"images/svg/flink/submit/requireContainer.svg","x":-1240,"y":3580,"width":3359,"height":691},
+		{"id":"768a8125150b857d","type":"file","file":"images/svg/flink/submit/start_task_manager.svg","x":-1240,"y":4440,"width":4531,"height":880},
+		{"id":"d865558c07347467","x":-1240,"y":5480,"width":1820,"height":542,"type":"file","file":"images/svg/flink/submit/start_task.svg"}
+	],
+	"edges":[
+		{"id":"97229d38abb339a2","fromNode":"fd0ed683d8852d62","fromSide":"bottom","toNode":"b87494ec452be61d","toSide":"top"},
+		{"id":"25b5270726d38da1","fromNode":"b87494ec452be61d","fromSide":"bottom","toNode":"363598fc3881b829","toSide":"top"},
+		{"id":"3a3358d10c11970e","fromNode":"363598fc3881b829","fromSide":"bottom","toNode":"af76e8074e9a13e9","toSide":"top"},
+		{"id":"a977f9863e6733b9","fromNode":"af76e8074e9a13e9","fromSide":"bottom","toNode":"db196852a1ffa558","toSide":"top"},
+		{"id":"fb872824c89e4a94","fromNode":"db196852a1ffa558","fromSide":"bottom","toNode":"b3036371f730f13b","toSide":"top"},
+		{"id":"4fb0cf86151fac4e","fromNode":"b3036371f730f13b","fromSide":"bottom","toNode":"768a8125150b857d","toSide":"top"},
+		{"id":"d33b6e1cf3551192","fromNode":"768a8125150b857d","fromSide":"bottom","toNode":"d865558c07347467","toSide":"top"}
+	]
+}

@@ -4815,8 +4815,20 @@ tblEnv.sqlQuery("select t1.id, t1.vc, t2.id, t2.vc " +
         " on t1.id = t2.id").execute().print();  
 env.execute()
 
-// left join取左表全部数据
-// 一开始如过左面没有关联成功，就会增加一条 +I 的数据，等关联成功时，会删除之前关联的结果(-D) ，生成一条新的结果
-// left join 会产生 -D 的数据，只能通过Kafka-upsert写出
+/* 
+ * left join取左表全部数据
+ * 一开始如过左面没有关联成功，就会增加一条 +I 的数据，等关联成功时，会删除之前关联的结果(-D) ，生成一条新的结果
+ * left join 会产生 -D 的数据，只能通过Kafka-upsert写出
+ */
+
+// 可以通过表环境设置ttl
+.getConfig().setIdleStateRetention(Duration duration);
+// 或者通过config设置table.exec.state.ttl
+.getConfig().set("table.exec.state.ttl", "毫秒值")
 ```
 
+
+### 7.5.2 IntervalJoin
+```java
+
+```

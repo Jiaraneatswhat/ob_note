@@ -4846,3 +4846,15 @@ String joinSql = "select t1.id, t2.name " +
         " left join t2 for system_time as of t1.pt" +  
         " on t1.id = t2.id";
 ```
+
+## 7.6 Catalog
+- Catalog 是库的上一级，用于区分相同库下相同的表名
+```java
+/*
+ * Catalog接口
+ *   -> AbstractCatalog抽象类
+ *       -> AbstractJdbcCatalog 
+ *       -> GenericInMemoryCatalog
+ *       -> HiveCatalog
+*/
+```

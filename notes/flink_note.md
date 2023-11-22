@@ -4830,5 +4830,14 @@ env.execute()
 
 ### 7.5.2 IntervalJoin
 ```java
+// 不使用join关键字
+String sql = "select t1.id, t2.id, t1.ts, t2.ts " +  
+        " from t1, t2 " +  
+        " where t1.id = t2.id and " +  
+        " t2.et " +  // 对面流的时间
+        " between t1.et - interval '2' second and t1.et + interval '2' second"; // 在当前表的时间范围中
+```
+### LookupJoin
+```java
 
 ```

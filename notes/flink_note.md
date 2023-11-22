@@ -4838,6 +4838,11 @@ String sql = "select t1.id, t2.id, t1.ts, t2.ts " +
         " between t1.et - interval '2' second and t1.et + interval '2' second"; // 在当前表的时间范围中
 ```
 ### LookupJoin
+- 维度表一般存储在外部系统，如 `Mysql` 或 `HBase` 中， `lookupjoin` 用于事实表 `join` 维度表的场景，要求维度表中有<font color='skyblue'>处理时间</font>字段
 ```java
-
+String joinSql = "select t1.id, t2.name " +  
+        " from t1 " +  
+        // for system_time as of + 处理时间字段
+        " left join t2 for system_time as of t1.pt" +  
+        " on t1.id = t2.id";
 ```

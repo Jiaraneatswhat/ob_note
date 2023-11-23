@@ -4927,4 +4927,18 @@ public void useCatalog(String catalogName) {
 ### 7.6.3 HiveCatalog
 - `HiveCatalog` 不仅可以直接对接 `Hive` 中的库和表，还可以把 `Flink` 中定义的表的元数据直接存储到 `Hive` 的元数据存储中
 - 使用时需要开启元数据服务
-- 
+```java
+// HiveCatalog的构造器
+// 将hive-site.xml所在目录传入
+public HiveCatalog(String catalogName, @Nullable String defaultDatabase, @Nullable String hiveConfDir) {  
+    this(catalogName, defaultDatabase, (String)hiveConfDir, (String)null);  
+}
+
+public HiveCatalog(String catalogName, @Nullable String defaultDatabase, @Nullable HiveConf hiveConf, String hiveVersion, boolean allowEmbedded) {  
+    super(catalogName, defaultDatabase == null ? "default" : defaultDatabase);  
+    this.hiveConf = hiveConf == null ? createHiveConf((String)null, (String)null) : hiveConf; 
+    ...
+}
+```
+## 7.7 Module
+- `Module` 用于管理

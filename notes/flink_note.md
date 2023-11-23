@@ -4176,138 +4176,80 @@ CompletableFuture<CompletedCheckpoint> triggerCheckpoint(
     return request.onCompletionPromise;  
 }
 
-private void startTriggeringCheckpoint(CheckpointTriggerRequest request) {  
+private void startTriggeringCheckpoint(CheckpointTriggerRequest request) {   
+	// 原子自增
+    checkpointIdCounter.getAndIncrement();
+    // 初始化ck存储状态的位置
+    initializeCheckpointLocation(...);  
+    // 触发ck
+    OperatorCoordinatorCheckpoints                                             .triggerAndAcknowledgeAllCoordinatorCheckpointsWithCompletion(...)  
+}
+
+public static CompletableFuture<Void>  
+        triggerAndAcknowledgeAllCoordinatorCheckpointsWithCompletion(  
+                final Collection<OperatorCoordinatorCheckpointContext> coordinators,  
+                final PendingCheckpoint checkpoint,  
+                final Executor acknowledgeExecutor)  
+                throws CompletionException {  
+  
     try {  
-    
-        final CompletableFuture<PendingCheckpoint> pendingCheckpointCompletableFuture =  
-                checkpointPlanFuture  
-                        .thenApplyAsync(  
-                                plan -> {  
-                                    try {  
-                                    
-                                     long checkpointID =  
-  // checkpointIdCounter自增                                      
-  checkpointIdCounter.getAndIncrement();  
-                                        return new Tuple2<>(plan, checkpointID);  
-                                    } catch (Throwable e) {  
-                                        throw new CompletionException(e);  
-                                    }  
-                                },  
-                                executor)  
-                        .thenApplyAsync(  
-                                (checkpointInfo) ->  
-                                        createPendingCheckpoint(  
-                                                timestamp,  
-                                                request.props,  
-                                                checkpointInfo.f0,  
-                                                request.isPeriodic,  
-                                                checkpointInfo.f1,  
-                                                request.getOnCompletionFuture(),  
-                                                masterTriggerCompletionPromise),  
-                                timer);  
+        return triggerAndAcknowledgeAllCoordinatorCheckpoints(  
+                coordinators, checkpoint, acknowledgeExecutor);  
+    }
+}
+
+public static CompletableFuture<Void> triggerAndAcknowledgeAllCoordinatorCheckpoints(  
+        final Collection<OperatorCoordinatorCheckpointContext> coordinators,  
+        final PendingCheckpoint checkpoint,  
+        final Executor acknowledgeExecutor)  
+        throws Exception {  
   
-        final CompletableFuture<?> coordinatorCheckpointsComplete =  
-                pendingCheckpointCompletableFuture  
-                        .thenApplyAsync(  
-                                pendingCheckpoint -> {  
-                                    try {  
-                                        CheckpointStorageLocation checkpointStorageLocation =  
-                                                initializeCheckpointLocation(  
-                                                        pendingCheckpoint.getCheckpointID(),  
-                                                        request.props,  
-                                                        request.externalSavepointLocation,  
-                                                        initializeBaseLocations);  
-                                        return Tuple2.of(  
-                                                pendingCheckpoint, checkpointStorageLocation);  
-                                    } catch (Throwable e) {  
-                                        throw new CompletionException(e);  
-                                    }  
-                                },  
-                                executor)  
-                        .thenComposeAsync(  
-                                (checkpointInfo) -> {  
-                                    PendingCheckpoint pendingCheckpoint = checkpointInfo.f0;  
-                                    if (pendingCheckpoint.isDisposed()) {  
-                                        // The disposed checkpoint will be handled later,  
-                                        // skip snapshotting the coordinator states.                                        return null;  
-                                    }  
-                                    synchronized (lock) {  
-                                        pendingCheckpoint.setCheckpointTargetLocation(  
-                                                checkpointInfo.f1);  
-                                    }  
-                                    return OperatorCoordinatorCheckpoints  
-                                            .triggerAndAcknowledgeAllCoordinatorCheckpointsWithCompletion(  
-                                                    coordinatorsToCheckpoint,  
-                                                    pendingCheckpoint,  
-                                                    timer);  
-                                },  
-                                timer);  
+    final CompletableFuture<AllCoordinatorSnapshots> snapshots =  
+            triggerAllCoordinatorCheckpoints(coordinators, checkpoint.getCheckpointID());  
   
-        // We have to take the snapshot of the master hooks after the coordinator checkpoints  
-        // has completed.        // This is to ensure the tasks are checkpointed after the OperatorCoordinators in case        // ExternallyInducedSource is used.        final CompletableFuture<?> masterStatesComplete =  
-                coordinatorCheckpointsComplete.thenComposeAsync(  
-                        ignored -> {  
-                            // If the code reaches here, the pending checkpoint is guaranteed to  
-                            // be not null.                            // We use FutureUtils.getWithoutException() to make compiler happy                            // with checked                            // exceptions in the signature.                            PendingCheckpoint checkpoint =  
-                                    FutureUtils.getWithoutException(  
-                                            pendingCheckpointCompletableFuture);  
-                            if (checkpoint == null || checkpoint.isDisposed()) {  
-                                // The disposed checkpoint will be handled later,  
-                                // skip snapshotting the master states.                                return null;  
-                            }  
-                            return snapshotMasterState(checkpoint);  
-                        },  
-                        timer);  
+    return snapshots.thenAcceptAsync(  
+            (allSnapshots) -> {  
+                try {  
+                    acknowledgeAllCoordinators(checkpoint, allSnapshots.snapshots);  
+                } 
+            },  
+            acknowledgeExecutor);  
+}
+
+public static CompletableFuture<AllCoordinatorSnapshots> triggerAllCoordinatorCheckpoints(  
+        final Collection<OperatorCoordinatorCheckpointContext> coordinators,  
+        final long checkpointId)  
+        throws Exception {  
+    // 每个coordinator对应一个SourcejobVertex
+    final Collection<CompletableFuture<CoordinatorSnapshot>> individualSnapshots =  
+            new ArrayList<>(coordinators.size());  
   
-        FutureUtils.forward(  
-                CompletableFuture.allOf(masterStatesComplete, coordinatorCheckpointsComplete),  
-                masterTriggerCompletionPromise);  
-  
-        FutureUtils.assertNoException(  
-                masterTriggerCompletionPromise  
-                        .handleAsync(  
-                                (ignored, throwable) -> {  
-                                    final PendingCheckpoint checkpoint =  
-                                            FutureUtils.getWithoutException(  
-                                                    pendingCheckpointCompletableFuture);  
-  
-                                    Preconditions.checkState(  
-                                            checkpoint != null || throwable != null,  
-                                            "Either the pending checkpoint needs to be created or an error must have occurred.");  
-  
-                                    if (throwable != null) {  
-                                        // the initialization might not be finished yet  
-                                        if (checkpoint == null) {  
-                                            onTriggerFailure(request, throwable);  
-                                        } else {  
-                                            onTriggerFailure(checkpoint, throwable);  
-                                        }  
-                                    } else {  
-                                        triggerCheckpointRequest(  
-                                                request, timestamp, checkpoint);  
-                                    }  
-                                    return null;  
-                                },  
-                                timer)  
-                        .exceptionally(  
-                                error -> {  
-                                    if (!isShutdown()) {  
-                                        throw new CompletionException(error);  
-                                    } else if (findThrowable(  
-                                                    error, RejectedExecutionException.class)  
-                                            .isPresent()) {  
-                                        LOG.debug("Execution rejected during shutdown");  
-                                    } else {  
-                                        LOG.warn("Error encountered during shutdown", error);  
-                                    }  
-                                    return null;  
-                                }));  
-    } catch (Throwable throwable) {  
-        onTriggerFailure(request, throwable);  
+    for (final OperatorCoordinatorCheckpointContext coordinator : coordinators) {  
+        final CompletableFuture<CoordinatorSnapshot> checkpointFuture =  
+                // JM根据SourceOperator个数依次持久化checkpointId
+                triggerCoordinatorCheckpoint(coordinator, checkpointId);  
+        individualSnapshots.add(checkpointFuture);  
     }  
+  
+    return FutureUtils.combineAll(individualSnapshots).thenApply(AllCoordinatorSnapshots::new);  
+}
+
+public void checkpointCoordinator(long checkpointId, CompletableFuture<byte[]> result) {  
+	mainThreadExecutor.execute(() -> checkpointCoordinatorInternal(checkpointId, result));  
+}
+
+private void checkpointCoordinatorInternal(  
+        final long checkpointId, final CompletableFuture<byte[]> result) {  
+    try {  
+	    // coordinator的不同实现类执行ck
+        coordinator.checkpointCoordinator(checkpointId, coordinatorCheckpoint);  
+    }
 }
 ```
+#### 6.1.1.3 Source 执行 ck
+```java
 
+```
 
 
 

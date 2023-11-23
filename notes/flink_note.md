@@ -4075,6 +4075,7 @@ ds1.connect(broadcastStream)
 - 可以在 flink-conf.yaml 中配置：`state.backend.type: hashmap|rocksdb`
 - 以 Keyed ListState 为例
 ```java
+// getRuntimeContext()会返回一个StreamingRuntimeContext对象
 
 ```
 # 6. 容错机制

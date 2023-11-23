@@ -4181,10 +4181,14 @@ private void startTriggeringCheckpoint(CheckpointTriggerRequest request) {
     checkpointIdCounter.getAndIncrement();
     // 初始化ck存储状态的位置
     initializeCheckpointLocation(...);  
-    // 触发ck
-    OperatorCoordinatorCheckpoints                                             .triggerAndAcknowledgeAllCoordinatorCheckpointsWithCompletion(...)  
+    // 触发ck初始化ck的id
+    OperatorCoordinatorCheckpoints                                             .triggerAndAcknowledgeAllCoordinatorCheckpointsWithCompletion(...)
+    // 初始化ck的id后，开始依次调用TM上每个Execution的Checkpoint
+	triggerCheckpointRequest(request, timestamp, checkpoint)
 }
-
+```
+##### 6.1.1.2.1 triggerAndAcknowledgeAllCoordinatorCheckpointsWithCompletion()
+```java
 public static CompletableFuture<Void>  
         triggerAndAcknowledgeAllCoordinatorCheckpointsWithCompletion(  
                 final Collection<OperatorCoordinatorCheckpointContext> coordinators,  
@@ -4230,8 +4234,22 @@ public static CompletableFuture<AllCoordinatorSnapshots> triggerAllCoordinatorCh
                 triggerCoordinatorCheckpoint(coordinator, checkpointId);  
         individualSnapshots.add(checkpointFuture);  
     }  
+}
+
+public static CompletableFuture<CoordinatorSnapshot> triggerCoordinatorCheckpoint(  
+        final OperatorCoordinatorCheckpointContext coordinatorContext, final long checkpointId)  
+        throws Exception {  
   
-    return FutureUtils.combineAll(individualSnapshots).thenApply(AllCoordinatorSnapshots::new);  
+    final CompletableFuture<byte[]> checkpointFuture = new CompletableFuture<>();  
+    // checkpointId写入完成后封装成CoordinatorSnapshot返回
+    coordinatorContext.checkpointCoordinator(checkpointId, checkpointFuture);  
+  
+    return checkpointFuture.thenApply(  
+            (state) ->  
+                    new CoordinatorSnapshot(  
+                            coordinatorContext,  
+                            new ByteStreamStateHandle(  
+                                    coordinatorContext.operatorId().toString(), state)));  
 }
 
 public void checkpointCoordinator(long checkpointId, CompletableFuture<byte[]> result) {  
@@ -4241,12 +4259,12 @@ public void checkpointCoordinator(long checkpointId, CompletableFuture<byte[]> r
 private void checkpointCoordinatorInternal(  
         final long checkpointId, final CompletableFuture<byte[]> result) {  
     try {  
-	    // coordinator的不同实现类执行ck
+	    // coordinator的不同实现类将checkpointId持久化到state中
         coordinator.checkpointCoordinator(checkpointId, coordinatorCheckpoint);  
     }
 }
 ```
-#### 6.1.1.3 Source 执行 ck
+##### 6.1.1.2.2 triggerCheckpointRequest()
 ```java
 
 ```

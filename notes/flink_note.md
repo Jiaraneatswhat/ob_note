@@ -4082,6 +4082,7 @@ ds1.connect(broadcastStream)
 - 在程序故障需要恢复快照时，总是以最近完成的 `checkpoint` 数据来恢复每一个算子的状态信息
 ### 6.1.1 checkpoint 的流程
 
+
 # 7. SQL
 ## 7.1 基础 API
 ### 7.1.1 创建 TableEnvironment

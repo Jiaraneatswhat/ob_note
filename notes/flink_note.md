@@ -4941,4 +4941,31 @@ public HiveCatalog(String catalogName, @Nullable String defaultDatabase, @Nullab
 }
 ```
 ## 7.7 Module
-- `Module` 用于管理
+- `Module` 接口定义了一组元数据，包括函数，用户定义类型等
+```java
+// Module接口有两个实现类CoreModule和HiveModule
+// 默认加载的是CoreModule
+tblEnv.listModules();
+// 通过ModuleManager列出Module
+public String[] listModules() {  
+    return moduleManager.listModules().toArray(new String[0]);  
+}
+// 如果想使用hive中的函数，就要将HiveModule引入
+HiveModule hiveModule = new HiveModule();
+// 通过ModuleManager加载module，将module放在loadedModules map中
+tblEnv.loadModule("hive", hiveModule);
+public void loadModule(String moduleName, Module module) {  
+    moduleManager.loadModule(moduleName, module);  
+}
+// 设置要使用的module
+// addAll全部添加到集合中
+tblEnv.useModules("hive", "core");
+```
+## 7.8 SqlHint
+- `SqlHint` 用于临时修改表中的元数据，只在当前查询有效
+- 在需要给出提示的地方使用: `/*+ OPTIONS('k'='v') */`，传入 k, v
+```java
+// 修改连接器中的参数
+env.sqlQuery("select * from t1 /*+ OPTIONS('path'='...') */ ") .execute().print();
+```
+## 7.9 SqlClient

@@ -4074,6 +4074,13 @@ ds1.connect(broadcastStream)
 	- 可以存储大状态
 - 可以在 flink-conf.yaml 中配置：`state.backend.type: hashmap|rocksdb`
 # 6. 容错机制
+## 6.1 Checkpoint 机制
+- `checkpoint` 基于 <font color='red'>Chandy-Lamport</font> 算法，通过分布式异步快照将状态备份到检查点
+- `JobManager` 通过 `Barrier` 通知 `Task` 进行备份
+- `Barrier` 将数据分隔为批次，只能由源头产生，当前`barrier`到达某个算子，意味着当前批次的数据已经被这个算子全部处理完毕，可以进行状态的持久化
+![[stream_barriers.svg]]
+- 在程序故障需要恢复快照时，总是以最近完成的 `checkpoint` 数据来恢复每一个算子的状态信息
+### 6.1.1 checkpoint 的流程
 
 # 7. SQL
 ## 7.1 基础 API

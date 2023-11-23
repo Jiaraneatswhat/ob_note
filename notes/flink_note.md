@@ -4873,4 +4873,6 @@ System.out.println(tblEnv.getCurrentDatabase());
 ### 7.6.2 JdbcCatalog
 - `AbstractJdbcCatalog` 有三个子类
 - `JdbcCatalog` 可以直接对接 `JDBC` 中的库和表，无需创建 `Flink` 的表映射，即可读取
-- 
+```java
+
+```

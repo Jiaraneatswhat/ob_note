@@ -4035,16 +4035,16 @@ ds1.connect(broadcastStream)
         }).print();
 ```
 ## 5.2 KeyedState
-- KeyedState 针对 KeyedStream 的计算，每个算子的处理函数中，每个 Key 各有各自的状态，互不影响
-- ValueState
+- `KeyedState` 针对 `KeyedStream` 的计算，每个算子的处理函数中，每个 Key 各有各自的状态，互不影响
+- `ValueState`
 	- T value(): 获取当前状态的值
 	- update(T value): 对状态进行更新
-- ListState
-- MapState
-- ReducingState
+- `ListState`
+- `MapState`
+- `ReducingState`
 	- add(): 添加一个元素
 	- get(): 获取聚合结果
-- AggregatingState: 同 ReducingState
+- `AggregatingState`: 同 `ReducingState`
 ```java
 .process(new KeyedProcessFunction<String, WaterSensor, String>() {  
 	// 
@@ -4067,12 +4067,16 @@ ds1.connect(broadcastStream)
 ## 5.3 状态后端
 - 状态后端主要负责<font color='red'>管理本地状态的存储方式和位置</font>
 - 状态后端有两种
-- HashMapStateBackend
+- `HashMapStateBackend`
 	- 将状态存储在 TM 的堆内存中，基于内存读写，效率高
-- EmbeddedRocksDBStateBackend
+- `EmbeddedRocksDBStateBackend`
 	- 将状态存储在内置的 RocksDB 中，RocksDB 随 TM 的启动而创建，将数据以 byte\[]形式存储在缓存，缓存空间不足时将其溢写到磁盘中
 	- 可以存储大状态
 - 可以在 flink-conf.yaml 中配置：`state.backend.type: hashmap|rocksdb`
+- 以 Keyed ListState 为例
+```java
+
+```
 # 6. 容错机制
 # 7. SQL
 ## 7.1 基础 API
@@ -4969,3 +4973,20 @@ tblEnv.useModules("hive", "core");
 env.sqlQuery("select * from t1 /*+ OPTIONS('path'='...') */ ") .execute().print();
 ```
 ## 7.9 SqlClient
+- flink 提供了一个命令行的客户端，类似 hivecli，使用前必须先启动 Session 集群，再提交 sql：`/bin/sql-client.sh`
+- sqlClient 可以设置三种显示模式：`SET sql-client.execution.result-mode=`
+	- 默认 table
+	- tableau
+	- changelog：在 table 的基础上显示+I, +U 等标识
+- 设置执行环境：`SET execution.runtime-mode=streaming`
+- 执行一个 sql 文件：`sql-client.sh -i xxx.sql`
+- 使用 savepoint
+```shell
+# 停止job，触发savepoint
+SET state.savepoints.dir='hdfs://...'
+STOP JOB 'jobid' WITH SAVEPOINT
+
+# 从savepoint恢复
+SET execution.savepoint.path='...' # 之前保存的路径
+# 直接提交sql，就会从之前的状态恢复
+```

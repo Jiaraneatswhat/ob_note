@@ -3975,7 +3975,7 @@ public <OUT> SingleOutputStreamOperator<OUT> process(
         ProcessJoinFunction<IN1, IN2, OUT> processJoinFunction) {}
 ```
 # 5. 状态管理
-- Flink 中的算子任务可以分为有状态和无状态两种
+- `Flink` 中的算子任务可以分为有状态和无状态两种
 	- 无状态在计算时不依赖其他数据，直接输出转换结果
 	- 有状态收到上游发送到的数据后，需要获取当前状态，进行更新后再向下流发送
 - 状态可以分为 `RawState` 和 `ManagedState`
@@ -4073,12 +4073,8 @@ ds1.connect(broadcastStream)
 	- 将状态存储在内置的 RocksDB 中，RocksDB 随 TM 的启动而创建，将数据以 byte\[]形式存储在缓存，缓存空间不足时将其溢写到磁盘中
 	- 可以存储大状态
 - 可以在 flink-conf.yaml 中配置：`state.backend.type: hashmap|rocksdb`
-- 以 Keyed ListState 为例
-```java
-// getRuntimeContext()会返回一个StreamingRuntimeContext对象
-
-```
 # 6. 容错机制
+
 # 7. SQL
 ## 7.1 基础 API
 ### 7.1.1 创建 TableEnvironment

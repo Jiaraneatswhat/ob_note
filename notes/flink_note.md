@@ -4873,6 +4873,58 @@ System.out.println(tblEnv.getCurrentDatabase());
 ### 7.6.2 JdbcCatalog
 - `AbstractJdbcCatalog` 有三个子类
 - `JdbcCatalog` 可以直接对接 `JDBC` 中的库和表，无需创建 `Flink` 的表映射，即可读取
+- 只能读取不能写入数据
 ```java
+// MySqlCatalog的构造器
+public AbstractJdbcCatalog(  
+        ClassLoader userClassLoader,  
+        String catalogName,  
+        String defaultDatabase,  
+        String username,  
+        String pwd,  
+        String baseUrl) {  
+    super(catalogName, defaultDatabase);  
+  
+    checkNotNull(userClassLoader);  
+    checkArgument(!StringUtils.isNullOrWhitespaceOnly(username));  
+    checkArgument(!StringUtils.isNullOrWhitespaceOnly(pwd));  
+    checkArgument(!StringUtils.isNullOrWhitespaceOnly(baseUrl));  
+  
+    JdbcCatalogUtils.validateJdbcUrl(baseUrl);  
+  
+    this.userClassLoader = userClassLoader;  
+    this.username = username;  
+    this.pwd = pwd;  
+    this.baseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";  
+    this.defaultUrl = this.baseUrl + defaultDatabase;  
+}
 
+// 创建一个MySqlCatalog
+MySqlCatalog mySqlCatalog = new MySqlCatalog(  
+        CatalogTest.class.getClassLoader(),  
+        "mysql",  
+        "gmall",  
+        "root",  
+        "000000",  
+        // baseUrl只用写这一段
+        "jdbc:mysql://hadoop102:3306"  
+);
+
+// 注册到CatalogManager
+tblEnv.registerCatalog("catalog", mySqlCatalog);
+
+public void registerCatalog(String catalogName, Catalog catalog) {  
+    catalogManager.registerCatalog(catalogName, catalog);  
+}
+
+// CatalogManager设置使用MySqlCatalog
+// 注册时catalogManager将注册的catalog添加到map中，因此通过注册时的名字进行访问
+tblEnv.useCatalog("catalog");
+public void useCatalog(String catalogName) {  
+    catalogManager.setCurrentCatalog(catalogName);  
+}
 ```
+### 7.6.3 HiveCatalog
+- `HiveCatalog` 不仅可以直接对接 `Hive` 中的库和表，还可以把 `Flink` 中定义的表的元数据直接存储到 `Hive` 的元数据存储中
+- 使用时需要开启元数据服务
+- 

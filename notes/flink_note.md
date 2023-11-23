@@ -4266,7 +4266,73 @@ private void checkpointCoordinatorInternal(
 ```
 ##### 6.1.1.2.2 triggerCheckpointRequest()
 ```java
+private void triggerCheckpointRequest(  
+        CheckpointTriggerRequest request, long timestamp, PendingCheckpoint checkpoint) {  
+    if (checkpoint.isDisposed()) {
+    } else {  
+        triggerTasks(request, timestamp, checkpoint)  
+}
 
+private CompletableFuture<Void> triggerTasks(  
+        CheckpointTriggerRequest request, long timestamp, PendingCheckpoint checkpoint) {  
+    // no exception, no discarding, everything is OK  
+    final long checkpointId = checkpoint.getCheckpointID();  
+  
+    // send messages to the tasks to trigger their checkpoints  
+    List<CompletableFuture<Acknowledge>> acks = new ArrayList<>();  
+    for (Execution execution : checkpoint.getCheckpointPlan().getTasksToTrigger()) {  
+	    // 都会调用triggerCheckpointHelper()
+        if (request.props.isSynchronous()) {  
+            acks.add(  
+                    execution.triggerSynchronousSavepoint(  
+                            checkpointId, timestamp, checkpointOptions));  
+        } else {  
+            acks.add(execution.triggerCheckpoint(checkpointId, timestamp, checkpointOptions));  
+        }  
+    }  
+    return FutureUtils.waitForAll(acks);  
+}
+
+private CompletableFuture<Acknowledge> triggerCheckpointHelper(  
+        long checkpointId, long timestamp, CheckpointOptions checkpointOptions) {  
+  
+        return taskManagerGateway.triggerCheckpoint(  
+                attemptId, getVertex().getJobId(), checkpointId, timestamp, checkpointOptions);  
+    }  
+    return CompletableFuture.completedFuture(Acknowledge.get());  
+}
+
+public CompletableFuture<Acknowledge> triggerCheckpoint(  
+        ExecutionAttemptID executionAttemptID,  
+        long checkpointId,  
+        long checkpointTimestamp,  
+        CheckpointOptions checkpointOptions) {  
+  
+    final Task task = taskSlotTable.getTask(executionAttemptID);  
+  
+    if (task != null) {  
+        task.triggerCheckpointBarrier(checkpointId, checkpointTimestamp, checkpointOptions);  
+        return CompletableFuture.completedFuture(Acknowledge.get());  
+    }
+}
+
+public void triggerCheckpointBarrier(  
+        final long checkpointID,  
+        final long checkpointTimestamp,  
+        final CheckpointOptions checkpointOptions) {  
+  
+    final TaskInvokable invokable = this.invokable;  
+    final CheckpointMetaData checkpointMetaData =  
+            new CheckpointMetaData(  
+                    checkpointID, checkpointTimestamp, System.currentTimeMillis());  
+  
+    if (executionState == ExecutionState.RUNNING) {  
+        checkState(invokable instanceof CheckpointableTask, "invokable is not checkpointable");  
+        try {  
+            ((CheckpointableTask) invokable)  
+                    .triggerCheckpointAsync(checkpointMetaData, checkpointOptions)  
+            }
+}
 ```
 
 
@@ -4278,6 +4344,8 @@ private void checkpointCoordinatorInternal(
 
 
 
+
+#### 6.1.1.3 Source 产生 Barrier
 
 # 7. SQL
 ## 7.1 基础 API

@@ -4346,7 +4346,10 @@ public void triggerCheckpointBarrier(
 
 
 #### 6.1.1.3 Source 产生 Barrier
+```java
+// StreamSource继承了SourceFunction，StreamOperator使用StreamSource来读取，发送数据
 
+```
 # 7. SQL
 ## 7.1 基础 API
 ### 7.1.1 创建 TableEnvironment

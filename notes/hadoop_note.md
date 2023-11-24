@@ -5198,4 +5198,417 @@ public static <K extends Object, V extends Object>
 ```
 ## 2.4 Reduce
 - Reduce 分为 copy，merge，和 reduce
-- 
+### 2.4.1 run()
+```java
+// 与1.12中的步骤类似，通过LocalRunner创建ReduceTask对象
+public void run() {
+        try {
+          TaskAttemptID reduceId = new TaskAttemptID(new TaskID(
+              jobId, TaskType.REDUCE, taskId), 0);
+          LOG.info("Starting task: " + reduceId);
+
+          ReduceTask reduce = new ReduceTask(systemJobFile.toString(),
+              reduceId, taskId, mapIds.size(), 1);
+          if (!Job.this.isInterrupted()) {
+            try {
+              reduce_tasks.getAndIncrement();
+              myMetrics.launchReduce(reduce.getTaskID());
+              // 执行run
+              reduce.run(localConf, Job.this);
+              myMetrics.completeReduce(reduce.getTaskID());
+            } 
+        }
+}
+
+public void run(JobConf job, final TaskUmbilicalProtocol umbilical)
+    throws IOException, InterruptedException, ClassNotFoundException {
+    job.setBoolean(JobContext.SKIP_RECORDS, isSkipping());
+
+    if (isMapOrReduce()) {
+      copyPhase = getProgress().addPhase("copy");
+      sortPhase  = getProgress().addPhase("sort");
+      reducePhase = getProgress().addPhase("reduce");
+    }
+    // start thread that will handle communication with parent
+    TaskReporter reporter = startReporter(umbilical);
+    
+    boolean useNewApi = job.getUseNewReducer();
+    // 与Map类似，设置输出类为TextOutputFormat
+    initialize(job, getJobID(), reporter, useNewApi);
+
+    // Initialize the codec
+    codec = initCodec();
+    RawKeyValueIterator rIter = null;
+    ShuffleConsumerPlugin shuffleConsumerPlugin = null;
+    
+    Class combinerClass = conf.getCombinerClass();
+    CombineOutputCollector combineCollector = 
+      (null != combinerClass) ? 
+     new CombineOutputCollector(reduceCombineOutputCounter, reporter, conf) : null;
+	// clazz = Shuffle.class
+    Class<? extends ShuffleConsumerPlugin> clazz =
+          job.getClass(MRConfig.SHUFFLE_CONSUMER_PLUGIN, Shuffle.class, ShuffleConsumerPlugin.class);
+	 
+    shuffleConsumerPlugin = ReflectionUtils.newInstance(clazz, job);
+    LOG.info("Using ShuffleConsumerPlugin: " + shuffleConsumerPlugin);
+	// 创建shuffleContext
+    ShuffleConsumerPlugin.Context shuffleContext = 
+      new ShuffleConsumerPlugin.Context(getTaskID(), job, FileSystem.getLocal(job), umbilical, 
+                  super.lDirAlloc, reporter, codec, 
+                  combinerClass, combineCollector, 
+                  spilledRecordsCounter, reduceCombineInputCounter,
+                  shuffledMapsCounter,
+                  reduceShuffleBytes, failedShuffleCounter,
+                  mergedMapOutputsCounter,
+                  taskStatus, copyPhase, sortPhase, this,
+                  mapOutputFile, localMapFiles);
+    // 初始化Shuffle
+    shuffleConsumerPlugin.init(shuffleContext);
+	// 启动Shuffle
+    rIter = shuffleConsumerPlugin.run();
+
+    // free up the data structures
+    mapOutputFilesOnDisk.clear();
+    
+    sortPhase.complete(); // sort is complete
+    setPhase(TaskStatus.Phase.REDUCE); 
+    statusUpdate(umbilical);
+    Class keyClass = job.getMapOutputKeyClass();
+    Class valueClass = job.getMapOutputValueClass();
+    RawComparator comparator = job.getOutputValueGroupingComparator();
+
+    if (useNewApi) {
+      runNewReducer(job, umbilical, reporter, rIter, comparator, 
+                    keyClass, valueClass);
+    } else {
+      runOldReducer(job, umbilical, reporter, rIter, comparator, 
+                    keyClass, valueClass);
+    }
+}
+```
+### 2.4.2 Shuffle.init()
+```java
+public void init(ShuffleConsumerPlugin.Context context) {
+    this.context = context;
+
+    this.reduceId = context.getReduceId();
+    this.jobConf = context.getJobConf();
+    this.umbilical = context.getUmbilical();
+    this.reporter = context.getReporter();
+    this.metrics = ShuffleClientMetrics.create(context.getReduceId(),
+        this.jobConf);
+    this.copyPhase = context.getCopyPhase();
+    this.taskStatus = context.getStatus();
+    this.reduceTask = context.getReduceTask();
+    this.localMapFiles = context.getLocalMapFiles();
+    
+    scheduler = new ShuffleSchedulerImpl<K, V>(jobConf, taskStatus, reduceId,
+        this, copyPhase, context.getShuffledMapsCounter(),
+        context.getReduceShuffleBytes(), context.getFailedShuffleCounter());
+    // 创建MergeManager, Merger用于溢写数据
+    merger = createMergeManager(context);
+}
+
+protected MergeManager<K, V> createMergeManager(
+      ShuffleConsumerPlugin.Context context) {
+    return new MergeManagerImpl<K, V>(...);
+}
+
+public MergeManagerImpl(...) {
+
+    // maxMemory JVM能使用的最大内存
+    this.memoryLimit = (long)(jobConf.getLong(
+        MRJobConfig.REDUCE_MEMORY_TOTAL_BYTES,
+        Runtime.getRuntime().maxMemory()) * maxInMemCopyUse);
+	
+    // int DEFAULT_IO_SORT_FACTOR = 10;
+    this.ioSortFactor = jobConf.getInt(MRJobConfig.IO_SORT_FACTOR,
+        MRJobConfig.DEFAULT_IO_SORT_FACTOR);
+
+    final float singleShuffleMemoryLimitPercent =
+        // float DEFAULT_SHUFFLE_MEMORY_LIMIT_PERCENT = 0.25f
+        jobConf.getFloat(MRJobConfig.SHUFFLE_MEMORY_LIMIT_PERCENT,
+            DEFAULT_SHUFFLE_MEMORY_LIMIT_PERCENT);
+    this.mergeThreshold = (long)(this.memoryLimit * 
+                          jobConf.getFloat(
+                            MRJobConfig.SHUFFLE_MERGE_PERCENT,
+                            // float DEFAULT_SHUFFLE_MERGE_PERCENT = 0.66f;
+                            MRJobConfig.DEFAULT_SHUFFLE_MERGE_PERCENT));
+
+    // 创建inMemoryMerger和onDiskMerger线程并启动
+    this.inMemoryMerger = createInMemoryMerger();
+    this.inMemoryMerger.start();
+    
+    this.onDiskMerger = new OnDiskMerger(this);
+    this.onDiskMerger.start();
+    
+    this.mergePhase = mergePhase;
+}
+
+protected MergeThread<InMemoryMapOutput<K,V>, K,V> createInMemoryMerger() {
+    return new InMemoryMerger(this);
+}
+
+  protected MergeThread<CompressAwarePath,K,V> createOnDiskMerger() {
+    return new OnDiskMerger(this);
+}
+
+// 守护线程
+public InMemoryMerger(MergeManagerImpl<K, V> manager) {
+      super(manager, Integer.MAX_VALUE, exceptionReporter);
+      setName
+      ("InMemoryMerger - Thread to merge in-memory shuffled map-outputs");
+      setDaemon(true);
+}
+
+public OnDiskMerger(MergeManagerImpl<K, V> manager) {
+      super(manager, ioSortFactor, exceptionReporter);
+      setName("OnDiskMerger - Thread to merge on-disk map-outputs");
+      setDaemon(true);
+}
+```
+### 2.4.3 Shuffle.run()
+```java
+public RawKeyValueIterator run() throws IOException, InterruptedException {
+	// int MIN_EVENTS_TO_FETCH = 100;
+    int eventsPerReducer = Math.max(MIN_EVENTS_TO_FETCH,
+        MAX_RPC_OUTSTANDING_EVENTS / jobConf.getNumReduceTasks());
+    // int MAX_EVENTS_TO_FETCH = 10000;
+    int maxEventsToFetch = Math.min(MAX_EVENTS_TO_FETCH, eventsPerReducer);
+
+    // Start the map-completion events fetcher thread
+    // 通过EventFetcher获取已完成的mapEvent信息
+    final EventFetcher<K, V> eventFetcher =
+        new EventFetcher<K, V>(reduceId, umbilical, scheduler, this,
+            maxEventsToFetch);
+    eventFetcher.start();
+    
+    // Start the map-output fetcher threads
+    boolean isLocal = localMapFiles != null;
+    // shuffle默认并行度5
+    final int numFetchers = isLocal ? 1 :
+        jobConf.getInt(MRJobConfig.SHUFFLE_PARALLEL_COPIES, 5);
+    Fetcher<K, V>[] fetchers = new Fetcher[numFetchers];
+    if (isLocal) {
+      // 开启LocalFetcher线程取数据
+      fetchers[0] = new LocalFetcher<K, V>(jobConf, reduceId, scheduler,
+          merger, reporter, metrics, this, reduceTask.getShuffleSecret(),
+          localMapFiles);
+      fetchers[0].start();
+    } else {...}
+    
+    // stop the scheduler
+    scheduler.close();
+
+    copyPhase.complete(); // copy is already complete
+    taskStatus.setPhase(TaskStatus.Phase.SORT);
+    reduceTask.statusUpdate(umbilical);
+
+    // Finish the on-going merges...
+    RawKeyValueIterator kvIter = null;
+    try {
+      // 最终合并
+      kvIter = merger.close();
+    } 
+    return kvIter;
+}
+```
+#### 2.4.3.1 EventFetcher.run()
+```java
+public void run() {
+    int failures = 0;
+    LOG.info(reduce + " Thread started: " + getName());
+    
+    try {
+      while (!stopped && !Thread.currentThread().isInterrupted()) {
+        try {
+          // 获取MapCompletionEvents
+          int numNewMaps = getMapCompletionEvents();
+}
+    
+// 向TaskTracker查询已经完成的maptask        
+protected int getMapCompletionEvents()
+      throws IOException, InterruptedException {
+    
+    int numNewMaps = 0;
+    TaskCompletionEvent events[] = null;
+
+    do {
+      MapTaskCompletionEventsUpdate update =
+          umbilical.getMapCompletionEvents(
+              (org.apache.hadoop.mapred.JobID)reduce.getJobID(),
+              fromEventIdx,
+              maxEventsToFetch,
+              (org.apache.hadoop.mapred.TaskAttemptID)reduce);
+      events = update.getMapTaskCompletionEvents();
+      LOG.debug("Got " + events.length + " map completion events from " +
+               fromEventIdx);
+
+      assert !update.shouldReset() : "Unexpected legacy state";
+
+      // Update the last seen event ID
+      fromEventIdx += events.length;
+
+      // Process the TaskCompletionEvents:
+      // 1. Save the SUCCEEDED maps in knownOutputs to fetch the outputs.
+      // 2. Save the OBSOLETE/FAILED/KILLED maps in obsoleteOutputs to stop
+      //    fetching from those maps.
+      // 3. Remove TIPFAILED maps from neededOutputs since we don't need their
+      //    outputs at all.
+      for (TaskCompletionEvent event : events) {
+        scheduler.resolve(event);
+        if (TaskCompletionEvent.Status.SUCCEEDED == event.getTaskStatus()) {
+          ++numNewMaps;
+        }
+      }
+    } while (events.length == maxEventsToFetch);
+
+    return numNewMaps;
+}
+```
+#### 2.4.3.2 new LocalFetcher()
+```java
+// local模式下，通过LocalFetcher抓取数据
+public LocalFetcher(JobConf job, TaskAttemptID reduceId,
+                 ShuffleSchedulerImpl<K, V> scheduler,
+                 MergeManager<K,V> merger,
+                 Reporter reporter, ShuffleClientMetrics metrics,
+                 ExceptionReporter exceptionReporter,
+                 SecretKey shuffleKey,
+                 Map<TaskAttemptID, MapOutputFile> localMapFiles) {
+    super(job, reduceId, scheduler, merger, reporter, metrics,
+        exceptionReporter, shuffleKey);
+
+    this.job = job;
+    this.localMapFiles = localMapFiles;
+
+    setName("localfetcher#" + id);
+    setDaemon(true);
+}
+
+public void run() {
+    // Create a worklist of task attempts to work over.
+    Set<TaskAttemptID> maps = new HashSet<TaskAttemptID>();
+    for (TaskAttemptID map : localMapFiles.keySet()) {
+      maps.add(map);
+    }
+
+    while (maps.size() > 0) {
+      try {
+        // If merge is on, block
+        merger.waitForResource();
+        metrics.threadBusy();
+
+        // Copy as much as is possible.
+        // copy阶段
+        doCopy(maps);
+        metrics.threadFree();
+      } catch (InterruptedException ie) {
+      } catch (Throwable t) {
+        exceptionReporter.reportException(t);
+      }
+    }
+}
+
+private void doCopy(Set<TaskAttemptID> maps) throws IOException {
+    Iterator<TaskAttemptID> iter = maps.iterator();
+    while (iter.hasNext()) {
+      TaskAttemptID map = iter.next();
+      LOG.debug("LocalFetcher " + id + " going to fetch: " + map);
+      if (copyMapOutput(map)) {
+        // Successful copy. Remove this from our worklist.
+        iter.remove();
+      } else {
+        // We got back a WAIT command; go back to the outer loop
+        // and block for InMemoryMerge.
+        break;
+      }
+    }
+}
+
+private boolean copyMapOutput(TaskAttemptID mapTaskId) throws IOException {
+    // Figure out where the map task stored its output.
+    Path mapOutputFileName = localMapFiles.get(mapTaskId).getOutputFile();
+    Path indexFileName = mapOutputFileName.suffix(".index");
+
+    // Read its index to determine the location of our split
+    // and its size.
+    SpillRecord sr = new SpillRecord(indexFileName, job);
+    IndexRecord ir = sr.getIndex(reduce);
+
+    long compressedLength = ir.partLength;
+    long decompressedLength = ir.rawLength;
+
+    compressedLength -= CryptoUtils.cryptoPadding(job);
+    decompressedLength -= CryptoUtils.cryptoPadding(job);
+
+    // 判断在内存还是在磁盘merge
+    MapOutput<K, V> mapOutput = merger.reserve(mapTaskId, decompressedLength,
+        id);
+
+    // Check if we can shuffle *now* ...
+    if (mapOutput == null) {
+      LOG.info("fetcher#" + id + " - MergeManager returned Status.WAIT ...");
+      return false;
+    }
+
+    // Go!
+    LOG.info("localfetcher#" + id + " about to shuffle output of map " + 
+             mapOutput.getMapId() + " decomp: " +
+             decompressedLength + " len: " + compressedLength + " to " +
+             mapOutput.getDescription());
+
+    // now read the file, seek to the appropriate section, and send it.
+    FileSystem localFs = FileSystem.getLocal(job).getRaw();
+    // 通过localFs打开mapOutputFileName，用于后面写数据
+    FSDataInputStream inStream = localFs.open(mapOutputFileName);
+    try {
+      inStream.seek(ir.startOffset);
+      inStream =
+          IntermediateEncryptedStream.wrapIfNecessary(job, inStream,
+              mapOutputFileName);
+      // 将数据存在LOCALHOST
+      mapOutput.shuffle(LOCALHOST, inStream, compressedLength,
+          decompressedLength, metrics, reporter);
+    } finally {
+      IOUtils.cleanupWithLogger(LOG, inStream);
+    }
+
+    scheduler.copySucceeded(mapTaskId, LOCALHOST, compressedLength, 0, 0,
+        mapOutput);
+    return true; // successful fetch.
+}
+
+public synchronized MapOutput<K,V> reserve(TaskAttemptID mapId, 
+                                             long requestedSize,
+                                             int fetcher
+                                             ) throws IOException {
+    // 超过单条shuffle大小上限
+    if (requestedSize > maxSingleShuffleLimit) {
+      LOG.info(mapId + ": Shuffling to disk since " + requestedSize + 
+               " is greater than maxSingleShuffleLimit (" + 
+               maxSingleShuffleLimit + ")");
+      // 创建OnDiskMapOutput
+      return new OnDiskMapOutput<K,V>(mapId, this, requestedSize, jobConf,
+         fetcher, true, FileSystem.getLocal(jobConf).getRaw(),
+         mapOutputFile.getInputFileForWrite(mapId.getTaskID(), requestedSize));
+    }
+    
+    // 在内存执行后续操作
+    LOG.debug(mapId + ": Proceeding with shuffle since usedMemory ("
+        + usedMemory + ") is lesser than memoryLimit (" + memoryLimit + ")."
+        + "CommitMemory is (" + commitMemory + ")");
+    return unconditionalReserve(mapId, requestedSize, true);
+}
+
+private synchronized InMemoryMapOutput<K, V> unconditionalReserve(
+      TaskAttemptID mapId, long requestedSize, boolean primaryMapOutput) {
+    usedMemory += requestedSize;
+    return new InMemoryMapOutput<K,V>(jobConf, mapId, this, (int)requestedSize,
+                                      codec, primaryMapOutput);
+}
+```
+### 2.4.4 IFileWrappedMapOutput.shuffle()
+```java
+
+```

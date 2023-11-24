@@ -4134,4 +4134,274 @@ private boolean addWorker(Runnable firstTask, boolean core) {
 }
 ```
 ## 2.2 Map
+### 2.2.1 run()
+```java
+public void run(final JobConf job, final TaskUmbilicalProtocol umbilical)
+    throws IOException, ClassNotFoundException, InterruptedException {
+    this.umbilical = umbilical;
+	// 判断有没有ReduceTask, 调整Map阶段的比例
+    if (isMapTask()) {
+      // If there are no reducers then there won't be any sort. Hence the map 
+      // phase will govern the entire attempt's progress.
+      if (conf.getNumReduceTasks() == 0) {
+        mapPhase = getProgress().addPhase("map", 1.0f);
+      } else {
+        // If there are reducers then the entire attempt's progress will be 
+        // split between the map phase (67%) and the sort phase (33%).
+        mapPhase = getProgress().addPhase("map", 0.667f);
+        sortPhase  = getProgress().addPhase("sort", 0.333f);
+      }
+    }
+    boolean useNewApi = job.getUseNewMapper();
+    // 初始化
+    initialize(job, getJobID(), reporter, useNewApi);
 
+    if (useNewApi) {
+      // 运行mapper
+      runNewMapper(job, splitMetaInfo, umbilical, reporter);
+    }
+}
+```
+#### 2.2.1.1 initialize()
+```java
+public void initialize(JobConf job, JobID id, 
+                         Reporter reporter,
+                         boolean useNewApi) throws IOException, 
+                                                   ClassNotFoundException,
+                                                   InterruptedException {
+    jobContext = new JobContextImpl(job, id, reporter);
+    taskContext = new TaskAttemptContextImpl(job, taskId, reporter);
+    if (getState() == TaskStatus.State.UNASSIGNED) {
+      setState(TaskStatus.State.RUNNING);
+    }
+    if (useNewApi) {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("using new api for output committer");
+      }
+      // 设置outputFormat类型，默认TextOutputFormat
+      outputFormat =
+        ReflectionUtils.newInstance(taskContext.getOutputFormatClass(), job);
+      committer = outputFormat.getOutputCommitter(taskContext);
+    } else {
+      committer = conf.getOutputCommitter();
+    }
+    // 输出路径                                                   
+    Path outputPath = FileOutputFormat.getOutputPath(conf);
+    if (outputPath != null) {
+      if ((committer instanceof FileOutputCommitter)) {
+        FileOutputFormat.setWorkOutputPath(conf, 
+          ((FileOutputCommitter)committer).getTaskAttemptPath(taskContext));
+      } else {
+        FileOutputFormat.setWorkOutputPath(conf, outputPath);
+      }
+    }
+    ...
+}
+
+// JobContextImpl.java
+public Class<? extends OutputFormat<?,?>> getOutputFormatClass() 
+     throws ClassNotFoundException {
+    return (Class<? extends OutputFormat<?,?>>) 
+      conf.getClass(OUTPUT_FORMAT_CLASS_ATTR, TextOutputFormat.class);
+}
+
+public static final String OUTPUT_FORMAT_CLASS_ATTR = "mapreduce.job.outputformat.class";
+
+// getClass第一个参数为null时会返回默认值
+public Class<?> getClass(String name, Class<?> defaultValue) {
+    String valueString = getTrimmed(name);
+    if (valueString == null)
+      return defaultValue;
+    try {
+      return getClassByName(valueString);
+    } catch (ClassNotFoundException e) {
+      throw new RuntimeException(e);
+    }
+}
+```
+#### 2.2.1.2 runNewMapper()
+```java
+private <INKEY,INVALUE,OUTKEY,OUTVALUE>
+  void runNewMapper(final JobConf job,
+                    final TaskSplitIndex splitIndex,
+                    final TaskUmbilicalProtocol umbilical,
+                    TaskReporter reporter
+                    ) throws IOException, ClassNotFoundException,
+                             InterruptedException {
+    // make a task context so we can get the classes
+    org.apache.hadoop.mapreduce.TaskAttemptContext taskContext =
+      new org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl(job, 
+                                                                  getTaskID(),
+                                                                  reporter);
+    // make a mapper
+    // 同样通过getClass获取自定义的Mapper
+    org.apache.hadoop.mapreduce.Mapper<INKEY,INVALUE,OUTKEY,OUTVALUE> mapper =
+      (org.apache.hadoop.mapreduce.Mapper<INKEY,INVALUE,OUTKEY,OUTVALUE>)
+        ReflectionUtils.newInstance(taskContext.getMapperClass(), job);
+    // make the input format
+    // 默认TextInputFormat
+    org.apache.hadoop.mapreduce.InputFormat<INKEY,INVALUE> inputFormat =
+      (org.apache.hadoop.mapreduce.InputFormat<INKEY,INVALUE>)
+        ReflectionUtils.newInstance(taskContext.getInputFormatClass(), job);
+ 	...
+    // 创建RecordReader读取数据
+    org.apache.hadoop.mapreduce.RecordReader<INKEY,INVALUE> input =
+      new NewTrackingRecordReader<INKEY,INVALUE>
+        (split, inputFormat, reporter, taskContext);    
+    // get an output object
+    // 创建Collector接收Mapper的输出
+    if (job.getNumReduceTasks() == 0) {
+      output = 
+        new NewDirectOutputCollector(taskContext, job, umbilical, reporter);
+    } else {
+      output = new NewOutputCollector(taskContext, job, umbilical, reporter);
+    }
+
+    org.apache.hadoop.mapreduce.MapContext<INKEY, INVALUE, OUTKEY, OUTVALUE> 
+    mapContext = 
+      // 将上下文进行封装, mapContext的key就是LineRecordReader读取到一行的偏移量
+      new MapContextImpl<INKEY, INVALUE, OUTKEY, OUTVALUE>(job, getTaskID(), 
+          input, output, 
+          committer, 
+          reporter, split);
+
+org.apache.hadoop.mapreduce.Mapper<INKEY,INVALUE,OUTKEY,OUTVALUE>.Context 
+        mapperContext = 
+          new WrappedMapper<INKEY, INVALUE, OUTKEY, OUTVALUE>().getMapContext(
+              mapContext);
+
+    try {
+      // LineRecordReader的initialize方法
+      input.initialize(split, mapperContext);
+      // 执行Map任务
+      mapper.run(mapperContext);
+      mapPhase.complete();
+      // 写完buffer后会调用close()
+      output.close(mapperContext);
+      output = null;
+    } 
+}
+```
+### 2.2.2 new NewTrackingRecordReader()
+```java
+// MapTask的静态内部类
+NewTrackingRecordReader(org.apache.hadoop.mapreduce.InputSplit split,
+        org.apache.hadoop.mapreduce.InputFormat<K, V> inputFormat,
+        TaskReporter reporter,
+        org.apache.hadoop.mapreduce.TaskAttemptContext taskContext)
+        throws InterruptedException, IOException {
+        
+      // 调用TextInputFormat的createRecordReader
+      this.real = inputFormat.createRecordReader(split, taskContext);
+      long bytesInCurr = getInputBytes(fsStats);
+      fileInputByteCounter.increment(bytesInCurr - bytesInPrev);
+}
+
+public RecordReader<LongWritable, Text> 
+    createRecordReader(InputSplit split,
+                       TaskAttemptContext context) {
+    String delimiter = context.getConfiguration().get(
+        "textinputformat.record.delimiter");
+    byte[] recordDelimiterBytes = null;
+    if (null != delimiter)
+      recordDelimiterBytes = delimiter.getBytes(Charsets.UTF_8);
+    return new LineRecordReader(recordDelimiterBytes);
+}
+
+public LineRecordReader(byte[] recordDelimiter) {
+    this.recordDelimiterBytes = recordDelimiter;
+}
+```
+### 2.2.3 new NewOutputCollector()
+```java
+// ReduceTask个数不为0
+NewOutputCollector(org.apache.hadoop.mapreduce.JobContext jobContext,
+                       JobConf job,
+                       TaskUmbilicalProtocol umbilical,
+                       TaskReporter reporter
+                       ) throws IOException, ClassNotFoundException {
+      // 创建Collector
+      collector = createSortingCollector(job, reporter);
+      partitions = jobContext.getNumReduceTasks();
+      if (partitions > 1) {
+        // 分区器默认HashPartitioner
+        partitioner = (org.apache.hadoop.mapreduce.Partitioner<K,V>)
+          ReflectionUtils.newInstance(jobContext.getPartitionerClass(), job);
+      }
+}
+
+private <KEY, VALUE> MapOutputCollector<KEY, VALUE>
+          createSortingCollector(JobConf job, TaskReporter reporter)
+    throws IOException, ClassNotFoundException {
+    MapOutputCollector.Context context =
+      new MapOutputCollector.Context(this, job, reporter);
+	// 默认MapOutputBuffer
+    Class<?>[] collectorClasses = job.getClasses(
+      JobContext.MAP_OUTPUT_COLLECTOR_CLASS_ATTR, MapOutputBuffer.class);
+        // 创建collector的对象
+        MapOutputCollector<KEY, VALUE> collector =
+          ReflectionUtils.newInstance(subclazz, job);
+        // 初始化环形缓冲区，见Shuffle  
+        collector.init(context);
+       
+        return collector;
+      } 
+    }
+}
+```
+### 2.2.4 initialize()
+```java
+// 根据切片的压缩方式采用不同的Reader
+public void initialize(InputSplit genericSplit,
+                         TaskAttemptContext context) throws IOException {
+    FileSplit split = (FileSplit) genericSplit;
+    Configuration job = context.getConfiguration();
+    this.maxLineLength = job.getInt(MAX_LINE_LENGTH, Integer.MAX_VALUE);
+    start = split.getStart();
+    end = start + split.getLength();
+    final Path file = split.getPath();
+
+    // open the file and seek to the start of the split
+    CompressionCodec codec = new CompressionCodecFactory(job).getCodec(file);
+    if (null!=codec) {
+      isCompressedInput = true;
+      decompressor = CodecPool.getDecompressor(codec);
+      // 支持切片的压缩方式
+      if (codec instanceof SplittableCompressionCodec) {
+        final SplitCompressionInputStream cIn =
+          ((SplittableCompressionCodec)codec).createInputStream(
+            fileIn, decompressor, start, end,
+            SplittableCompressionCodec.READ_MODE.BYBLOCK);
+        in = new CompressedSplitLineReader(cIn, job,
+            this.recordDelimiterBytes);
+        start = cIn.getAdjustedStart();
+        end = cIn.getAdjustedEnd();
+        filePosition = cIn;
+      } else {
+        // 不支持切片的压缩
+        if (start != 0) {
+          // So we have a split that is only part of a file stored using
+          // a Compression codec that cannot be split.
+          throw new IOException("Cannot seek in " +
+              codec.getClass().getSimpleName() + " compressed stream");
+        }
+        in = new SplitLineReader(codec.createInputStream(fileIn,
+            decompressor), job, this.recordDelimiterBytes);
+        filePosition = fileIn;
+      }
+    } else {
+      // 不压缩  
+      fileIn.seek(start);
+      in = new UncompressedSplitLineReader(
+          fileIn, job, this.recordDelimiterBytes, split.getLength());
+      filePosition = fileIn;
+    }
+    // If this is not the first split, we always throw away first record
+    // because we always (except the last split) read one extra line in
+    // next() method.
+    if (start != 0) {
+      start += in.readLine(new Text(), 0, maxBytesToConsume(start));
+    }
+    this.pos = start;
+}
+```

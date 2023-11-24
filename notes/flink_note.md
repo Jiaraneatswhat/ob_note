@@ -4697,6 +4697,7 @@ void snapshotState(
 ```
 #### 6.1.1.6 向 coordinator 发送 ack
 ```java
+// Flink 最终调用 finishAndReportAsync()向 Master 发送报告，所有的节点都报告结束时，Master 会生成 CompletedCheckpoint 持久化到状态后端中，结束 ck 流程
 private void finishAndReportAsync(  
         Map<OperatorID, OperatorSnapshotFutures> snapshotFutures,  
         CheckpointMetaData metadata,  
@@ -4725,9 +4726,153 @@ private void reportCompletedSnapshotStates(
         TaskStateSnapshot acknowledgedTaskStateSnapshot,  
         TaskStateSnapshot localTaskStateSnapshot,  
         long asyncDurationMillis) {
-	
+	taskEnvironment  
+        .getTaskStateManager()  
+        // TaskStateManager是专门用来提供报告和检索任务状态的接口
+        .reportTaskStateSnapshots(...)
+}
+
+public void reportTaskStateSnapshots(  
+        @Nonnull CheckpointMetaData checkpointMetaData,  
+        @Nonnull CheckpointMetrics checkpointMetrics,  
+        @Nullable TaskStateSnapshot acknowledgedState,  
+        @Nullable TaskStateSnapshot localState) {  
+
+    checkpointResponder.acknowledgeCheckpoint(  
+            jobId, executionAttemptID, checkpointId, checkpointMetrics, acknowledgedState);  
+}
+
+public void acknowledgeCheckpoint(  
+        JobID jobID,  
+        ExecutionAttemptID executionAttemptID,  
+        long checkpointId,  
+        CheckpointMetrics checkpointMetrics,  
+        TaskStateSnapshot subtaskState) {  
+    checkpointCoordinatorGateway.acknowledgeCheckpoint(...);  
+}
+
+public void acknowledgeCheckpoint(  
+        final JobID jobID,  
+        final ExecutionAttemptID executionAttemptID,  
+        final long checkpointId,  
+        final CheckpointMetrics checkpointMetrics,  
+        @Nullable final SerializedValue<TaskStateSnapshot> checkpointState) {  
+    schedulerNG.acknowledgeCheckpoint(...);  
+}
+
+// SchedulerBase.java
+public void acknowledgeCheckpoint(  
+        final JobID jobID,  
+        final ExecutionAttemptID executionAttemptID,  
+        final long checkpointId,  
+        final CheckpointMetrics checkpointMetrics,  
+        final TaskStateSnapshot checkpointState) {  
+  
+    executionGraphHandler.acknowledgeCheckpoint(  
+            jobID, executionAttemptID, checkpointId, checkpointMetrics, checkpointState);  
+}
+
+public void acknowledgeCheckpoint(  
+        final JobID jobID,  
+        final ExecutionAttemptID executionAttemptID,  
+        final long checkpointId,  
+        final CheckpointMetrics checkpointMetrics,  
+        final TaskStateSnapshot checkpointState) {  
+    processCheckpointCoordinatorMessage(  
+            "AcknowledgeCheckpoint",  
+            coordinator ->  
+			        // 将ack消息包装成AcknowledgeCheckpoint
+			        // 调度器包装后的ack，会被传递给CheckpointCoordinator组件继续处理
+                    coordinator.receiveAcknowledgeMessage(  
+                            new AcknowledgeCheckpoint(...);  
+}
+
+public boolean receiveAcknowledgeMessage(  
+        AcknowledgeCheckpoint message, String taskManagerLocationInfo)  
+        throws CheckpointException {  
+  
+    final long checkpointId = message.getCheckpointId();  
+  
+    synchronized (lock) {  
+  // 根据checkpointId，从映射关系为“checkpointId:PendingCheckpoint”的Map集合中取出对应的PendingCheckpoint
+        final PendingCheckpoint checkpoint = pendingCheckpoints.get(checkpointId);  
+  
+  
+        if (checkpoint != null && !checkpoint.isDisposed()) {  
+  
+            switch (checkpoint.acknowledgeTask(  
+                    message.getTaskExecutionId(),  
+                    message.getSubtaskState(),  
+                    message.getCheckpointMetrics())) {  
+                case SUCCESS:  
+
+					// 收到了全部的ack
+                    if (checkpoint.isFullyAcknowledged()) {  
+                        completePendingCheckpoint(checkpoint);  
+                    }  
+                    break;  
+}
 ```
-- Flink 最终调用 `finishAndReportAsync()` 向 Master 发送报告，所有的节点都报告结束时，Master 会生成 `CompletedCheckpoint` 持久化到状态后端中，结束 ck 流程
+#### 6.1.1.7 生成最终的 CompletedCheckpoint
+```java
+// CheckpointCoordinator.java
+private void completePendingCheckpoint(PendingCheckpoint pendingCheckpoint)  
+        throws CheckpointException {  
+    try {  
+        completedCheckpoint = finalizeCheckpoint(pendingCheckpoint);  
+    }  
+    // 通知算子ck已完成
+    cleanupAfterCompletedCheckpoint(  
+            pendingCheckpoint, checkpointId, completedCheckpoint, lastSubsumed, props);
+}
+
+private CompletedCheckpoint finalizeCheckpoint(PendingCheckpoint pendingCheckpoint)  
+        throws CheckpointException {  
+    try {  
+        final CompletedCheckpoint completedCheckpoint =  
+			    // 创建CompletedCheckpoint对象
+                pendingCheckpoint.finalizeCheckpoint(  
+                        checkpointsCleaner, this::scheduleTriggerRequest, executor);  
+  
+    return completedCheckpoint;  
+    }
+}
+
+private void cleanupAfterCompletedCheckpoint(  
+        PendingCheckpoint pendingCheckpoint,  
+        long checkpointId,  
+        CompletedCheckpoint completedCheckpoint,  
+        CompletedCheckpoint lastSubsumed,  
+        CheckpointProperties props) {
+    sendAcknowledgeMessages(  
+        pendingCheckpoint.getCheckpointPlan().getTasksToCommitTo(),  
+        checkpointId,  
+        completedCheckpoint.getTimestamp(),  
+        extractIdIfDiscardedOnSubsumed(lastSubsumed));
+}
+
+void sendAcknowledgeMessages(  
+        List<ExecutionVertex> tasksToCommit,  
+        long completedCheckpointId,  
+        long completedTimestamp,  
+        long lastSubsumedCheckpointId) {  
+    // commit tasks  
+    for (ExecutionVertex ev : tasksToCommit) {  
+        Execution ee = ev.getCurrentExecutionAttempt();  
+        if (ee != null) {  
+            ee.notifyCheckpointOnComplete(  
+                    completedCheckpointId, completedTimestamp, lastSubsumedCheckpointId);  
+        }  
+    }  
+  
+    // commit coordinators  
+    for (OperatorCoordinatorCheckpointContext coordinatorContext : coordinatorsToCheckpoint) {  
+        coordinatorContext.notifyCheckpointComplete(completedCheckpointId);  
+    }  
+}
+
+
+```
 
 # 7. SQL
 ## 7.1 基础 API

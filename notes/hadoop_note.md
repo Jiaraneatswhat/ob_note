@@ -4352,6 +4352,8 @@ private <KEY, VALUE> MapOutputCollector<KEY, VALUE>
 ### 2.2.4 initialize()
 ```java
 // 根据切片的压缩方式采用不同的Reader
+// SplitLineReader和UncompressedSplitLineReader都继承自LineReader，都会调用父类的readLine方法
+// 不指定分隔符，以CR, LF, CRLF结尾
 public void initialize(InputSplit genericSplit,
                          TaskAttemptContext context) throws IOException {
     FileSplit split = (FileSplit) genericSplit;
@@ -4379,12 +4381,6 @@ public void initialize(InputSplit genericSplit,
         filePosition = cIn;
       } else {
         // 不支持切片的压缩
-        if (start != 0) {
-          // So we have a split that is only part of a file stored using
-          // a Compression codec that cannot be split.
-          throw new IOException("Cannot seek in " +
-              codec.getClass().getSimpleName() + " compressed stream");
-        }
         in = new SplitLineReader(codec.createInputStream(fileIn,
             decompressor), job, this.recordDelimiterBytes);
         filePosition = fileIn;
@@ -4396,12 +4392,810 @@ public void initialize(InputSplit genericSplit,
           fileIn, job, this.recordDelimiterBytes, split.getLength());
       filePosition = fileIn;
     }
-    // If this is not the first split, we always throw away first record
-    // because we always (except the last split) read one extra line in
-    // next() method.
-    if (start != 0) {
-      start += in.readLine(new Text(), 0, maxBytesToConsume(start));
-    }
-    this.pos = start;
 }
 ```
+### 2.2.5 Mapper.run()
+```java
+// 自定义的Mapper没有重写run方法，调用父类的run()
+public void run(Context context) throws IOException, InterruptedException {
+    setup(context);
+    try {
+      while (context.nextKeyValue()) {
+        // 调用自定义的map方法  
+        // 通过context获取K和V传给Mapper
+        map(context.getCurrentKey(), context.getCurrentValue(), context);
+      }
+    } finally {
+      cleanup(context);
+    }
+}
+
+// 将数据写出
+// 此处的Context是Mapper中的抽象类，在WrappedMapper中有一个内部实现类Context
+context.write()
+
+//MapContextImpl继承了TaskInputOutputContextImpl
+public void write(KEYOUT key, VALUEOUT value
+                    ) throws IOException, InterruptedException {
+    output.write(key, value);
+}
+
+// 调用MapTask的write方法，送到环形缓冲区
+public void write(K key, V value) throws IOException, InterruptedException {
+      collector.collect(key, value,
+                        partitioner.getPartition(key, value, partitions));
+}
+```
+## 2.3 Shuffle
+### 2.3.1 MapOutputBuffer 类的属性
+- 环形缓冲区其实是一个数组，数组中存放着 kv 的序列化数据和 kv 的元数据信息
+	- `kvmeta` 以 `int` 类型存储，每个 kv 对应一个元数据
+	- 元数据由 4 个 `int` 组成
+		- 第一个 `int` 存放 `value` 的起始位置
+		- 第二个存放 `key` 的起始位置
+		- 第三个存放 `partition`
+		- 最后一个存放 `value` 的长度
+- kv 序列化的数据和元数据在环形缓冲区中的存储是由 `equator` 分隔
+- kv 按照索引递增的方向存储，`kvmeta` 则按照索引递减的方向存储
+- 将其数组抽象为一个环形结构，以 `equator` 为界，kv 顺时针存储，`kvmeta` 逆时针存储
+```java
+public static class MapOutputBuffer<K extends Object, V extends Object>
+      implements MapOutputCollector<K, V>, IndexedSortable {
+    private int partitions;
+    private JobConf job;
+    private TaskReporter reporter;
+    private Class<K> keyClass;
+    private Class<V> valClass;
+    private RawComparator<K> comparator;
+    private SerializationFactory serializationFactory;
+    private Serializer<K> keySerializer;
+    private Serializer<V> valSerializer;
+    private CombinerRunner<K,V> combinerRunner;
+    private CombineOutputCollector<K, V> combineCollector;
+
+    // Compression for map-outputs
+    private CompressionCodec codec;
+
+    // k/v accounting
+    // IntBuffer用于存放kv元数据
+    private IntBuffer kvmeta; // metadata overlay on backing store
+    int kvstart;            // marks origin of spill metadata
+    int kvend;              // marks end of spill metadata
+    int kvindex;            // marks end of fully serialized records
+	// 分割meta和kv数据的标识
+    int equator;            // marks origin of meta/serialization
+    int bufstart;           // marks beginning of spill
+    int bufend;             // marks beginning of collectable
+    int bufmark;            // marks end of record
+    int bufindex;           // marks end of collected
+    int bufvoid;            // marks the point where we should stop
+                            // reading at the end of the buffer
+	// 存放数据的byte数组
+    byte[] kvbuffer;        // main output buffer
+    private final byte[] b0 = new byte[0];
+	// kv在kvbuffer中的地址存放位置与kvindex的距离
+    private static final int VALSTART = 0;         // val offset in acct
+    private static final int KEYSTART = 1;         // key offset in acct
+    // kvmeta存放partition位置与kvindex的距离
+    private static final int PARTITION = 2;        // partition offset in acct
+    private static final int VALLEN = 3;           // length of value
+    // 一对kvmeta占用4个int
+    private static final int NMETA = 4;            // num meta ints
+    // int占4个字节，每个meta数据占用byte数
+    private static final int METASIZE = NMETA * 4; // size in bytes
+}
+```
+### 2.3.2 init()
+```java
+public void init(MapOutputCollector.Context context
+                    ) throws IOException, ClassNotFoundException {
+      job = context.getJobConf();
+      reporter = context.getReporter();
+      mapTask = context.getMapTask();
+      mapOutputFile = mapTask.getMapOutputFile();
+      sortPhase = mapTask.getSortPhase();
+      spilledRecordsCounter = reporter.getCounter(TaskCounter.SPILLED_RECORDS);
+      partitions = job.getNumReduceTasks();
+      rfs = ((LocalFileSystem)FileSystem.getLocal(job)).getRaw();
+
+      //sanity checks
+      // 溢写百分比，默认值0.8
+      // String MAP_SORT_SPILL_PERCENT = "mapreduce.map.sort.spill.percent";
+      final float spillper =
+        job.getFloat(JobContext.MAP_SORT_SPILL_PERCENT, (float)0.8);
+      // 缓冲区大小
+      // String IO_SORT_MB = "mapreduce.task.io.sort.mb";
+      // int DEFAULT_IO_SORT_MB = 100
+      final int sortmb = job.getInt(MRJobConfig.IO_SORT_MB,
+          MRJobConfig.DEFAULT_IO_SORT_MB);
+      indexCacheMemoryLimit = job.getInt(JobContext.INDEX_CACHE_MEMORY_LIMIT,
+                                         INDEX_CACHE_MEMORY_LIMIT_DEFAULT);
+      ...
+      // getClass(String name,Class<? extends U> defaultValue, Class<U> xface) 判断defaultValue是否为xface的子类或实现类
+      // 创建快排实例对象
+      sorter = ReflectionUtils.newInstance(job.getClass(
+                   MRJobConfig.MAP_SORT_CLASS, QuickSort.class,
+                   IndexedSorter.class), job);
+      // buffers and accounting
+      // mb * 1024 * 1024 转为byte
+      int maxMemUsage = sortmb << 20;
+      // maxMemUsage % METASIZE整除的话整个maxMemUsage都可以用来存储数据
+      maxMemUsage -= maxMemUsage % METASIZE;
+      kvbuffer = new byte[maxMemUsage];
+      bufvoid = kvbuffer.length;
+      // 将kvbuffer封装成IntBuffer
+      kvmeta = ByteBuffer.wrap(kvbuffer)
+         .order(ByteOrder.nativeOrder())
+         .asIntBuffer();
+      // 设置Equator的值
+      setEquator(0);
+      // 初始化参数
+      bufstart = bufend = bufindex = equator;
+      kvstart = kvend = kvindex;
+	  // 最大存放kvmeta的个数
+      maxRec = kvmeta.capacity() / NMETA;
+      // buffer溢写的阈值
+      softLimit = (int)(kvbuffer.length * spillper);
+      bufferRemaining = softLimit;
+
+      // compression
+      if (job.getCompressMapOutput()) {
+        Class<? extends CompressionCodec> codecClass =
+          job.getMapOutputCompressorClass(DefaultCodec.class);
+        codec = ReflectionUtils.newInstance(codecClass, job);
+      } else {
+        codec = null;
+      }
+
+      // combiner
+      
+      spillInProgress = false;
+      minSpillsForCombine = job.getInt(JobContext.MAP_COMBINE_MIN_SPILLS, 3);
+      spillThread.setDaemon(true);
+      spillThread.setName("SpillThread");
+      spillLock.lock();
+      try {
+        // 启动spill的线程  
+        spillThread.start();
+        while (!spillThreadRunning) {
+          spillDone.await();
+        }
+}
+
+private void setEquator(int pos) {
+      equator = pos;
+      // set index prior to first entry, aligned at meta boundary
+      // 第一个entry的末尾位置，meta和kv数据的分界线
+      final int aligned = pos - (pos % METASIZE);
+      // Cast one of the operands to long to avoid integer overflow
+      // meta中存放数据的起始位置(逆时针)
+      kvindex = (int)
+        (((long)aligned - METASIZE + kvbuffer.length) % kvbuffer.length) / 4;
+      LOG.info("(EQUATOR) " + pos + " kvi " + kvindex +
+          "(" + (kvindex * 4) + ")");
+    }
+```
+- 初始化后的 Buffer
+![[MapOutBuffer 1.svg]]
+### 2.3.3 collect()
+```java
+// MapOutputBuffer实现了MapOutputCollector，重写了collect方法
+public synchronized void collect(K key, V value, final int partition
+                                     ) throws IOException {
+      reporter.progress();
+      ...
+      // bufferRemaining = softLimit
+      // 减去元数据长度(16byte)，未达到softLimit不进行下面的逻辑
+      bufferRemaining -= METASIZE;
+      if (bufferRemaining <= 0) {
+        // start spill if the thread is not running and the soft limit has been
+        // reached
+        spillLock.lock();
+        try {
+          do {
+            // init时spillInProgress默认为false
+            if (!spillInProgress) {
+              // 转byte
+              final int kvbidx = 4 * kvindex;
+              final int kvbend = 4 * kvend;
+              // serialized, unspilled bytes always lie between kvindex and
+              // bufindex, crossing the equator. Note that any void space
+              // created by a reset must be included in "used" bytes
+              final int bUsed = distanceTo(kvbidx, bufindex);
+              final boolean bufsoftlimit = bUsed >= softLimit;
+              ...
+              } else if (bufsoftlimit && kvindex != kvend) {
+                // spill records, if any collected; check latter, as it may
+                // be possible for metadata alignment to hit spill pcnt
+                startSpill();
+                final int avgRec = (int)
+                  (mapOutputByteCounter.getCounter() /
+                  mapOutputRecordCounter.getCounter());
+                // leave at least half the split buffer for serialization data
+                // ensure that kvindex >= bufindex
+                final int distkvi = distanceTo(bufindex, kvbidx);
+                final int newPos = (bufindex +
+                  Math.max(2 * METASIZE - 1,
+                          Math.min(distkvi / 2,
+                                   distkvi / (METASIZE + avgRec) * METASIZE)))
+                  % kvbuffer.length;
+                setEquator(newPos);
+                bufmark = bufindex = newPos;
+                final int serBound = 4 * kvend;
+                // bytes remaining before the lock must be held and limits
+                // checked is the minimum of three arcs: the metadata space, the
+                // serialization space, and the soft limit
+                bufferRemaining = Math.min(
+                    // metadata max
+                    distanceTo(bufend, newPos),
+                    Math.min(
+                      // serialization max
+                      distanceTo(newPos, serBound),
+                      // soft limit
+                      softLimit)) - 2 * METASIZE;
+              }
+            }
+          } while (false);
+        } finally {
+          spillLock.unlock();
+        }
+      }
+
+      try {
+        // serialize key bytes into buffer
+        int keystart = bufindex;
+        // 通过WritableSerializer对kv进行序列化
+        keySerializer.serialize(key);
+        // 如果上次write，key有一部分是重置bufindex后写入的，此时bufindex < keystart
+        if (bufindex < keystart) {
+          // wrapped the key; must make contiguous
+          bb.shiftBufferedKey();
+          keystart = 0;
+        }
+        // serialize value bytes into buffer
+        final int valstart = bufindex;
+        valSerializer.serialize(value);
+
+        bb.write(b0, 0, 0);
+        // 更新valend
+        int valend = bb.markRecord();
+
+        mapOutputRecordCounter.increment(1);
+        mapOutputByteCounter.increment(
+            distanceTo(keystart, valend, bufvoid));
+
+        // 更新元数据
+        kvmeta.put(kvindex + PARTITION, partition);
+        kvmeta.put(kvindex + KEYSTART, keystart);
+        kvmeta.put(kvindex + VALSTART, valstart);
+        kvmeta.put(kvindex + VALLEN, distanceTo(valstart, valend));
+        // advance kvindex
+        kvindex = (kvindex - NMETA + kvmeta.capacity()) % kvmeta.capacity();
+      } catch (MapBufferTooSmallException e) {
+        LOG.info("Record too large for in-memory buffer: " + e.getMessage());
+        spillSingleRecord(key, value, partition);
+        mapOutputRecordCounter.increment(1);
+        return;
+      }
+}
+```
+### 2.3.4 serialize()
+```java
+// 通过WritableSerialization的静态内部类WritableSerializer进行序列化
+@Override
+	// w是需要序列化的Writable对象，自定义的类需要序列化时会实现Writable接口通过write方法序列化
+    public void serialize(Writable w) throws IOException {
+      w.write(dataOut);
+}
+
+// k为Text类型时
+public void write(DataOutput out) throws IOException {
+    WritableUtils.writeVInt(out, length);
+    out.write(bytes, 0, length);
+}
+
+// DataOutputStream.java
+public synchronized void write(byte[] b, int off, int len)
+    throws IOException
+{
+    out.write(b, off, len);
+    incCount(len);
+}
+
+// 最后调用MapOutputBuffer.Buffer.write
+public void write(byte b[], int off, int len)
+          throws IOException {
+        // must always verify the invariant that at least METASIZE bytes are
+        // available beyond kvindex, even when len == 0
+    	// buffer长度减少，同样第一次不进入下面的逻辑
+        bufferRemaining -= len;
+        if (bufferRemaining <= 0) {
+          // bufferRemaining<=0需要溢写
+          // writing these bytes could exhaust available buffer space or fill
+          // the buffer to soft limit. check if spill or blocking are necessary
+          boolean blockwrite = false;
+          spillLock.lock();
+          try {
+            do {
+              checkSpillException();
+			  
+              // 计算byte位置
+              final int kvbidx = 4 * kvindex;
+              final int kvbend = 4 * kvend;
+              // ser distance to key index
+              final int distkvi = distanceTo(bufindex, kvbidx);
+              // ser distance to spill end index
+              final int distkve = distanceTo(bufindex, kvbend);
+              blockwrite = distkvi <= distkve
+                ? distkvi <= len + 2 * METASIZE
+                : distkve <= len || distanceTo(bufend, kvbidx) < 2 * METASIZE;
+
+              if (!spillInProgress) {
+                if (blockwrite) {
+                  if ((kvbend + METASIZE) % kvbuffer.length !=
+                      equator - (equator % METASIZE)) {
+                    // spill finished, reclaim space
+                    // need to use meta exclusively; zero-len rec & 100% spill
+                    // pcnt would fail
+                    resetSpill(); // resetSpill doesn't move bufindex, kvindex
+                    bufferRemaining = Math.min(
+                        distkvi - 2 * METASIZE,
+                        softLimit - distanceTo(kvbidx, bufindex)) - len;
+                    continue;
+                  }
+                  // we have records we can spill; only spill if blocked
+                  if (kvindex != kvend) {
+                    startSpill();
+                    // Blocked on this write, waiting for the spill just
+                    // initiated to finish. Instead of repositioning the marker
+                    // and copying the partial record, we set the record start
+                    // to be the new equator
+                    setEquator(bufmark);
+                  } else {
+                    // We have no buffered records, and this record is too large
+                    // to write into kvbuffer. We must spill it directly from
+                    // collect
+                    final int size = distanceTo(bufstart, bufindex) + len;
+                    setEquator(0);
+                    bufstart = bufend = bufindex = equator;
+                    kvstart = kvend = kvindex;
+                    bufvoid = kvbuffer.length;
+                    throw new MapBufferTooSmallException(size + " bytes");
+                  }
+                }
+              }
+
+              if (blockwrite) {
+                // wait for spill
+            } while (blockwrite);
+          } finally {
+            spillLock.unlock();
+          }
+        }
+        // here, we know that we have sufficient space to write
+    	// 在溢写时，同时向缓冲区尾部写入数据时，如果key的长度超过了buffer的长度
+    	// 从bufindex处先将buffer写满(gaplen)
+        // len减去gaplen，off增加gaplen，将bufindex重置为0后，再从头写入剩余数据
+        if (bufindex + len > bufvoid) {
+          final int gaplen = bufvoid - bufindex;
+          System.arraycopy(b, off, kvbuffer, bufindex, gaplen);
+          len -= gaplen;
+          off += gaplen;
+          bufindex = 0;
+        }
+    	// 向kvbuffer中bufindex的位置写入b中off处长度为len的数据
+        System.arraycopy(b, off, kvbuffer, bufindex, len);
+    	// buffindex移动
+        bufindex += len;
+}
+```
+### 2.3.5 写入 kv 序列化数据后的操作
+```java
+// MapOutputBuffer定义了属性，内部类BlockingBuffer:
+final BlockingBuffer bb = new BlockingBuffer();
+// 更新valend，此时还没写入meta
+// 将写完后的bufindex赋给bufmark并返回bufindex
+public int markRecord() {
+        bufmark = bufindex;
+        return bufindex;
+}
+// 再更新元数据，移动kvindex
+```
+
+![[MapOutBufferInit 1.svg]]
+
+### 2.3.6 shiftBufferedKey
+```java
+protected void shiftBufferedKey() throws IOException {
+        // spillLock unnecessary; both kvend and kvindex are current
+        int headbytelen = bufvoid - bufmark;
+        bufvoid = bufmark;
+        final int kvbidx = 4 * kvindex;
+        final int kvbend = 4 * kvend;
+        final int avail =
+          Math.min(distanceTo(0, kvbidx), distanceTo(0, kvbend));
+        // 判断空间是否足够
+        if (bufindex + headbytelen < avail) {
+          // 空间足够，复制两次，移动bufindex，调整bufferRemaining
+          // 先复制尾部
+          System.arraycopy(kvbuffer, 0, kvbuffer, headbytelen, bufindex);
+          // 再复制头部
+          System.arraycopy(kvbuffer, bufvoid, kvbuffer, 0, headbytelen);
+          bufindex += headbytelen;
+          bufferRemaining -= kvbuffer.length - bufvoid;
+        } else {
+          // 空间不够
+          byte[] keytmp = new byte[bufindex];
+          System.arraycopy(kvbuffer, 0, keytmp, 0, bufindex);
+          bufindex = 0;
+          out.write(kvbuffer, bufmark, headbytelen);
+          out.write(keytmp);
+        }
+}
+```
+### 2.3.7 写元数据时 spill
+```java
+// 缓冲区在初始化时会启动spill线程
+public void run() {
+        spillLock.lock();
+        spillThreadRunning = true;
+        try {
+          while (true) {
+            spillDone.signal();
+            while (!spillInProgress) {
+              spillReady.await();
+            }
+            try {
+              spillLock.unlock();
+              sortAndSpill();
+            }
+          }
+        }
+}
+
+private void startSpill() {
+      assert !spillInProgress;
+      kvend = (kvindex + NMETA) % kvmeta.capacity();
+      bufend = bufmark;
+      spillInProgress = true;
+      LOG.info("Spilling map output");
+      LOG.info("bufstart = " + bufstart + "; bufend = " + bufmark +
+               "; bufvoid = " + bufvoid);
+      LOG.info("kvstart = " + kvstart + "(" + (kvstart * 4) +
+               "); kvend = " + kvend + "(" + (kvend * 4) +
+               "); length = " + (distanceTo(kvend, kvstart,
+                     kvmeta.capacity()) + 1) + "/" + maxRec);
+      // 唤醒线程
+      spillReady.signal();
+}
+
+private void sortAndSpill() throws IOException, ClassNotFoundException,
+                                       InterruptedException {
+      //approximate the length of the output file to be the length of the
+      //buffer + header lengths for the partitions
+      final long size = distanceTo(bufstart, bufend, bufvoid) +
+                  partitions * APPROX_HEADER_LENGTH;
+      FSDataOutputStream out = null;
+      FSDataOutputStream partitionOut = null;
+      try {
+        // create spill file
+        final SpillRecord spillRec = new SpillRecord(partitions);
+        final Path filename =
+            mapOutputFile.getSpillFileForWrite(numSpills, size);
+        out = rfs.create(filename);
+        // 根据K排序
+        sorter.sort(MapOutputBuffer.this, mstart, mend, reporter);
+        int spindex = mstart;
+        final IndexRecord rec = new IndexRecord();
+        final InMemValBytes value = new InMemValBytes();
+        for (int i = 0; i < partitions; ++i) {
+          IFile.Writer<K, V> writer = null;
+          try {
+            long segmentStart = out.getPos();
+            partitionOut =
+                IntermediateEncryptedStream.wrapIfNecessary(job, out, false,
+                    filename);
+            // 创建writer
+            writer = new Writer<K, V>(job, partitionOut, keyClass, valClass, codec,
+                                      spilledRecordsCounter);
+            if (combinerRunner == null) {
+              // no combiner, spill directly
+              DataInputBuffer key = new DataInputBuffer();
+              while (spindex < mend &&
+                  kvmeta.get(offsetFor(spindex % maxRec) + PARTITION) == i) {
+                final int kvoff = offsetFor(spindex % maxRec);
+                int keystart = kvmeta.get(kvoff + KEYSTART);
+                int valstart = kvmeta.get(kvoff + VALSTART);
+                key.reset(kvbuffer, keystart, valstart - keystart);
+                getVBytesForOffset(kvoff, value);
+                // 通过append写  
+                writer.append(key, value);
+                ++spindex;
+              }
+            } else {...}
+
+            // close the writer
+            // record offsets
+            rec.startOffset = segmentStart;
+            rec.rawLength = writer.getRawLength() + CryptoUtils.cryptoPadding(job);
+            rec.partLength = writer.getCompressedLength() + CryptoUtils.cryptoPadding(job);
+            spillRec.putIndex(rec, i);
+            ...
+        }
+
+        if (totalIndexCacheMemory >= indexCacheMemoryLimit) {
+          // create spill index file
+          Path indexFilename =
+              mapOutputFile.getSpillIndexFileForWrite(numSpills, partitions
+                  * MAP_OUTPUT_INDEX_RECORD_LENGTH);
+          IntermediateEncryptedStream.addSpillIndexFile(indexFilename, job);
+          // 写磁盘
+          spillRec.writeToFile(indexFilename, job);
+        } else {...}
+        LOG.info("Finished spill " + numSpills);
+        ++numSpills;
+      }
+    }
+}
+
+// Writer是IFile的内部静态类
+// IFile.java
+public void append(DataInputBuffer key, DataInputBuffer value)
+    throws IOException {
+      int keyLength = key.getLength() - key.getPosition();
+      if (keyLength < 0) {
+        throw new IOException("Negative key-length not allowed: " + keyLength + 
+                              " for " + key);
+      }
+      
+      int valueLength = value.getLength() - value.getPosition();
+      if (valueLength < 0) {
+        throw new IOException("Negative value-length not allowed: " + 
+                              valueLength + " for " + value);
+      }
+
+      WritableUtils.writeVInt(out, keyLength);
+      WritableUtils.writeVInt(out, valueLength);
+      // 向FSDataOutputStream中写数据
+      out.write(key.getData(), key.getPosition(), keyLength); 
+      out.write(value.getData(), value.getPosition(), valueLength); 
+
+      // Update bytes written
+      decompressedBytesWritten += keyLength + valueLength + 
+                      WritableUtils.getVIntSize(keyLength) + 
+                      WritableUtils.getVIntSize(valueLength);
+      ++numRecordsWritten;
+}
+
+// SpillRecord.java写磁盘
+// 用crc做校验
+public void writeToFile(Path loc, JobConf job)
+      throws IOException {
+    writeToFile(loc, job, new PureJavaCrc32());
+}
+
+public void writeToFile(Path loc, JobConf job, Checksum crc)
+      throws IOException {
+    final FileSystem rfs = FileSystem.getLocal(job).getRaw();
+    CheckedOutputStream chk = null;
+    final FSDataOutputStream out = rfs.create(loc);
+    try {
+      if (crc != null) {
+        crc.reset();
+        chk = new CheckedOutputStream(out, crc);
+        // 写crc文件
+        chk.write(buf.array());
+        // spill文件
+        out.writeLong(chk.getChecksum().getValue());
+      } else {
+        out.write(buf.array());
+      }
+    } finally {
+      if (chk != null) {
+        chk.close();
+      } else {
+        out.close();
+      }
+    }
+}
+```
+### 2.3.8 写 kv 数据时的 spill
+```java
+// 在write方法中，当bufferRemaining不够写时，开始spill
+public void write(byte b[], int off, int len)
+          throws IOException {
+        bufferRemaining -= len;
+        if (bufferRemaining <= 0) {
+          boolean blockwrite = false;
+          spillLock.lock();
+          try {
+            do {
+            ...
+              if (!spillInProgress) {
+                // spill时需要阻塞写
+                if (blockwrite) {
+                  ...
+                  if (kvindex != kvend) {
+                    startSpill();
+                    // Blocked on this write, waiting for the spill just
+                    // initiated to finish. Instead of repositioning the marker
+                    // and copying the partial record, we set the record start
+                    // to be the new equator
+                    setEquator(bufmark);
+                  } else {
+                    // 数据过大，直接抛MapBufferTooSmallException异常，并重置buffer的参数
+                    // We have no buffered records, and this record is too large
+                    // to write into kvbuffer. We must spill it directly from
+                    // collect
+                    final int size = distanceTo(bufstart, bufindex) + len;
+                    setEquator(0);
+                    bufstart = bufend = bufindex = equator;
+                    kvstart = kvend = kvindex;
+                    bufvoid = kvbuffer.length;
+                    throw new MapBufferTooSmallException(size + " bytes");
+                  }
+                }
+              }
+			...
+}
+              
+// collect()中catch到MapBufferTooSmallException异常，通过spillSingleRecord将整个文件溢写到磁盘
+// spillSingleRecord不排序，不循环处理多个spill文件
+catch (MapBufferTooSmallException e) {
+        LOG.info("Record too large for in-memory buffer: " + e.getMessage());
+        spillSingleRecord(key, value, partition);
+        mapOutputRecordCounter.increment(1);
+        return;
+}
+```
+### 2.3.9 close()
+```java
+// NewOutputCollector是MapTask的私有内部类
+// 写完Buffer后2.2.1.2中runNewMapper继续执行NewOutputCollector.close(mapperContext)
+output.close(mapperContext);
+
+public void close(TaskAttemptContext context
+                      ) throws IOException,InterruptedException {
+      try {
+        collector.flush();
+      } catch (ClassNotFoundException cnf) {
+        throw new IOException("can't find class ", cnf);
+      }
+      collector.close();
+}
+
+public void flush() throws IOException, ClassNotFoundException,
+           InterruptedException {
+      // 没有spill结束时再次spill    
+      // release sort buffer before the merge
+      kvbuffer = null;
+      // 将spill文件合并成大文件
+      mergeParts();
+      Path outputPath = mapOutputFile.getOutputFile();
+}
+```
+### 2.3.10 合并切片文件
+```java
+private void mergeParts() throws IOException, InterruptedException, 
+                                     ClassNotFoundException {
+      // get the approximate size of the final output/index files
+      long finalOutFileSize = 0;
+      long finalIndexFileSize = 0;
+      final Path[] filename = new Path[numSpills];
+      final TaskAttemptID mapId = getTaskID();
+
+      for(int i = 0; i < numSpills; i++) {
+        filename[i] = mapOutputFile.getSpillFile(i);
+        finalOutFileSize += rfs.getFileStatus(filename[i]).getLen();
+      }
+      // 只有一个切片，不用分区直接产生最终输出                                   
+      if (numSpills == 1) { //the spill is the final output
+        Path indexFileOutput =
+            mapOutputFile.getOutputIndexFileForWriteInVolume(filename[0]);
+        sameVolRename(filename[0],
+            mapOutputFile.getOutputFileForWriteInVolume(filename[0]));
+        if (indexCacheList.size() == 0) {
+          Path indexFilePath = mapOutputFile.getSpillIndexFile(0);
+          IntermediateEncryptedStream.validateSpillIndexFile(
+              indexFilePath, job);
+          sameVolRename(indexFilePath, indexFileOutput);
+        } else {
+          indexCacheList.get(0).writeToFile(indexFileOutput, job);
+        }
+        IntermediateEncryptedStream.addSpillIndexFile(indexFileOutput, job);
+        sortPhase.complete();
+        return;
+      }
+		
+      // 遍历添加到indexCacheList
+      for (int i = indexCacheList.size(); i < numSpills; ++i) {
+        Path indexFileName = mapOutputFile.getSpillIndexFile(i);
+        IntermediateEncryptedStream.validateSpillIndexFile(indexFileName, job);
+        indexCacheList.add(new SpillRecord(indexFileName, job));
+      }
+	  ...
+      if (numSpills == 0) {...}
+      {
+        sortPhase.addPhases(partitions); // Divide sort phase into sub-phases
+        
+        IndexRecord rec = new IndexRecord();
+        final SpillRecord spillRec = new SpillRecord(partitions);
+        // 遍历分区
+        for (int parts = 0; parts < partitions; parts++) {
+          //create the segments to be merged
+          List<Segment<K,V>> segmentList =
+            new ArrayList<Segment<K, V>>(numSpills);
+          for(int i = 0; i < numSpills; i++) {
+            IndexRecord indexRecord = indexCacheList.get(i).getIndex(parts);
+
+            Segment<K,V> s =
+              new Segment<K,V>(job, rfs, filename[i], indexRecord.startOffset,
+                               indexRecord.partLength, codec, true);
+            segmentList.add(i, s);
+
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("MapId=" + mapId + " Reducer=" + parts +
+                  "Spill =" + i + "(" + indexRecord.startOffset + "," +
+                  indexRecord.rawLength + ", " + indexRecord.partLength + ")");
+            }
+          }
+
+          int mergeFactor = job.getInt(MRJobConfig.IO_SORT_FACTOR,
+              MRJobConfig.DEFAULT_IO_SORT_FACTOR);
+          // sort the segments only if there are intermediate merges
+          boolean sortSegments = segmentList.size() > mergeFactor;
+          // 按分区合并
+          @SuppressWarnings("unchecked")
+          RawKeyValueIterator kvIter = Merger.merge(job, rfs,
+                         keyClass, valClass, codec,
+                         segmentList, mergeFactor,
+                         new Path(mapId.toString()),
+                         job.getOutputKeyComparator(), reporter, sortSegments,
+                         null, spilledRecordsCounter, sortPhase.phase(),
+                         TaskType.MAP);
+
+          //write merged output to disk
+          long segmentStart = finalOut.getPos();
+          finalPartitionOut = IntermediateEncryptedStream.wrapIfNecessary(job,
+              finalOut, false, finalOutputFile);
+          Writer<K, V> writer =
+              new Writer<K, V>(job, finalPartitionOut, keyClass, valClass, codec,
+                               spilledRecordsCounter);
+          // 没有combiner
+          if (combinerRunner == null || numSpills < minSpillsForCombine) {
+            Merger.writeFile(kvIter, writer, reporter, job);
+          } else {
+            combineCollector.setWriter(writer);
+            combinerRunner.combine(kvIter, combineCollector);
+          }
+
+          //close
+          writer.close();
+          if (finalPartitionOut != finalOut) {
+            finalPartitionOut.close();
+            finalPartitionOut = null;
+          }
+
+          sortPhase.startNextPhase();
+      }
+}
+
+public static <K extends Object, V extends Object>
+  void writeFile(RawKeyValueIterator records, Writer<K, V> writer, 
+                 Progressable progressable, Configuration conf) 
+  throws IOException {
+    long progressBar = conf.getLong(JobContext.RECORDS_BEFORE_PROGRESS,
+        10000);
+    long recordCtr = 0;
+    while(records.next()) {
+      writer.append(records.getKey(), records.getValue());
+      
+      if (((recordCtr++) % progressBar) == 0) {
+        progressable.progress();
+      }
+    }
+}
+```
+## 2.4 Reduce
+- Reduce 分为 copy，merge，和 reduce
+- 

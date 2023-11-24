@@ -4418,7 +4418,8 @@ public void checkpointState(
             new HashMap<>(operatorChain.getNumberOfOperators());  
     try {  
         if (takeSnapshotSync(  
-                snapshotFutures, metadata, metrics, options, operatorChain, isRunning)) {  
+                snapshotFutures, metadata, metrics, options, operatorChain, isRunning)) {
+            // 所有节点ck完成后回复Master
             finishAndReportAsync(  
                     snapshotFutures,  
                     metadata,  
@@ -4694,6 +4695,37 @@ void snapshotState(
     }  
 }
 ```
+#### 6.1.1.6 向 coordinator 发送 ack
+```java
+protected void sendAcknowledgeCheckpointEvent(long checkpointId) {  
+    if (operatorEventDispatcher == null) {  
+        return;  
+    }  
+  
+    operatorEventDispatcher  
+            .getRegisteredOperators()  
+            .forEach(  
+                    x ->  
+                            operatorEventDispatcher  
+                                    .getOperatorEventGateway(x)  
+                                    .sendEventToCoordinator(  
+                                            new AcknowledgeCheckpointEvent(checkpointId)));  
+}
+
+// OperatorEventDispatcherImpl.java
+public void sendEventToCoordinator(OperatorEvent event) {  
+    final SerializedValue<OperatorEvent> serializedEvent;  
+  
+    toCoordinator.sendOperatorEventToCoordinator(operatorId, serializedEvent);  
+}
+
+public void sendOperatorEventToCoordinator(  
+        OperatorID operator, SerializedValue<OperatorEvent> event) {  
+    final CompletableFuture<Acknowledge> result =  
+            rpcGateway.sendOperatorEventToCoordinator(taskExecutionId, operator, event);  
+}
+```
+#### 6.1.1.6 finishAndReportAsync
 # 7. SQL
 ## 7.1 基础 API
 ### 7.1.1 创建 TableEnvironment

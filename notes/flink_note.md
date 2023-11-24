@@ -4334,20 +4334,18 @@ public void triggerCheckpointBarrier(
             }
 }
 ```
-
-
-
-
-
-
-
-
-
-
-
-#### 6.1.1.3 Source 产生 Barrier
+#### 6.1.1.3 算子产生 Barrier
 ```java
-// StreamSource继承了SourceFunction，StreamOperator使用StreamSource来读取，发送数据
+// StreamTask是TM部署并执行的本地处理单元，每个StreamTask运行一个或多个chain在一起的StreamOperator
+/*
+ * StreamTask
+ *     -> AbstractTwoInputStreamTask
+ *            -> TwoInputStreamTask
+ *     -> MultipleInputStreamTask
+ *     -> OneInputStreamTask
+ *     -> SourceOperatorStreamTask
+ *   
+*/
 
 ```
 # 7. SQL

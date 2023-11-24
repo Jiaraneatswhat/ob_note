@@ -4697,35 +4697,38 @@ void snapshotState(
 ```
 #### 6.1.1.6 向 coordinator 发送 ack
 ```java
-protected void sendAcknowledgeCheckpointEvent(long checkpointId) {  
-    if (operatorEventDispatcher == null) {  
-        return;  
-    }  
-  
-    operatorEventDispatcher  
-            .getRegisteredOperators()  
-            .forEach(  
-                    x ->  
-                            operatorEventDispatcher  
-                                    .getOperatorEventGateway(x)  
-                                    .sendEventToCoordinator(  
-                                            new AcknowledgeCheckpointEvent(checkpointId)));  
+private void finishAndReportAsync(  
+        Map<OperatorID, OperatorSnapshotFutures> snapshotFutures,  
+        CheckpointMetaData metadata,  
+        CheckpointMetricsBuilder metrics,  
+        boolean isTaskDeployedAsFinished,  
+        boolean isTaskFinished,  
+        Supplier<Boolean> isRunning)  
+        throws IOException {  
+    AsyncCheckpointRunnable asyncCheckpointRunnable =  
+            new AsyncCheckpointRunnable(...);  
 }
 
-// OperatorEventDispatcherImpl.java
-public void sendEventToCoordinator(OperatorEvent event) {  
-    final SerializedValue<OperatorEvent> serializedEvent;  
-  
-    toCoordinator.sendOperatorEventToCoordinator(operatorId, serializedEvent);  
+// run方法
+public void run() {  
+        if (asyncCheckpointState.compareAndSet(  
+                AsyncCheckpointState.RUNNING, AsyncCheckpointState.COMPLETED)) {  
+            // 报告
+            reportCompletedSnapshotStates(  
+                    snapshotsFinalizeResult.jobManagerTaskOperatorSubtaskStates,  
+                    snapshotsFinalizeResult.localTaskOperatorSubtaskStates,  
+                    asyncDurationMillis);  
+        } 
 }
 
-public void sendOperatorEventToCoordinator(  
-        OperatorID operator, SerializedValue<OperatorEvent> event) {  
-    final CompletableFuture<Acknowledge> result =  
-            rpcGateway.sendOperatorEventToCoordinator(taskExecutionId, operator, event);  
-}
+private void reportCompletedSnapshotStates(  
+        TaskStateSnapshot acknowledgedTaskStateSnapshot,  
+        TaskStateSnapshot localTaskStateSnapshot,  
+        long asyncDurationMillis) {
+	
 ```
-#### 6.1.1.6 finishAndReportAsync
+- Flink 最终调用 `finishAndReportAsync()` 向 Master 发送报告，所有的节点都报告结束时，Master 会生成 `CompletedCheckpoint` 持久化到状态后端中，结束 ck 流程
+
 # 7. SQL
 ## 7.1 基础 API
 ### 7.1.1 创建 TableEnvironment

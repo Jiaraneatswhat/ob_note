@@ -4530,6 +4530,8 @@ private boolean takeSnapshotSync(
                 checkpointId, checkpointOptions.getTargetLocation());  
   
 try {  
+	// OperatorChain有两个子类：FinishedOperatorChain和RegularOperatorChain
+	// 最终都会调用sendAcknowledgeCheckpointEvent()
     operatorChain.snapshotState(  
             operatorSnapshotsInProgress,  
             checkpointMetaData,  
@@ -4539,7 +4541,180 @@ try {
             storage);
 }
 
+public void snapshotState(  
+        Map<OperatorID, OperatorSnapshotFutures> operatorSnapshotsInProgress,  
+        CheckpointMetaData checkpointMetaData,  
+        CheckpointOptions checkpointOptions,  
+        Supplier<Boolean> isRunning,  
+        ChannelStateWriter.ChannelStateWriteResult channelStateWriteResult,  
+        CheckpointStreamFactory storage)  
+        throws Exception {  
+    for (StreamOperatorWrapper<?, ?> operatorWrapper : getAllOperators(true)) {  
+        if (!operatorWrapper.isClosed()) {  
+            operatorSnapshotsInProgress.put(  
+                    operatorWrapper.getStreamOperator().getOperatorID(), 
+                    // 备份 
+                    buildOperatorSnapshotFutures(  
+                            checkpointMetaData,  
+                            checkpointOptions,  
+                            operatorWrapper.getStreamOperator(),  
+                            isRunning,  
+                            channelStateWriteResult,  
+                            storage));  
+        }  
+    }  
+    sendAcknowledgeCheckpointEvent(checkpointMetaData.getCheckpointId()); 
+}
 
+private OperatorSnapshotFutures buildOperatorSnapshotFutures(  
+        CheckpointMetaData checkpointMetaData,  
+        CheckpointOptions checkpointOptions,  
+        StreamOperator<?> op,  
+        Supplier<Boolean> isRunning,  
+        ChannelStateWriter.ChannelStateWriteResult channelStateWriteResult,  
+        CheckpointStreamFactory storage)  
+        throws Exception {  
+    OperatorSnapshotFutures snapshotInProgress =  
+            checkpointStreamOperator(  
+                    op, checkpointMetaData, checkpointOptions, storage, isRunning);  
+    snapshotChannelStates(op, channelStateWriteResult, snapshotInProgress);  
+  
+    return snapshotInProgress;  
+}
+
+private static OperatorSnapshotFutures checkpointStreamOperator(  
+        StreamOperator<?> op,  
+        CheckpointMetaData checkpointMetaData,  
+        CheckpointOptions checkpointOptions,  
+        CheckpointStreamFactory storageLocation,  
+        Supplier<Boolean> isRunning)  
+        throws Exception {  
+    try {  
+	    // 持久化state
+        return op.snapshotState(  
+                checkpointMetaData.getCheckpointId(),  
+                checkpointMetaData.getTimestamp(),  
+                checkpointOptions,  
+                storageLocation);  
+    } catch (Exception ex) {  
+        if (isRunning.get()) {  
+            LOG.info(ex.getMessage(), ex);  
+        }  
+        throw ex;  
+    }  
+}
+
+// AbstractStreamOperatorV2.java
+public final OperatorSnapshotFutures snapshotState(  
+        long checkpointId,  
+        long timestamp,  
+        CheckpointOptions checkpointOptions,  
+        CheckpointStreamFactory factory)  
+        throws Exception {  
+    return stateHandler.snapshotState(  
+            this,  
+            Optional.ofNullable(timeServiceManager),  
+            getOperatorName(),  
+            checkpointId,  
+            timestamp,  
+            checkpointOptions,  
+            factory,  
+            isUsingCustomRawKeyedState());  
+}
+
+public OperatorSnapshotFutures snapshotState(  
+        CheckpointedStreamOperator streamOperator,  
+        Optional<InternalTimeServiceManager<?>> timeServiceManager,  
+        String operatorName,  
+        long checkpointId,  
+        long timestamp,  
+        CheckpointOptions checkpointOptions,  
+        CheckpointStreamFactory factory,  
+        boolean isUsingCustomRawKeyedState)  
+        throws CheckpointException {  
+    KeyGroupRange keyGroupRange =  
+            null != keyedStateBackend  
+                    ? keyedStateBackend.getKeyGroupRange()  
+                    : KeyGroupRange.EMPTY_KEY_GROUP_RANGE;  
+  
+    OperatorSnapshotFutures snapshotInProgress = new OperatorSnapshotFutures();  
+  
+    StateSnapshotContextSynchronousImpl snapshotContext =  
+            new StateSnapshotContextSynchronousImpl(  
+                    checkpointId, timestamp, factory, keyGroupRange, closeableRegistry);  
+  
+    snapshotState(  
+            streamOperator,  
+            timeServiceManager,  
+            operatorName,  
+            checkpointId,  
+            timestamp,  
+            checkpointOptions,  
+            factory,  
+            snapshotInProgress,  
+            snapshotContext,  
+            isUsingCustomRawKeyedState);  
+  
+    return snapshotInProgress;  
+}
+
+void snapshotState(  
+        CheckpointedStreamOperator streamOperator,  
+        Optional<InternalTimeServiceManager<?>> timeServiceManager,  
+        String operatorName,  
+        long checkpointId,  
+        long timestamp,  
+        CheckpointOptions checkpointOptions,  
+        CheckpointStreamFactory factory,  
+        OperatorSnapshotFutures snapshotInProgress,  
+        StateSnapshotContextSynchronousImpl snapshotContext,  
+        boolean isUsingCustomRawKeyedState)  
+        throws CheckpointException {  
+    try {  
+        // 执行各种算子的备份state操作
+        streamOperator.snapshotState(snapshotContext);  
+
+        if (null != keyedStateBackend) {  
+            if (isCanonicalSavepoint(checkpointOptions.getCheckpointType())) {  
+                SnapshotStrategyRunner<KeyedStateHandle, ? extends FullSnapshotResources<?>>  
+                        snapshotRunner =  
+                                prepareCanonicalSavepoint(keyedStateBackend, closeableRegistry);  
+  
+                snapshotInProgress.setKeyedStateManagedFuture(  
+                        snapshotRunner.snapshot(  
+                                checkpointId, timestamp, factory, checkpointOptions));  
+  
+            } else {  
+                snapshotInProgress.setKeyedStateManagedFuture(  
+                        keyedStateBackend.snapshot(  
+                                checkpointId, timestamp, factory, checkpointOptions));  
+            }  
+        }  
+    } catch (Exception snapshotException) {  
+        try {  
+            snapshotInProgress.cancel();  
+        } catch (Exception e) {  
+            snapshotException.addSuppressed(e);  
+        }  
+  
+        String snapshotFailMessage =  
+                "Could not complete snapshot "  
+                        + checkpointId  
+                        + " for operator "  
+                        + operatorName  
+                        + ".";  
+  
+        try {  
+            snapshotContext.closeExceptionally();  
+        } catch (IOException e) {  
+            snapshotException.addSuppressed(e);  
+        }  
+        throw new CheckpointException(  
+                snapshotFailMessage,  
+                CheckpointFailureReason.CHECKPOINT_DECLINED,  
+                snapshotException);  
+    }  
+}
 ```
 # 7. SQL
 ## 7.1 基础 API

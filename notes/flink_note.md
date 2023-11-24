@@ -4489,11 +4489,57 @@ private int add(BufferConsumer bufferConsumer, int partialRecordLength, boolean 
   
     notifyPriorityEvent(prioritySequenceNumber);  
     if (notifyDataAvailable) {  
+	    // 通知下游消费
         notifyDataAvailable();  
     }  
   
     return newBufferSize;  
 }
+
+private void notifyDataAvailable() {  
+    final PipelinedSubpartitionView readView = this.readView;  
+    if (readView != null) {  
+        readView.notifyDataAvailable();  
+    }  
+}
+
+public void notifyDataAvailable() {  
+    availabilityListener.notifyDataAvailable();  
+}
+
+// CreditBasedSequenceNumberingViewReader.java
+// 向下游监听的availabilityListener发送事件消息
+public void notifyDataAvailable() {  
+    requestQueue.notifyReaderNonEmpty(this);  
+}
+```
+#### 6.1.1.5 发送 Barrier 后执行 ck
+```java
+// 6.1.1.3 step5
+private boolean takeSnapshotSync(  
+        Map<OperatorID, OperatorSnapshotFutures> operatorSnapshotsInProgress,  
+        CheckpointMetaData checkpointMetaData,  
+        CheckpointMetricsBuilder checkpointMetrics,  
+        CheckpointOptions checkpointOptions,  
+        OperatorChain<?, ?> operatorChain,  
+        Supplier<Boolean> isRunning)  
+        throws Exception {
+        
+	CheckpointStreamFactory storage =  
+        checkpointStorage.resolveCheckpointStorageLocation(  
+                checkpointId, checkpointOptions.getTargetLocation());  
+  
+try {  
+    operatorChain.snapshotState(  
+            operatorSnapshotsInProgress,  
+            checkpointMetaData,  
+            checkpointOptions,  
+            isRunning,  
+            channelStateWriteResult,  
+            storage);
+}
+
+
 ```
 # 7. SQL
 ## 7.1 基础 API

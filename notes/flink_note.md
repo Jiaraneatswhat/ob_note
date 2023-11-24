@@ -4336,17 +4336,50 @@ public void triggerCheckpointBarrier(
 ```
 #### 6.1.1.3 算子产生 Barrier
 ```java
-// StreamTask是TM部署并执行的本地处理单元，每个StreamTask运行一个或多个chain在一起的StreamOperator
 /*
+ * StreamTask是TM部署并执行的本地处理单元
+ * 每个StreamTask运行一个或多个chain在一起的StreamOperator
  * StreamTask
  *     -> AbstractTwoInputStreamTask
  *            -> TwoInputStreamTask
  *     -> MultipleInputStreamTask
  *     -> OneInputStreamTask
  *     -> SourceOperatorStreamTask
- *   
+ *     -> SourceStreamTask
+ * triggerCheckpointAsync最终会调用父类StreamTask的方法
 */
-
+public CompletableFuture<Boolean> triggerCheckpointAsync(  
+        CheckpointMetaData checkpointMetaData, CheckpointOptions checkpointOptions) {  
+    checkForcedFullSnapshotSupport(checkpointOptions);  
+  
+    CompletableFuture<Boolean> result = new CompletableFuture<>();  
+    mainMailboxExecutor.execute(  
+            () -> {  
+                try {  
+                    boolean noUnfinishedInputGates =  
+                            Arrays.stream(getEnvironment().getAllInputGates())  
+                                    .allMatch(InputGate::isFinished);  
+  
+                    if (noUnfinishedInputGates) {  
+                        result.complete(  
+                                triggerCheckpointAsyncInMailbox(  
+                                        checkpointMetaData, checkpointOptions));  
+                    } else {  
+                        result.complete(  
+                                triggerUnfinishedChannelsCheckpoint(  
+                                        checkpointMetaData, checkpointOptions));  
+                    }  
+                } catch (Exception ex) {  
+                    // Report the failure both via the Future result but also to the mailbox  
+                    result.completeExceptionally(ex);  
+                    throw ex;  
+                }  
+            },  
+            "checkpoint %s with %s",  
+            checkpointMetaData,  
+            checkpointOptions);  
+    return result;  
+}
 ```
 # 7. SQL
 ## 7.1 基础 API

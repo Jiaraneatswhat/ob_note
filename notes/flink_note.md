@@ -4562,7 +4562,8 @@ public void snapshotState(
                             channelStateWriteResult,  
                             storage));  
         }  
-    }  
+    } 
+    // 备份完成发送ack 
     sendAcknowledgeCheckpointEvent(checkpointMetaData.getCheckpointId()); 
 }
 
@@ -4690,29 +4691,6 @@ void snapshotState(
                                 checkpointId, timestamp, factory, checkpointOptions));  
             }  
         }  
-    } catch (Exception snapshotException) {  
-        try {  
-            snapshotInProgress.cancel();  
-        } catch (Exception e) {  
-            snapshotException.addSuppressed(e);  
-        }  
-  
-        String snapshotFailMessage =  
-                "Could not complete snapshot "  
-                        + checkpointId  
-                        + " for operator "  
-                        + operatorName  
-                        + ".";  
-  
-        try {  
-            snapshotContext.closeExceptionally();  
-        } catch (IOException e) {  
-            snapshotException.addSuppressed(e);  
-        }  
-        throw new CheckpointException(  
-                snapshotFailMessage,  
-                CheckpointFailureReason.CHECKPOINT_DECLINED,  
-                snapshotException);  
     }  
 }
 ```

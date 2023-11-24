@@ -6073,3 +6073,5 @@ HADOOP_CLASSNAME='org.apache.hadoop.yarn.server.nodemanager.NodeManager'
 # everything is in globals at this point, so call the generic handler
 hadoop_generic_java_subcmd_handler
 ```
+### 3.1.2 ResourceManager
+#### 3.1.2.1 

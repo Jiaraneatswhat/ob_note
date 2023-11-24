@@ -4860,18 +4860,68 @@ void sendAcknowledgeMessages(
     for (ExecutionVertex ev : tasksToCommit) {  
         Execution ee = ev.getCurrentExecutionAttempt();  
         if (ee != null) {  
+	        /**
+			 * 通过Execution向TaskManagerGateway发送CheckpointComplete消息，通知所有的Task实例：本次Checkpoint操作结束
+			 * TaskExecutor收到CheckpointComplete消息后，会从TaskSlotTable中取出对应的Task实例，并向其发送CheckpointComplete消息
+			 * 所有实现了CheckpointListener监听器的观察者，在收到Checkpoint完成的消息后，都会进行各自的处理
+			 */
             ee.notifyCheckpointOnComplete(  
                     completedCheckpointId, completedTimestamp, lastSubsumedCheckpointId);  
         }  
     }  
-  
-    // commit coordinators  
-    for (OperatorCoordinatorCheckpointContext coordinatorContext : coordinatorsToCheckpoint) {  
-        coordinatorContext.notifyCheckpointComplete(completedCheckpointId);  
-    }  
 }
 
+public void notifyCheckpointOnComplete(  
+        long completedCheckpointId, long completedTimestamp, long lastSubsumedCheckpointId) {  
+    final LogicalSlot slot = assignedResource;  
+  
+    if (slot != null) {  
+        final TaskManagerGateway taskManagerGateway = slot.getTaskManagerGateway();  
+        taskManagerGateway.notifyCheckpointOnComplete(  
+                attemptId,  
+                getVertex().getJobId(),  
+                completedCheckpointId,  
+                completedTimestamp,  
+                lastSubsumedCheckpointId);  
+    }
+}
 
+public void notifyCheckpointOnComplete(  
+        ExecutionAttemptID executionAttemptID,  
+        JobID jobId,  
+        long completedCheckpointId,  
+        long completedTimestamp,  
+        long lastSubsumedCheckpointId) {  
+    taskExecutorGateway.confirmCheckpoint(  
+            executionAttemptID,  
+            completedCheckpointId,  
+            completedTimestamp,  
+            lastSubsumedCheckpointId);  
+}
+
+public CompletableFuture<Acknowledge> confirmCheckpoint(  
+        ExecutionAttemptID executionAttemptID,  
+        long completedCheckpointId,  
+        long completedCheckpointTimestamp,  
+        long lastSubsumedCheckpointId) {  );  
+  
+    final Task task = taskSlotTable.getTask(executionAttemptID);  
+  
+    if (task != null) {  
+	    // task收到消息
+        task.notifyCheckpointComplete(completedCheckpointId);  
+  
+        task.notifyCheckpointSubsumed(lastSubsumedCheckpointId);  
+        return CompletableFuture.completedFuture(Acknowledge.get());  
+    }
+}
+
+/*
+ * Task实例将其通知给StreamTask中的算子
+ * StreamTask负责通知给OperatorChain中的各个StreamOperator
+ * StreamOperator收到Checkpoint完成的消息后，会根据自身需要进行后续处理
+ * 如FlinkKafkaConsumerBase的notifyCheckpointComplete()方法，会在ck成功后，将offset写入Kafka
+ */
 ```
 
 # 7. SQL

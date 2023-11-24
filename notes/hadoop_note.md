@@ -5610,5 +5610,466 @@ private synchronized InMemoryMapOutput<K, V> unconditionalReserve(
 ```
 ### 2.4.4 IFileWrappedMapOutput.shuffle()
 ```java
+// copyMapOutput()中
+public void shuffle(MapHost host, InputStream input,
+                      long compressedLength, long decompressedLength,
+                      ShuffleClientMetrics metrics,
+                      Reporter reporter) throws IOException {
+    // 对之前的copyMapOutput()中创建的FSDataInputStream进行包装得到IFileInputStream
+    doShuffle(host, new IFileInputStream(input, compressedLength, conf),
+        compressedLength, decompressedLength, metrics, reporter);
+}
 
+// 根据磁盘或是内存，有两个实现类
+// InMemoryMapOutput.doshuffle
+protected void doShuffle(MapHost host, IFileInputStream iFin,
+                      long compressedLength, long decompressedLength,
+                      ShuffleClientMetrics metrics,
+                      Reporter reporter) throws IOException {
+    InputStream input = iFin;
+
+    // Are map-outputs compressed?
+    if (codec != null) {
+      decompressor.reset();
+      input = codec.createInputStream(input, decompressor);
+    }
+  
+    try {
+      // 将内存中的数据读入IFileInputStream中
+      IOUtils.readFully(input, memory, 0, memory.length);
+      metrics.inputBytes(memory.length);
+      reporter.progress();
+      LOG.info("Read " + memory.length + " bytes from map-output for " +
+                getMapId());
+
+      /**
+       * We've gotten the amount of data we were expecting. Verify the
+       * decompressor has nothing more to offer. This action also forces the
+       * decompressor to read any trailing bytes that weren't critical
+       * for decompression, which is necessary to keep the stream
+       * in sync.
+       */
+      if (input.read() >= 0 ) {
+        throw new IOException("Unexpected extra bytes from input stream for " +
+                               getMapId());
+      }
+    } finally {
+      CodecPool.returnDecompressor(decompressor);
+    }
+}
+
+// OnDiskMapOutput.doshuffle
+protected void doShuffle(MapHost host, IFileInputStream input,
+                      long compressedLength, long decompressedLength,
+                      ShuffleClientMetrics metrics,
+                      Reporter reporter) throws IOException {
+    // Copy data to local-disk
+    long bytesLeft = compressedLength;
+    try {
+      final int BYTES_TO_READ = 64 * 1024;
+      byte[] buf = new byte[BYTES_TO_READ];
+      while (bytesLeft > 0) {
+        int n = input.readWithChecksum(buf, 0,
+                                      (int) Math.min(bytesLeft, BYTES_TO_READ));
+        if (n < 0) {
+          throw new IOException("read past end of stream reading " + 
+                                getMapId());
+        }
+        // 向磁盘写
+        disk.write(buf, 0, n);
+        bytesLeft -= n;
+        metrics.inputBytes(n);
+        reporter.progress();
+      }
+
+      LOG.info("Read " + (compressedLength - bytesLeft) + 
+               " bytes from map-output for " + getMapId());
+		
+      disk.close();
+    } catch (IOException ioe) {
+      // Close the streams
+      IOUtils.cleanupWithLogger(LOG, disk);
+
+      // Re-throw
+      throw ioe;
+    }
+
+    // Sanity check
+    if (bytesLeft != 0) {
+      throw new IOException("Incomplete map output received for " +
+                            getMapId() + " from " +
+                            host.getHostName() + " (" + 
+                            bytesLeft + " bytes missing of " + 
+                            compressedLength + ")");
+    }
+    this.compressedSize = compressedLength;
+}
+```
+### 2.4.5 merger 线程
+#### 2.4.5.1 启动
+```java
+// MergeThread.java
+// 2.4.2中创建
+// InMemoryMerger和OnDiskMerger继承了MergeThread
+public void run() {
+    while (true) {
+      List<T> inputs = null;
+      try {
+        // Wait for notification to start the merge...
+        // private LinkedList<List<T>> pendingToBeMerged;
+        synchronized (pendingToBeMerged) {
+          while(pendingToBeMerged.size() <= 0) {
+            // 等待
+            pendingToBeMerged.wait();
+          }
+          // Pickup the inputs to merge.
+          inputs = pendingToBeMerged.removeFirst();
+        }
+
+        // Merge
+        merge(inputs);
+      } catch (InterruptedException ie) {
+        numPending.set(0);
+        return;
+      } catch(Throwable t) {
+        numPending.set(0);
+        reporter.reportException(t);
+        return;
+      } finally {
+        synchronized (this) {
+          numPending.decrementAndGet();
+          notifyAll();
+        }
+      }
+    }
+}
+```
+#### 2.4.5.2 InMemoryMerger.merge()
+```java
+// reduce的merge分为mem2mem(不启用), mem2disk，disk2disk
+// 内存充足时，首先是mem2disk
+public void merge(List<InMemoryMapOutput<K,V>> inputs) throws IOException {
+        ...
+        // 获取kv迭代器
+        // merge的同时通过OutputKeyComparator排序
+        rIter = Merger.merge(jobConf, rfs,
+                             (Class<K>)jobConf.getMapOutputKeyClass(),
+                             (Class<V>)jobConf.getMapOutputValueClass(),
+                             inMemorySegments, inMemorySegments.size(),
+                             new Path(reduceId.toString()),
+                             (RawComparator<K>)jobConf.getOutputKeyComparator(),
+                             reporter, spilledRecordsCounter, null, null);
+        
+        if (null == combinerClass) {
+          // 写文件
+          Merger.writeFile(rIter, writer, reporter, jobConf);
+        } else {
+          combineCollector.setWriter(writer);
+          combineAndSpill(rIter, reduceCombineInputCounter);
+        }
+        writer.close();
+      // 关闭磁盘文件
+      closeOnDiskFile(compressAwarePath);
+}
+```
+#### 2.4.5.3 onDiskMerger.merge()
+```java
+public void merge(List<CompressAwarePath> inputs) throws IOException {    
+      ...
+      Path outputPath = 
+        localDirAllocator.getLocalPathForWrite(inputs.get(0).toString(), 
+            approxOutputSize, jobConf).suffix(Task.MERGED_OUTPUT_PREFIX);
+
+      FSDataOutputStream out =
+          IntermediateEncryptedStream.wrapIfNecessary(jobConf,
+              rfs.create(outputPath), outputPath);
+      Writer<K, V> writer = new Writer<K, V>(jobConf, out,
+          (Class<K>) jobConf.getMapOutputKeyClass(),
+          (Class<V>) jobConf.getMapOutputValueClass(), codec, null, true);
+
+      RawKeyValueIterator iter  = null;
+      CompressAwarePath compressAwarePath;
+      Path tmpDir = new Path(reduceId.toString());
+      try {
+        // merge的同时通过OutputKeyComparator排序
+        iter = Merger.merge(jobConf, rfs,
+                            (Class<K>) jobConf.getMapOutputKeyClass(),
+                            (Class<V>) jobConf.getMapOutputValueClass(),
+                            codec, inputs.toArray(new Path[inputs.size()]), 
+                            true, ioSortFactor, tmpDir, 
+                            (RawComparator<K>) jobConf.getOutputKeyComparator(), 
+                            reporter, spilledRecordsCounter, null, 
+                            mergedMapOutputsCounter, null);
+
+        Merger.writeFile(iter, writer, reporter, jobConf);
+        writer.close();
+       ...
+      closeOnDiskFile(compressAwarePath);
+    }
+```
+### 2.4.6 关闭 merger，准备执行 reduce
+```java
+public RawKeyValueIterator close() throws Throwable {
+    // Wait for on-going merges to complete
+    if (memToMemMerger != null) { 
+      memToMemMerger.close();
+    }
+    // 关闭线程
+    inMemoryMerger.close();
+    onDiskMerger.close();
+    
+    List<InMemoryMapOutput<K, V>> memory = 
+      new ArrayList<InMemoryMapOutput<K, V>>(inMemoryMergedMapOutputs);
+    inMemoryMergedMapOutputs.clear();
+    memory.addAll(inMemoryMapOutputs);
+    inMemoryMapOutputs.clear();
+    List<CompressAwarePath> disk = new ArrayList<CompressAwarePath>(onDiskMapOutputs);
+    onDiskMapOutputs.clear();
+    return finalMerge(jobConf, rfs, memory, disk);
+}
+
+private RawKeyValueIterator finalMerge(JobConf job, FileSystem fs,
+                                       List<InMemoryMapOutput<K,V>> inMemoryMapOutputs,
+                                       List<CompressAwarePath> onDiskMapOutputs
+                                       ) throws IOException {
+    // 先处理内存中的数据
+    if (inMemoryMapOutputs.size() > 0) {
+        ... 
+        // 
+        try {
+          Merger.writeFile(rIter, writer, reporter, job);
+          writer.close();
+          // 添加到List DiskMapOutputs中
+          onDiskMapOutputs.add(new CompressAwarePath(outputPath,
+              writer.getRawLength(), writer.getCompressedLength()));
+          writer = null;
+          // add to list of final disk outputs.
+        } ...
+
+    // 处理磁盘中的数据
+    List<Segment<K,V>> diskSegments = new ArrayList<Segment<K,V>>();
+    long onDiskBytes = inMemToDiskBytes;
+    long rawBytes = inMemToDiskBytes;
+    CompressAwarePath[] onDisk = onDiskMapOutputs.toArray(
+        new CompressAwarePath[onDiskMapOutputs.size()]);
+    for (CompressAwarePath file : onDisk) {
+      long fileLength = fs.getFileStatus(file).getLen();
+      onDiskBytes += fileLength;
+      rawBytes += (file.getRawDataLength() > 0) ? file.getRawDataLength() : fileLength;
+
+      LOG.debug("Disk file: " + file + " Length is " + fileLength);
+      diskSegments.add(new Segment<K, V>(job, fs, file, codec, keepInputs,
+                                         (file.toString().endsWith(
+                                             Task.MERGED_OUTPUT_PREFIX) ?
+                                          null : mergedMapOutputsCounter), file.getRawDataLength()
+                                        ));
+    }
+    // 排序
+    Collections.sort(diskSegments, new Comparator<Segment<K,V>>() {
+      public int compare(Segment<K, V> o1, Segment<K, V> o2) {
+        if (o1.getLength() == o2.getLength()) {
+          return 0;
+        }
+        return o1.getLength() < o2.getLength() ? -1 : 1;
+      }
+    });
+
+    // build final list of segments from merged backed by disk + in-mem
+    List<Segment<K,V>> finalSegments = new ArrayList<Segment<K,V>>();
+    long inMemBytes = createInMemorySegments(inMemoryMapOutputs, 
+                                             finalSegments, 0);
+    LOG.info("Merging " + finalSegments.size() + " segments, " +
+             inMemBytes + " bytes from memory into reduce");
+    if (0 != onDiskBytes) {...}
+    // 再merge一次
+    return Merger.merge(job, fs, keyClass, valueClass,
+                 finalSegments, finalSegments.size(), tmpDir,
+                 comparator, reporter, spilledRecordsCounter, null,
+                 null);
+}
+// 拉取数据结束，回到ReduceTask的run()中
+```
+### 2.4.7 runNewReducer()
+```java
+private <INKEY,INVALUE,OUTKEY,OUTVALUE>
+  void runNewReducer(JobConf job,
+                     final TaskUmbilicalProtocol umbilical,
+                     final TaskReporter reporter,
+                     RawKeyValueIterator rIter,
+                     RawComparator<INKEY> comparator,
+                     Class<INKEY> keyClass,
+                     Class<INVALUE> valueClass
+                     ) throws IOException,InterruptedException, 
+                              ClassNotFoundException {
+
+    // make a task context so we can get the classes
+    org.apache.hadoop.mapreduce.TaskAttemptContext taskContext =
+      new org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl(job,
+          getTaskID(), reporter);
+    // make a reducer
+    // 获取自定义的reducer                              
+    org.apache.hadoop.mapreduce.Reducer<INKEY,INVALUE,OUTKEY,OUTVALUE> reducer =
+      (org.apache.hadoop.mapreduce.Reducer<INKEY,INVALUE,OUTKEY,OUTVALUE>)
+        ReflectionUtils.newInstance(taskContext.getReducerClass(), job);
+    // 指定输出时的RecordWriter                          
+    org.apache.hadoop.mapreduce.RecordWriter<OUTKEY,OUTVALUE> trackedRW = 
+      new NewTrackingRecordWriter<OUTKEY, OUTVALUE>(this, taskContext);
+    job.setBoolean("mapred.skip.on", isSkipping());
+    job.setBoolean(JobContext.SKIP_RECORDS, isSkipping());
+    org.apache.hadoop.mapreduce.Reducer.Context
+         // 创建上下文
+         reducerContext = createReduceContext(reducer, job, getTaskID(),
+                                               rIter, reduceInputKeyCounter, 
+                                               reduceInputValueCounter, 
+                                               trackedRW,
+                                               committer,
+                                               reporter, comparator, keyClass,
+                                               valueClass);
+    try {
+      // 运行reducer  
+      reducer.run(reducerContext);
+    } finally {
+      trackedRW.close(reducerContext);
+    }
+}
+
+public void run(Context context) throws IOException, InterruptedException {
+    setup(context);
+    try {
+      // createReduceContext创建的上下文
+      while (context.nextKey()) {
+        reduce(context.getCurrentKey(), context.getValues(), context);
+        // If a back up store is used, reset it
+        Iterator<VALUEIN> iter = context.getValues().iterator();
+        if(iter instanceof ReduceContext.ValueIterator) {
+          ((ReduceContext.ValueIterator<VALUEIN>)iter).resetBackupStore();        
+        }
+      }
+    } finally {
+      cleanup(context);
+    }
+}
+
+NewTrackingRecordWriter(ReduceTask reduce,
+        org.apache.hadoop.mapreduce.TaskAttemptContext taskContext)
+        throws InterruptedException, IOException {
+
+      long bytesOutPrev = getOutputBytes(fsStats);
+      // 初始化时reduce.outputFormat是TextOutputFormat
+      // 通过TextOutputFormat的getRecordWriter方法，返回一个LineRecordWriter
+      this.real = (org.apache.hadoop.mapreduce.RecordWriter<K, V>) reduce.outputFormat
+          .getRecordWriter(taskContext);
+}
+```
+### 2.4.8 执行 reduce 任务
+```java
+// 通过reduce()中写出
+context.write(key, outV);
+
+// 与map类似，WrappedReducer中也定义了reduceContext
+public void write(KEYOUT key, VALUEOUT value) throws IOException,
+        InterruptedException {
+      reduceContext.write(key, value);
+}
+//ReduceContextImpl继承了TaskInputOutputContextImpl
+public void write(KEYOUT key, VALUEOUT value
+                    ) throws IOException, InterruptedException {
+    output.write(key, value);
+}
+// 类似的，调用ReduceTask的write()
+public void write(K key, V value) throws IOException, InterruptedException {
+      long bytesOutPrev = getOutputBytes(fsStats);
+      // private final org.apache.hadoop.mapreduce.RecordWriter<K,V> real
+      real.write(key,value);
+      long bytesOutCurr = getOutputBytes(fsStats);
+      fileOutputByteCounter.increment(bytesOutCurr - bytesOutPrev);
+      outputRecordCounter.increment(1);
+}
+```
+# 3. Yarn
+- 基本架构
+- `Yarn` 主要由 `ResourceManager`，`NodeManager`，`AppMaster` 以及 `Container` 组成
+-  `ResourceManager` 是全局的资源管理器，负责整个系统的资源管理和分配
+- 用户提交的每一个程序包含一个 `AppMaster`
+	- 与 `ResourceManager` 调度器协商以获取资源，用 `Container` 表示
+	- 将得到的任务进一步分配给内部的任务
+	- 与 `NodeManager` 通信以启动/停止任务
+	- 监控所有任务运行状态，并在任务运行失败时重新为任务申请资源以重启任务
+- `NodeManager` 是每个节点上的资源和任务管理器
+	- 定时地向 `ResourceManager` 汇报本节点上的资源使用情况和各个 `Container` 的运行状态
+	- 接收并处理来自 `AppMaster` 的 `Container` 启动/停止等各种请求
+- `Container` 是 Yarn 中的资源抽象
+	- 封装了某个节点上的多维度资源，如内存、CPU、磁盘、网络等
+	- `ResourceManager` 为 `AppMaster` 返回的资源用 `Container` 表示
+	- `Yarn` 会为每个任务分配一个 `Container`
+	- `Container` 是一个动态资源划分单位
+## 3.1 启动
+### 3.1.1 脚本
+#### 3.1.1.1 start-yarn.sh
+```shell
+# 与hdfs启动类似，首先通过start-yarn.sh进行启动
+#!/usr/bin/env bash
+...
+# start resourceManager
+HARM=$("${HADOOP_HDFS_HOME}/bin/hdfs" getconf -confKey yarn.resourcemanager.ha.enabled 2>&-)
+if [[ ${HARM} = "false" ]]; then
+  echo "Starting resourcemanager"
+  hadoop_uservar_su yarn resourcemanager "${HADOOP_YARN_HOME}/bin/yarn" \
+      --config "${HADOOP_CONF_DIR}" \
+      --daemon start \
+      resourcemanager
+  (( HADOOP_JUMBO_RETCOUNTER=HADOOP_JUMBO_RETCOUNTER + $? ))
+else
+  # 高可用逻辑
+fi
+
+# start nodemanager
+echo "Starting nodemanagers"
+hadoop_uservar_su yarn nodemanager "${HADOOP_YARN_HOME}/bin/yarn" \
+    --config "${HADOOP_CONF_DIR}" \
+    --workers \
+    --daemon start \
+    nodemanager
+(( HADOOP_JUMBO_RETCOUNTER=HADOOP_JUMBO_RETCOUNTER + $? ))
+
+# start proxyserver
+```
+#### 3.1.1.2 yarn
+```shell
+#!/usr/bin/env bash
+...
+## @description  Default command handler for yarn command
+## @audience     public
+## @stability    stable
+## @replaceable  no
+## @param        CLI arguments
+function yarncmd_case
+{
+  subcmd=$1
+  shift
+
+  case ${subcmd} in
+    app|application|applicationattempt|container)
+      HADOOP_CLASSNAME=org.apache.hadoop.yarn.client.cli.ApplicationCLI
+      set -- "${subcmd}" "$@"
+      HADOOP_SUBCMD_ARGS=("$@")
+      local sld="${HADOOP_YARN_HOME}/${YARN_DIR},\
+${HADOOP_YARN_HOME}/${YARN_LIB_JARS_DIR},\
+${HADOOP_HDFS_HOME}/${HDFS_DIR},\
+${HADOOP_HDFS_HOME}/${HDFS_LIB_JARS_DIR},\
+${HADOOP_COMMON_HOME}/${HADOOP_COMMON_DIR},\
+${HADOOP_COMMON_HOME}/${HADOOP_COMMON_LIB_JARS_DIR}"
+      hadoop_translate_cygwin_path sld
+      hadoop_add_param HADOOP_OPTS service.libdir "-Dservice.libdir=${sld}"
+    ;;
+    # 主类
+    nodemanager)
+    hadoop_add_classpath 
+HADOOP_CLASSNAME='org.apache.hadoop.yarn.server.nodemanager.NodeManager'
+    ;;
+    resourcemanager)
+      hadoop_add_classpath HADOOP_CLASSNAME='org.apache.hadoop.yarn.server.resourcemanager.ResourceManager'
+# 与hdfs类似，通过java启动进程
+# everything is in globals at this point, so call the generic handler
+hadoop_generic_java_subcmd_handler
 ```

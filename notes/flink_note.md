@@ -4385,63 +4385,28 @@ public void checkpointState(
         boolean isTaskFinished,  
         Supplier<Boolean> isRunning)  
         throws Exception {  
-  
-    checkNotNull(options);  
-    checkNotNull(metrics);  
-  
-    // All of the following steps happen as an atomic step from the perspective of barriers and  
-    // records/watermarks/timers/callbacks.    // We generally try to emit the checkpoint barrier as soon as possible to not affect    // downstream    // checkpoint alignments  
-    if (lastCheckpointId >= metadata.getCheckpointId()) {  
-        LOG.info(  
-                "Out of order checkpoint barrier (aborted previously?): {} >= {}",  
-                lastCheckpointId,  
-                metadata.getCheckpointId());  
-        channelStateWriter.abort(metadata.getCheckpointId(), new CancellationException(), true);  
-        checkAndClearAbortedStatus(metadata.getCheckpointId());  
-        return;  
-    }  
-  
-    logCheckpointProcessingDelay(metadata);  
-  
-    // Step (0): Record the last triggered checkpointId and abort the sync phase of checkpoint  
-    // if necessary.    lastCheckpointId = metadata.getCheckpointId();  
-    if (checkAndClearAbortedStatus(metadata.getCheckpointId())) {  
-        // broadcast cancel checkpoint marker to avoid downstream back-pressure due to  
-        // checkpoint barrier align.        operatorChain.broadcastEvent(new CancelCheckpointMarker(metadata.getCheckpointId()));  
-        channelStateWriter.abort(  
-                metadata.getCheckpointId(),  
-                new CancellationException("checkpoint aborted via notification"),  
-                true);  
-        LOG.info(  
-                "Checkpoint {} has been notified as aborted, would not trigger any checkpoint.",  
-                metadata.getCheckpointId());  
-        return;  
-    }  
-  
-    // if checkpoint has been previously unaligned, but was forced to be aligned (pointwise  
-    // connection), revert it here so that it can jump over output data    if (options.getAlignment() == CheckpointOptions.AlignmentType.FORCED_ALIGNED) {  
+     
+    if (options.getAlignment() == CheckpointOptions.AlignmentType.FORCED_ALIGNED) {  
         options = options.withUnalignedSupported();  
         initInputsCheckpoint(metadata.getCheckpointId(), options);  
     }  
   
     // Step (1): Prepare the checkpoint, allow operators to do some pre-barrier work.  
-    //           The pre-barrier work should be nothing or minimal in the common case.    operatorChain.prepareSnapshotPreBarrier(metadata.getCheckpointId());  
+    //           The pre-barrier work should be nothing or minimal in the common case.    
+    operatorChain.prepareSnapshotPreBarrier(metadata.getCheckpointId());  
   
     // Step (2): Send the checkpoint barrier downstream  
-    LOG.debug(  
-            "Task {} broadcastEvent at {}, triggerTime {}, passed time {}",  
-            taskName,  
-            System.currentTimeMillis(),  
-            metadata.getTimestamp(),  
-            System.currentTimeMillis() - metadata.getTimestamp());  
+	// 创建Barrier
     CheckpointBarrier checkpointBarrier =  
             new CheckpointBarrier(metadata.getCheckpointId(), metadata.getTimestamp(), options);  
+    // 发送Barrier
     operatorChain.broadcastEvent(checkpointBarrier, options.isUnalignedCheckpoint());  
   
     // Step (3): Register alignment timer to timeout aligned barrier to unaligned barrier  
     registerAlignmentTimer(metadata.getCheckpointId(), operatorChain, checkpointBarrier);  
   
     // Step (4): Prepare to spill the in-flight buffers for input and output  
+    // isUnalignedCheckpoint()
     if (options.needsChannelState()) {  
         // output data already written while broadcasting event  
         channelStateWriter.finishOutput(metadata.getCheckpointId());  
@@ -4461,13 +4426,73 @@ public void checkpointState(
                     operatorChain.isTaskDeployedAsFinished(),  
                     isTaskFinished,  
                     isRunning);  
-        } else {  
-            cleanup(snapshotFutures, metadata, metrics, new Exception("Checkpoint declined"));  
-        }  
-    } catch (Exception ex) {  
-        cleanup(snapshotFutures, metadata, metrics, ex);  
-        throw ex;  
+        }
+}
+```
+#### 6.1.1.4 向下游广播 Barrier
+```java
+public void broadcastEvent(AbstractEvent event, boolean isPriorityEvent) throws IOException {  
+    for (RecordWriterOutput<?> streamOutput : streamOutputs) {  
+        streamOutput.broadcastEvent(event, isPriorityEvent);  
     }  
+}
+
+public void broadcastEvent(AbstractEvent event, boolean isPriorityEvent) throws IOException {  
+    if (isPriorityEvent  
+            && event instanceof CheckpointBarrier  
+            && !supportsUnalignedCheckpoints) {  
+        final CheckpointBarrier barrier = (CheckpointBarrier) event;  
+        event = barrier.withOptions(barrier.getCheckpointOptions().withUnalignedUnsupported());  
+        isPriorityEvent = false;  
+    }  
+    recordWriter.broadcastEvent(event, isPriorityEvent);  
+}
+
+public void broadcastEvent(AbstractEvent event, boolean isPriorityEvent) throws IOException {  
+    targetPartition.broadcastEvent(event, isPriorityEvent);  
+}
+
+// 通过BufferWritingResultPartition写出
+public void broadcastEvent(AbstractEvent event, boolean isPriorityEvent) throws IOException {  
+    checkInProduceState();  
+    finishBroadcastBufferBuilder();  
+    finishUnicastBufferBuilders();  
+	// 封装成带优先级的buffer并add到（Pipelined/BoundedBlocking）ResultSubpartition的PrioritizedDeque队列中
+    try (BufferConsumer eventBufferConsumer =  
+            EventSerializer.toBufferConsumer(event, isPriorityEvent)) {  
+        totalWrittenBytes += ((long) eventBufferConsumer.getWrittenBytes() * numSubpartitions);  
+        for (ResultSubpartition subpartition : subpartitions) {  
+            // addBuffer添加到优先级队列中
+            subpartition.add(eventBufferConsumer.copy(), 0);  
+        }  
+    }  
+}
+
+// PipelinedSubpartition.java
+public int add(BufferConsumer bufferConsumer, int partialRecordLength) {  
+    return add(bufferConsumer, partialRecordLength, false);  
+}
+
+private int add(BufferConsumer bufferConsumer, int partialRecordLength, boolean finish) {  
+  
+    final boolean notifyDataAvailable;  
+    int prioritySequenceNumber = DEFAULT_PRIORITY_SEQUENCE_NUMBER;  
+    int newBufferSize;  
+    synchronized (buffers) {  
+  
+        // Add the bufferConsumer and update the stats 
+        // 增加buffer到PrioritizedDeque里，优先级高的buffer放入队列头 
+        if (addBuffer(bufferConsumer, partialRecordLength)) {  
+            prioritySequenceNumber = sequenceNumber;  
+        }  
+    }  
+  
+    notifyPriorityEvent(prioritySequenceNumber);  
+    if (notifyDataAvailable) {  
+        notifyDataAvailable();  
+    }  
+  
+    return newBufferSize;  
 }
 ```
 # 7. SQL

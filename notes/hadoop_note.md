@@ -6675,4 +6675,74 @@ void start();
 void stop();
 ```
 - `Yarn` 使用抽象类 `AbstractService` 实现 `Service` 接口的 `init()`等方法，组件只需要重写 `AbstractService` 中的 `serviceInit`, `serviceStart` 等方法即可
-- 
+### 3.2.1 AbstractService 中状态的转换
+```java
+public void init(Configuration conf) {  
+  synchronized (stateChangeLock) {  
+	// enterState方法传入新状态，返回旧状态
+	// 从NOINITED转为INITED
+    if (enterState(STATE.INITED) != STATE.INITED) {  
+      setConfig(conf);  
+      try {  
+        // 组件调用自己的初始化方法
+        serviceInit(config);  
+      }  
+    }  
+  }  
+}
+
+public void start() {   
+  //enter the started state  
+  synchronized (stateChangeLock) { 
+	// 状态转为 STARTED
+    if (stateModel.enterState(STATE.STARTED) != STATE.STARTED) {  
+      try {  
+        startTime = System.currentTimeMillis();  
+        serviceStart();  
+          notifyListeners();  
+        }  
+      }
+    }  
+  }  
+}
+
+// stop方法也类似，将状态转换为STOPPED
+
+// ServiceStateModel.java, 是AbstractService的成员变量
+// 每个服务对象包含一个ServiceStateModel成员，服务状态用ServiceStateModel中的state成员表示
+public synchronized Service.STATE enterState(Service.STATE proposed) {  
+  checkStateTransition(name, state, proposed);  
+  Service.STATE oldState = state;  
+  //atomic write of the new state  
+  state = proposed;  
+  return oldState;  
+}
+
+// 防止状态的不合法转换，ServiceStateModel定义了一个statemap，来限制状态的转换，在checkStateTransition中进行合法性判断
+private static final boolean[][] statemap =  
+  {  
+    //                uninited inited started stopped  
+    /* uninited  */    {false, true,  false,  true},  
+    /* inited    */    {false, true,  true,   true},  
+    /* started   */    {false, false, true,   true},  
+    /* stopped   */    {false, false, false,  true},  
+  };
+
+public static void checkStateTransition(String name,  
+                                        Service.STATE state,  
+                                        Service.STATE proposed) {  
+  if (!isValidStateTransition(state, proposed)) {...
+  }  
+}
+
+public static boolean isValidStateTransition(Service.STATE current,  
+                                             Service.STATE proposed) {  
+  boolean[] row = statemap[current.getValue()];  
+  return row[proposed.getValue()];  
+}
+```
+### 3.2.2 组合服务 CompositeService
+- 一个 `AbstractService` 只能表示一个独立的 `Service`，而类似 `RM` 这些服务本身包含许多子服务，定义为一个 `CompositeService`，它是 `AbstractService` 的子类
+```java
+private final List<Service> serviceList = new ArrayList<Service>();
+```

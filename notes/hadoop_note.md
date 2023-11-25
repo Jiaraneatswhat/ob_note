@@ -6913,5 +6913,25 @@ private static final StateMachineFactory<RMAppImpl,
 		 .installTopology();
 
 // StateMachineFactory有两个属性
+final public class StateMachineFactory  
+             <OPERAND, STATE extends Enum<STATE>,  
+              EVENTTYPE extends Enum<EVENTTYPE>, EVENT> {  
+  // 暂存Transition，最终存储在stateMachineTable中
+  private final TransitionsListNode transitionsListNode;  
+  
+  private Map<STATE, Map<EVENTTYPE,  
+    Transition<OPERAND, STATE, EVENTTYPE, EVENT>>> stateMachineTable;
+}
 
+// TransitionsListNode是链表结构，存放
+private class TransitionsListNode {  
+  final ApplicableTransition<OPERAND, STATE, EVENTTYPE, EVENT> transition;  
+  final TransitionsListNode next;
+}
+// ApplicableTransition接口
+private interface ApplicableTransition  
+           <OPERAND, STATE extends Enum<STATE>,  
+            EVENTTYPE extends Enum<EVENTTYPE>, EVENT> {  
+  void apply(StateMachineFactory<OPERAND, STATE, EVENTTYPE, EVENT> subject);  
+}
 ```

@@ -6883,25 +6883,22 @@ protected void dispatch(Event event) {
   Class<? extends Enum> type = event.getType().getDeclaringClass();  
   
   try{  
+   // 获取到handler
     EventHandler handler = eventDispatchers.get(type);  
     if(handler != null) {  
       handler.handle(event);  
-    } else {  
-      throw new Exception("No handler for registered for " + type);  
-    }  
-  } catch (Throwable t) {  
-    //TODO Maybe log the state of the queue  
-    LOG.error(FATAL, "Error in dispatcher thread", t);  
-    // If serviceStop is called, we should exit this thread gracefully.  
-    if (exitOnDispatchException  
-        && (ShutdownHookManager.get().isShutdownInProgress()) == false  
-        && stopped == false) {  
-      stopped = true;  
-      Thread shutDownThread = new Thread(createShutDownThread());  
-      shutDownThread.setName("AsyncDispatcher ShutDown handler");  
-      shutDownThread.start();  
-    }  
+    }
   }  
 }
+```
+## 3.4 状态机
+- `Yarn` 中主要使用四个状态机
+	- `RMApp`：维护一个 `Application` 的生命周期
+	- `RMAppAttempt`：维护一次 `attempt` 的生命周期
+	- `RMContainer`：维护 `Container` 的生命周期
+	- `RMNode`：维护 `NM` 的生命周期 
+### 3.4.1 状态机初始化
+- 以 `RMAppImpl` 为例
+```java
 
 ```

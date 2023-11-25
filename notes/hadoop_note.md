@@ -6772,5 +6772,40 @@ public interface Event<TYPE extends Enum<TYPE>> {
 ```
 - `Yarn` 基于生产者-消费者模式处理事件，使用 `EventQueue` 存放事件，生产者向 `EventQueue` 中存放事件数据，消费者处理 `EventQueue` 中的时间数据，`Yarn` 通过各种事件的 `EventHandler` 来处理事件
 ```java
+public interface EventHandler<T extends Event> {  
+  void handle(T event);   
+}
+
+// Yarn通过调度器来让handler处理对应的event
+public interface Dispatcher {  
+  EventHandler<Event> getEventHandler(); 
+  // 注册不同类型事件Event对应的Handler
+  void register(Class<? extends Enum> eventType, EventHandler handler);  
+}
+```
+### 3.3.2 异步事件调度 AsyncDispatcher
+```java
+// AsyncDispatcher继承了AbstractService，实现了Dispatcher接口
+public class AsyncDispatcher extends AbstractService implements Dispatcher {  
+
+  // 存放事件的队列
+  private final BlockingQueue<Event> eventQueue;  
+  // 通用的handler
+  // For drainEventsOnStop enabled only, block newly coming events into the  
+  // queue while stopping.  private volatile boolean blockNewEvents = false;  
+  private final EventHandler<Event> handlerInstance = new GenericEventHandler();  
+  // 分发并处理事件的线程
+  private Thread eventHandlingThread;  
+  // 存放不同类型事件对应的handler
+  protected final Map<Class<? extends Enum>, EventHandler> eventDispatchers;  
+}
+```
+#### 3.3.2.1 服务创建过程
+```java
+// 3.1.2.2中初始化ResourceManager时，会创建AsyncDispatcher服务
+rmDispatcher = setupDispatcher();  
+addIfService(rmDispatcher);  
+rmContext.setDispatcher(rmDispatcher);
+
 
 ```

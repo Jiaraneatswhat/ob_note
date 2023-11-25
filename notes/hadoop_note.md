@@ -6807,5 +6807,101 @@ rmDispatcher = setupDispatcher();
 addIfService(rmDispatcher);  
 rmContext.setDispatcher(rmDispatcher);
 
+// 创建Dispatcher
+private Dispatcher setupDispatcher() {  
+  Dispatcher dispatcher = createDispatcher();  
+  dispatcher.register(RMFatalEventType.class,  
+      new ResourceManager.RMFatalEventDispatcher());  
+  return dispatcher;  
+}
+
+protected Dispatcher createDispatcher() {  
+  // 创建AsyncDispatcher
+  AsyncDispatcher dispatcher = new AsyncDispatcher("RM Event dispatcher");  
+  return dispatcher;  
+}
+
+// 注册事件类型对应的handler，使用eventDispatchers存储Type->handler的映射
+public void register(Class<? extends Enum> eventType,  
+    EventHandler handler) {  
+  /* check to see if we have a listener registered */  
+  EventHandler<Event> registeredHandler = (EventHandler<Event>)  
+  eventDispatchers.get(eventType);  
+  if (registeredHandler == null) {  
+    eventDispatchers.put(eventType, handler);  
+  }  
+}
+```
+#### 3.3.2.2 服务初始化启动过程
+```java
+protected void serviceInit(Configuration conf) throws Exception{  
+  super.serviceInit(conf);  
+  this.detailsInterval = getConfig().getInt(YarnConfiguration.  
+                  YARN_DISPATCHER_PRINT_EVENTS_INFO_THRESHOLD,  
+          YarnConfiguration.  
+                  DEFAULT_YARN_DISPATCHER_PRINT_EVENTS_INFO_THRESHOLD);  
+}
+
+protected void serviceStart() throws Exception {  
+  //start all the components  
+  super.serviceStart();  
+  eventHandlingThread = new Thread(createThread());  
+  eventHandlingThread.setName(dispatcherThreadName);  
+  eventHandlingThread.start();  
+}
+
+// 创建并启动eventHandlingThread
+// 从队列中取到event，进行分发交给handler处理
+Runnable createThread() {  
+  return new Runnable() {  
+    @Override  
+    public void run() {  
+      while (!stopped && !Thread.currentThread().isInterrupted()) {  
+        Event event;  
+        try {  
+          event = eventQueue.take();  
+        }
+        if (event != null) {  
+          if (eventTypeMetricsMap.  
+              get(event.getType().getDeclaringClass()) != null) {  
+            long startTime = clock.getTime();  
+            dispatch(event);  
+            eventTypeMetricsMap.get(event.getType().getDeclaringClass())  
+                .increment(event.getType(),  
+                    clock.getTime() - startTime);  
+          } else {  
+            dispatch(event);  
+          }  
+        }  
+      }  
+    }  
+  };  
+}
+
+protected void dispatch(Event event) {    
+  // 获取到事件类型
+  Class<? extends Enum> type = event.getType().getDeclaringClass();  
+  
+  try{  
+    EventHandler handler = eventDispatchers.get(type);  
+    if(handler != null) {  
+      handler.handle(event);  
+    } else {  
+      throw new Exception("No handler for registered for " + type);  
+    }  
+  } catch (Throwable t) {  
+    //TODO Maybe log the state of the queue  
+    LOG.error(FATAL, "Error in dispatcher thread", t);  
+    // If serviceStop is called, we should exit this thread gracefully.  
+    if (exitOnDispatchException  
+        && (ShutdownHookManager.get().isShutdownInProgress()) == false  
+        && stopped == false) {  
+      stopped = true;  
+      Thread shutDownThread = new Thread(createShutDownThread());  
+      shutDownThread.setName("AsyncDispatcher ShutDown handler");  
+      shutDownThread.start();  
+    }  
+  }  
+}
 
 ```

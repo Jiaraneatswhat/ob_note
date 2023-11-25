@@ -6649,5 +6649,29 @@ protected void serviceStart() throws Exception {
     }
 }
 ```
-## 3.2 Yarn 的状态机
+## 3.2 Service 框架
+- Yarn 中的所有组件都统一实现了 Service 接口，用具体的 Service 接口表示抽象的服务概念
+```java
+public interface Service extends Closeable {
+	// 内部定义的枚举类表示服务的四种状态
+	public enum STATE {  
+	  /** Constructed but not initialized */  
+	  NOTINITED(0, "NOTINITED"),  
+  
+	  /** Initialized but not started or stopped */  
+	  INITED(1, "INITED"),  
+  
+	  /** started and not stopped */  
+	  STARTED(2, "STARTED"),  
+  
+	  /** stopped. No further state transitions are permitted */  
+	  STOPPED(3, "STOPPED");}
+
+// 初始化方法 NOINITED -> INITED
+void init(Configuration config);
+// 启动方法 INITED -> STARTED
+void start();
+// 停止方法 STARTED -> STOPPED
+void stop();
+```
 

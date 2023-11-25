@@ -6517,12 +6517,7 @@ protected void serviceInit(Configuration conf) throws Exception {
 
     try {
       initAndStartRecoveryStore(conf);
-    } catch (IOException e) {
-      String recoveryDirName = conf.get(YarnConfiguration.NM_RECOVERY_DIR);
-      throw new
-          YarnRuntimeException("Unable to initialize recovery directory at "
-              + recoveryDirName, e);
-    }
+    } 
 	
     // 容器令牌管理器
     NMContainerTokenSecretManager containerTokenSecretManager =
@@ -6566,15 +6561,8 @@ protected void serviceInit(Configuration conf) throws Exception {
     ((NMContext)context).setContainerExecutor(exec);
     ((NMContext)context).setDeletionService(del);
 
-    nodeStatusUpdater =
-        createNodeStatusUpdater(context, dispatcher, nodeHealthChecker);
-	
-    nodeLabelsProvider = createNodeLabelsProvider(conf);
-    if (nodeLabelsProvider != null) {
-      addIfService(nodeLabelsProvider);
-      nodeStatusUpdater.setNodeLabelsProvider(nodeLabelsProvider);
-    }
 	// 节点状态更新服务
+	// 涉及到和RM通信
     nodeAttributesProvider = createNodeAttributesProvider(conf);
     if (nodeAttributesProvider != null) {
       addIfService(nodeAttributesProvider);
@@ -6601,35 +6589,10 @@ protected void serviceInit(Configuration conf) throws Exception {
         .getContainersMonitor(), this.aclsManager, dirsHandler);
     addService(webServer);
     ((NMContext) context).setWebServer(webServer);
-    int maxAllocationsPerAMHeartbeat = conf.getInt(
-        YarnConfiguration.OPP_CONTAINER_MAX_ALLOCATIONS_PER_AM_HEARTBEAT,
-        YarnConfiguration.
-            DEFAULT_OPP_CONTAINER_MAX_ALLOCATIONS_PER_AM_HEARTBEAT);
-    ((NMContext) context).setQueueableContainerAllocator(
-        new DistributedOpportunisticContainerAllocator(
-            context.getContainerTokenSecretManager(),
-            maxAllocationsPerAMHeartbeat));
 
     dispatcher.register(ContainerManagerEventType.class, containerManager);
     dispatcher.register(NodeManagerEventType.class, this);
     addService(dispatcher);
-
-    pauseMonitor = new JvmPauseMonitor();
-    addService(pauseMonitor);
-    metrics.getJvmMetrics().setPauseMonitor(pauseMonitor);
-
-    DefaultMetricsSystem.initialize("NodeManager");
-
-    if (YarnConfiguration.timelineServiceV2Enabled(conf)) {
-      this.nmCollectorService = createNMCollectorService(context);
-      addService(nmCollectorService);
-    }
-
-    // StatusUpdater should be added last so that it get started last 
-    // so that we make sure everything is up before registering with RM. 
-    addService(nodeStatusUpdater);
-    ((NMContext) context).setNodeStatusUpdater(nodeStatusUpdater);
-    nmStore.setNodeStatusUpdater(nodeStatusUpdater);
 
     // Do secure login before calling init for added services.
     try {
@@ -6646,3 +6609,45 @@ protected void serviceInit(Configuration conf) throws Exception {
     // TODO add local dirs to del
 }
 ```
+### 3.1.4 NodeStatusUpdater 相关
+```java
+// 创建
+protected NodeStatusUpdater createNodeStatusUpdater(Context context,  
+    Dispatcher dispatcher, NodeHealthCheckerService healthChecker) {  
+  return new NodeStatusUpdaterImpl(context, dispatcher, healthChecker,  
+      metrics);  
+}
+
+// 启动服务
+protected void serviceStart() throws Exception {
+
+    // NodeManager is the last service to start, so NodeId is available.
+    this.nodeId = this.context.getNodeId();
+    LOG.info("Node ID assigned is : " + this.nodeId);
+    this.httpPort = this.context.getHttpPort();
+    this.nodeManagerVersionId = YarnVersionInfo.getVersion();
+    try {
+	  // 创建RMClient，用于和RM进行通信
+      this.resourceTracker = getRMClient();
+      //配置必要配置信息，和安全认证操作利用Hadoop RPC远程调用RM端
+      //ResourcesTrackerService.registerNodeManager()方法  
+      registerWithRM();
+      super.serviceStart();
+      /*
+       * 创建一个线程，然后启动，所有操作都在运行while的循环中
+       * 获取本地Container和本地Node的状态，以供后面的nodeHeartbeat()方法使用
+       * 设置、获取和输出必要配置信息，其中比较重要的调用getNodeStatus()方法
+       * 通过Hadoop RPC远程调用RM端ResourcesTrackerService下的nodeHeartbeat()函数
+       * 用while循环以一定时间间隔向RM发送心跳信息，心跳操作通过ResourcesTrackerService下的nodeHeartbeat()函数
+       * nodeHeartbeat()将返回给NM信息，根据返回的response，标记不需要的Container和Application发送相应的FINISH_CONTAINERS和 FINISH_APPS给ContainerManager，进行清理操作
+      */
+      startStatusUpdater();
+    } catch (Exception e) {
+      String errorMessage = "Unexpected error starting NodeStatusUpdater";
+      LOG.error(errorMessage, e);
+      throw new YarnRuntimeException(e);
+    }
+}
+```
+## 3.2 Yarn 的状态机
+

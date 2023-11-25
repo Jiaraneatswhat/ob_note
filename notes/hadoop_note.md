@@ -6495,4 +6495,18 @@ public static void main(String[] args) throws IOException {
     // 初始化和启动NM
     nodeManager.initAndStartNodeManager(conf, false);
 }
+
+private void initAndStartNodeManager(Configuration conf, boolean hasToReboot) {
+      ...  
+      this.init(conf);
+      this.start();
+    } catch (Throwable t) {
+      LOG.error("Error starting NodeManager", t);
+      System.exit(-1);
+    }
+}
+```
+#### 3.1.3.2 
+```java
+
 ```

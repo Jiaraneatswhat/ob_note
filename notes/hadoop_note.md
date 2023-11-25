@@ -6744,5 +6744,33 @@ public static boolean isValidStateTransition(Service.STATE current,
 ### 3.2.2 组合服务 CompositeService
 - 一个 `AbstractService` 只能表示一个独立的 `Service`，而类似 `RM` 这些服务本身包含许多子服务，定义为一个 `CompositeService`，它是 `AbstractService` 的子类
 ```java
+// CompositeService通过serviceList集合来保存每个子服务
 private final List<Service> serviceList = new ArrayList<Service>();
+
+// CompositeService的启动或停止，会遍历子服务来进行启动或停止
+protected void serviceStart() throws Exception {  
+  List<Service> services = getServices();  
+  if (LOG.isDebugEnabled()) {  
+    LOG.debug(getName() + ": starting services, size=" + services.size());  
+  }  
+  for (Service service : services) {  
+    // start the service. If this fails that service  
+    // will be stopped and an exception raised    service.start();  
+  }  
+  super.serviceStart();  
+}
+```
+## 3.3 事件驱动模型框架
+### 3.3.1 事件
+- Yarn 中的事件通过是实现 Event 接口来表示一种行为状态
+```java
+public interface Event<TYPE extends Enum<TYPE>> {  
+  
+  TYPE getType(); // 获取事件状态
+  long getTimestamp();   
+}
+```
+- `Yarn` 基于生产者-消费者模式处理事件，使用 `EventQueue` 存放事件，生产者向 `EventQueue` 中存放事件数据，消费者处理 `EventQueue` 中的时间数据，`Yarn` 通过各种事件的 `EventHandler` 来处理事件
+```java
+
 ```

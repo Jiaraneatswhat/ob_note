@@ -6674,4 +6674,5 @@ void start();
 // 停止方法 STARTED -> STOPPED
 void stop();
 ```
-
+- `Yarn` 使用抽象类 `AbstractService` 实现 `Service` 接口的 `init()`等方法，组件只需要重写 `AbstractService` 中的 `serviceInit`, `serviceStart` 等方法即可
+- 

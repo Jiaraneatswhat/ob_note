@@ -6330,4 +6330,169 @@ RMActiveServices(ResourceManager rm) {
       super("RMActiveServices");
       this.rm = rm;
 }
+
+// 初始化服务
+protected void serviceInit(Configuration configuration) throws Exception {
+      standByTransitionRunnable = new StandByTransitionRunnable();
+
+      rmSecretManagerService = createRMSecretManagerService();
+      addService(rmSecretManagerService);
+	  // 创建ContainerAllocationExpirer
+      // 继承自AbstractLivelinessMonitor同样也继承了抽象服务类
+      containerAllocationExpirer = new ContainerAllocationExpirer(rmDispatcher);
+      addService(containerAllocationExpirer);
+      rmContext.setContainerAllocationExpirer(containerAllocationExpirer);
+      // 创建AMLivelinessMonitor监控AM
+      AMLivelinessMonitor amLivelinessMonitor = createAMLivelinessMonitor();
+      addService(amLivelinessMonitor);
+      rmContext.setAMLivelinessMonitor(amLivelinessMonitor);
+
+      // Register event handler for NodesListManager
+      // 创建NodesListManager管理NM
+      nodesListManager = new NodesListManager(rmContext);
+      rmDispatcher.register(NodesListManagerEventType.class, nodesListManager);
+      addService(nodesListManager);
+      rmContext.setNodesListManager(nodesListManager);
+
+      // Initialize the scheduler
+      // 默认容量调度器
+      scheduler = createScheduler();
+      scheduler.setRMContext(rmContext);
+      addIfService(scheduler);
+      rmContext.setScheduler(scheduler);
+
+	  // 创建NMLivelinessMonitor
+      nmLivelinessMonitor = createNMLivelinessMonitor();
+      addService(nmLivelinessMonitor);
+	  // 创建ResourceTrackerService
+      resourceTracker = createResourceTrackerService();
+      addService(resourceTracker);
+      rmContext.setResourceTrackerService(resourceTracker);
+      
+      // 创建ApplicationMasterService
+      masterService = createApplicationMasterService();
+      createAndRegisterOpportunisticDispatcher(masterService);
+      addService(masterService) ;
+      rmContext.setApplicationMasterService(masterService);
+
+      applicationACLsManager = new ApplicationACLsManager(conf);
+
+      queueACLsManager = createQueueACLsManager(scheduler, conf);
+	  // 创建RMAppManager
+      rmAppManager = createRMAppManager();
+      // Register event handler for RMAppManagerEvents
+      rmDispatcher.register(RMAppManagerEventType.class, rmAppManager);
+	  // 创建ClientRMService
+      clientRM = createClientRMService();
+      addService(clientRM);
+      rmContext.setClientRMService(clientRM);
+	  // 创建AMLauncher
+      applicationMasterLauncher = createAMLauncher();
+      rmDispatcher.register(AMLauncherEventType.class,
+          applicationMasterLauncher);
+      super.serviceInit(conf);
+}
+```
+##### 3.1.2.2.4 getRMWebAppURLWithoutScheme()
+```java
+// WebAppUtils.java
+public static String getRMWebAppURLWithoutScheme(Configuration conf) {
+    return getRMWebAppURLWithoutScheme(conf, false, 0);
+}
+
+public static String getRMWebAppURLWithoutScheme(Configuration conf,
+      boolean isHAEnabled, int haIdIndex)  {
+    YarnConfiguration yarnConfig = new YarnConfiguration(conf);
+    // 是否设置了HTTP策略
+    if (YarnConfiguration.useHttps(yarnConfig)) {...}
+    else {
+      if (isHAEnabled) {...}
+      // 未设置HA
+      // public static final int DEFAULT_RM_WEBAPP_PORT = 8088;
+      // public static final String DEFAULT_RM_WEBAPP_ADDRESS = "0.0.0.0:" + DEFAULT_RM_WEBAPP_PORT;
+      return yarnConfig.get(YarnConfiguration.RM_WEBAPP_ADDRESS,
+          YarnConfiguration.DEFAULT_RM_WEBAPP_ADDRESS);
+    }
+}
+```
+#### 3.1.2.3 RM 的启动
+```java
+// 首先调用父类AbstractService的start()
+public void start() {
+    if (isInState(STATE.STARTED)) {
+      return;
+    }
+    //enter the started state
+    synchronized (stateChangeLock) {
+      if (stateModel.enterState(STATE.STARTED) != STATE.STARTED) {
+        try {
+          startTime = System.currentTimeMillis();
+          serviceStart();
+          if (isInState(STATE.STARTED)) {
+            //if the service started (and isn't now in a later state), notify
+            LOG.debug("Service {} is started", getName());
+            notifyListeners();
+          }
+        }
+      }
+    }
+}
+
+protected void serviceStart() throws Exception {
+    if (this.rmContext.isHAEnabled()) {
+      transitionToStandby(false);
+    }
+	// 开启webApp
+	// 通过Builder创建HttpServer2服务
+    startWepApp();
+    if (getConfig().getBoolean(YarnConfiguration.IS_MINI_YARN_CLUSTER,
+        false)) {
+      int port = webApp.port();
+      WebAppUtils.setRMWebAppPort(conf, port);
+    }
+    super.serviceStart();
+
+    // Non HA case, start after RM services are started.
+    if (!this.rmContext.isHAEnabled()) {
+      transitionToActive();
+    }
+}
+```
+
+### 3.1.3 NodeManager
+
+![[nodeManager.svg]]
+
+- 主要功能
+	- 启动后向 `RM` 注册，然后保持通信，通过心跳汇报自己的状态，接受来自 `RM` 的指令
+	- 监控节点的健康状态，并与 `RM` 同步
+	- 管理节点上所有 `Container` 的生命周期，监控 `Container` 的资源使用情况，向 `RM` 汇报 `Container` 的状态信息
+	- 管理分布式缓存(缓存 jar 包，配置文件等)
+- 核心组件
+	- `NodeStatusUpdater`
+		- `NN` 和 `RM` 通信的唯一渠道，主要用于 `NM` 刚启动或重启后向 `RM` 注册
+		- `NM` 启动注册后，汇报本节点资源情况，后面周期性地汇报节点的健康状态，`Containers` 运行情况
+		- `RM` 会在 `NM` 注册时给其发送一个令牌，`NM` 保存这个令牌后，用这个令牌为 `AM` 请求的 `Container` 做认证
+	- `ContainerManager`: 负责 `Container` 的分配与管理
+		- `ContainerLuncher` 维护了一个线程池，用于杀死或启动 `Container`
+			- `RM` 通过 `NodeStatusUpdater` 或者 `AM` 通过 `RPC` 服务要求清理某个 `Container` 时，它就会杀死 `Container`
+			- `AM` 通过 `RPCServer` 发送启动请求后，`ContainerLauncher` 就会启动 `Container`
+		- `ContainerMonitor` 管理 `NM` 运行中的 `Container` 的资源使用情况，超过申请资源的容器就会被杀死
+		- `ResourceLocaliazationService` 在启动 `Container` 前将其需要的所有的资源安全地下载到本地磁盘，比如从 `HDFS` 上下载的文件
+	- `NodeHealthCheckService`:节点的健康检查通过`YARN`提供的脚本定期运行，将检查结果通过`NodeStatusUpdater`汇报给`RM`,以方便`RM`做节点的监控管理
+#### 3.1.3.1 main()
+```java
+public static void main(String[] args) throws IOException {
+    Thread.setDefaultUncaughtExceptionHandler(new YarnUncaughtExceptionHandler());
+    StringUtils.startupShutdownMessage(NodeManager.class, args, LOG);
+    @SuppressWarnings("resource")
+    // 创建NodeManager实例，服务名为NodeManager，服务状态为NOTINITED
+    // public NodeManager() {
+    // super(NodeManager.class.getName());}
+    NodeManager nodeManager = new NodeManager();
+    Configuration conf = new YarnConfiguration();
+    new GenericOptionsParser(conf, args);
+    // 初始化和启动NM
+    nodeManager.initAndStartNodeManager(conf, false);
+}
 ```

@@ -6900,5 +6900,18 @@ protected void dispatch(Event event) {
 ### 3.4.1 状态机初始化
 - 以 `RMAppImpl` 为例
 ```java
+// StateMachineFactory通过installTopology方法创建状态机
+private static final StateMachineFactory<RMAppImpl,  
+                                         RMAppState,  
+                                         RMAppEventType,  
+                                         RMAppEvent> stateMachineFactory  
+	 = new StateMachineFactory<RMAppImpl,  
+								 RMAppState,  
+								 RMAppEventType,  
+								 RMAppEvent>(RMAppState.NEW)
+		 .addTransition()...
+		 .installTopology();
+
+// StateMachineFactory有两个属性
 
 ```

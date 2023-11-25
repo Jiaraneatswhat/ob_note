@@ -6074,4 +6074,260 @@ HADOOP_CLASSNAME='org.apache.hadoop.yarn.server.nodemanager.NodeManager'
 hadoop_generic_java_subcmd_handler
 ```
 ### 3.1.2 ResourceManager
-#### 3.1.2.1 
+
+![[ResourceManager.svg]]
+
+- 通信
+	- `ResourceTracker`: `NM` 通过该 `RPC` 协议向 `RM` 注册，汇报节点健康状况和 `Container` 的运行状态，并获取 `RM` 的命令，`NM` 周期向 `RM` 发起请求，领取发给自己的命令
+	- `ApplicationMasterProtocol`: `AppMaster` 通过该 `RPC` 协议向 `RM` 注册，申请资源和释放资源
+	- `ApplicationClientProtocol`: 应用程序客户端通过该 `RPC` 协议向 `RM``提交应用程序`，查询程序状态等
+- 架构
+	- 交互模块
+		- `RM` 针对普通用户，管理员和 web 提供了三种对外的服务 `ClientRMService`，`AdminService` 以及 `RMWebApp`
+	- `NM` 管理模块
+		- `NMLivelinessMonitor` 监控 `NM` 的存活状态
+		- `NodesListManager` 维护正常节点和异常节点列表
+		- `ResourceTrackerService` 处理来自 `NM` 的注册请求以及心跳请求
+	- `AM` 管理模块
+		- `AMLivelinessMonitor` 监控 `AM` 存活状态，`AM` 未汇报心跳信息超时后，上面正在运行的 `Container` 会被置为失败
+		- `ApplicationMasterLuncher` 在与 `NM` 通信时启动 `AppMaster`
+		- `ApplicationMasterService` 处理来自 `AppMaster` 的注册和心跳请求
+	- `App` 管理模块
+		- `ApplicationAClsManage`：管理应用程序的访问权限
+		- `RMAppManager`：管理应用程序的启动和关闭
+		- `ContainerAllocationExpirer`：当 `AM` 收到 `RM` 新分配的一个 `Container` 后，必须在一定的时间(默认 10min )内在对应的 `NM` 上启动该 `Container`，否则 `RM` 将强制回收该 `Container`，而一个已经分配的 `Container` 是否该被回收则是由 `ContainerAllocationExpirer` 决定和执行的
+	- 状态机管理模块
+	    `RM`**使用有限状态机**维护有状态对象的声明周期，`RM`维护了四个状态机(接口，对应的实现类为接口名+`Impl`)
+		- `RMApp`：维护了 `APP` 整个运行周期
+		- `RMAppAttempt`：一个实例运行失败后，可能再次启动一个重新运行，而每次启动称为一次运行尝试，`RMAppAttempt` 维护了一次运行尝试的整个生命周期
+		- `RMContainer`： `RMContainer` 维护了一个 `Container` 的运行周期，包括从创建到运行结束整个过程
+		- `RMNode`： `RMNode` 维护了一个 `NodeManager` 的生命周期，包括启动到运行结束整个过程
+	- 安全管理模块
+	- 资源分配模块
+		- `ResourceScheduler` 是一个插拔式模块，`Yarn` 自带了一个批处理资源调度器 `FIFO` 和两个多用户调度器 `FairScheduler` 和 `CapacityScheduler`
+#### 3.1.2.1 main()
+```java
+public static void main(String argv[]) {
+    Thread.setDefaultUncaughtExceptionHandler(new YarnUncaughtExceptionHandler());
+    StringUtils.startupShutdownMessage(ResourceManager.class, argv, LOG);
+    try {
+      Configuration conf = new YarnConfiguration();
+      GenericOptionsParser hParser = new GenericOptionsParser(conf, argv);
+      argv = hParser.getRemainingArgs();
+      // 启动脚本中没有参数(非HA)
+      // If -format-state-store, then delete RMStateStore; else startup normally
+      if (argv.length >= 1) {...} 
+        else {
+        // 创建ResourceManager对象
+        ResourceManager resourceManager = new ResourceManager();
+        ShutdownHookManager.get().addShutdownHook(
+          new CompositeServiceShutdownHook(resourceManager),
+          SHUTDOWN_HOOK_PRIORITY);
+        // 初始化后启动
+        resourceManager.init(conf);
+        resourceManager.start();
+      }
+    } catch (Throwable t) {
+      LOG.error(FATAL, "Error starting ResourceManager", t);
+      System.exit(-1);
+    }
+}
+
+// ResourceManager继承自CompositeService,CompositeService又继承自AbstractService
+// 构造器向上调用
+public ResourceManager() {
+    super("ResourceManager");
+}
+
+public CompositeService(String name) {
+    super(name);
+}
+
+// 建立name为ResourceManager的服务
+public AbstractService(String name) {
+    this.name = name;
+    stateModel = new ServiceStateModel(name);
+}
+```
+#### 3.1.2.2 RM 的初始化
+```java
+// 先调用父类AbstractService的init方法，它实现了Service接口，重写了Service中的init()
+@override
+public void init(Configuration conf) {
+    synchronized (stateChangeLock) {
+      if (enterState(STATE.INITED) != STATE.INITED) {
+        setConfig(conf);
+        try {
+          // 初始化服务
+          serviceInit(config);
+          if (isInState(STATE.INITED)) {
+            //if the service ended up here during init,
+            //notify the listeners
+            notifyListeners();
+          }
+        }
+      }
+    }
+}
+
+// RM重写的serviceInit
+protected void serviceInit(Configuration conf) throws Exception {
+    this.conf = conf;
+    UserGroupInformation.setConfiguration(conf);
+    // 创建RM的上下文
+    this.rmContext = new RMContextImpl();
+    rmContext.setResourceManager(this);
+    rmContext.setYarnConfiguration(conf);
+
+    rmStatusInfoBean = new RMInfo(this);
+    rmStatusInfoBean.register();
+
+    // Set HA configuration should be done before login
+    ...
+    // Set UGI and do login
+    // If security is enabled, use login user
+    // If security is not enabled, use current user
+    ...
+    // load core-site.xml
+    loadConfigurationXml(YarnConfiguration.CORE_SITE_CONFIGURATION_FILE);
+	// 从已加载的 core-site.xml文件中获取 用户和组之间 的映射表
+    // Do refreshSuperUserGroupsConfiguration with loaded core-site.xml
+    // Or use RM specific configurations to overwrite the common ones first
+    // if they exist
+    
+    RMServerUtils.processRMProxyUsersConf(conf);
+    ProxyUsers.refreshSuperUserGroupsConfiguration(this.conf);
+
+    // load yarn-site.xml
+    loadConfigurationXml(YarnConfiguration.YARN_SITE_CONFIGURATION_FILE);
+
+    validateConfigs(this.conf);
+
+    // register the handlers for all AlwaysOn services using setupDispatcher().
+    // 注册异步dispatcher后加入上下文
+    rmDispatcher = setupDispatcher();
+    //通过CompositeService将dispatcher加入serviceList
+    addIfService(rmDispatcher);
+    rmContext.setDispatcher(rmDispatcher);
+	// 管理员以及HA配置
+    ...
+    // 创建ActiveServices    
+    createAndInitActiveServices(false);
+	// 8088端口
+    webAppAddress = WebAppUtils.getWebAppBindURL(this.conf,
+                      YarnConfiguration.RM_BIND_HOST,
+                     WebAppUtils.getRMWebAppURLWithoutScheme(this.conf));
+	// 持久化RMApp, RMAppAttempt, RMContainer的信息
+    RMApplicationHistoryWriter rmApplicationHistoryWriter =
+        createRMApplicationHistoryWriter();
+    addService(rmApplicationHistoryWriter);
+    rmContext.setRMApplicationHistoryWriter(rmApplicationHistoryWriter);
+    ...
+	//调用父类方法，初始化全部服务
+    super.serviceInit(this.conf);
+}
+```
+##### 3.1.2.2.1 new RMContextImpl()
+```java
+// RMContextImpl.java
+public RMContextImpl() {
+    this.serviceContext = new RMServiceContext();
+    this.activeServiceContext = new RMActiveServiceContext();
+}
+
+// RMServiceContext维护了始终运行的服务
+public class RMServiceContext {
+
+  private Dispatcher rmDispatcher;
+  private boolean isHAEnabled;
+  private HAServiceState haServiceState =
+      HAServiceProtocol.HAServiceState.INITIALIZING;
+  private AdminService adminService;
+  private ConfigurationProvider configurationProvider;
+  private Configuration yarnConfiguration;
+  private RMApplicationHistoryWriter rmApplicationHistoryWriter;
+  private SystemMetricsPublisher systemMetricsPublisher;
+  private EmbeddedElector elector;
+  private final Object haServiceStateLock = new Object();
+  private ResourceManager resourceManager;
+  private RMTimelineCollectorManager timelineCollectorManager;
+    ...
+}
+
+// RMActiveServiceContext维护了存活的服务
+
+public RMActiveServiceContext() {
+    queuePlacementManager = new PlacementManager();
+}
+// 实际创建了一个锁对象
+public PlacementManager() {
+    ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+    readLock = lock.readLock();
+    writeLock = lock.writeLock();
+}
+```
+##### 3.1.2.2.2 setupDispatcher()
+```java
+private Dispatcher setupDispatcher() {
+    Dispatcher dispatcher = createDispatcher();
+    // 将dispatcher放在eventDispatchers中
+    dispatcher.register(RMFatalEventType.class,
+        new ResourceManager.RMFatalEventDispatcher());
+    return dispatcher;
+}
+
+protected Dispatcher createDispatcher() {
+    // 创建一个异步的Dispatcher，将线程名定义为RM Event dispatcher
+    AsyncDispatcher dispatcher = new AsyncDispatcher("RM Event dispatcher");
+    return dispatcher;
+}
+
+public AsyncDispatcher(String dispatcherName) {
+    this();
+    dispatcherThreadName = dispatcherName;
+}
+
+public AsyncDispatcher() {
+    this(new LinkedBlockingQueue<Event>());
+}
+
+// 向上调用含参数的构造器
+public AsyncDispatcher(BlockingQueue<Event> eventQueue) {
+    // AsyncDispatcher也是服务，继承了AbstrcatService类
+    // stateModel = new ServiceStateModel(name);
+    // public ServiceStateModel(String name) {
+    // this(name, Service.STATE.NOTINITED) }
+    super("Dispatcher");
+    // LinkedBlockingQueue
+    this.eventQueue = eventQueue;
+    this.eventDispatchers = new HashMap<Class<? extends Enum>, EventHandler>();
+}
+```
+##### 3.1.2.2.3 createAndInitActiveServices()
+```java
+// 创建启动RMActiveServices
+protected void createAndInitActiveServices(boolean fromActive) {
+    activeServices = new RMActiveServices(this);
+    activeServices.fromActive = fromActive;
+    activeServices.init(conf);
+}
+
+// RMActiveServices是RM的内部类，继承了CompositeService
+public class RMActiveServices extends CompositeService {
+
+    private DelegationTokenRenewer delegationTokenRenewer;
+    private EventHandler<SchedulerEvent> schedulerDispatcher;
+    private ApplicationMasterLauncher applicationMasterLauncher;
+    private ContainerAllocationExpirer containerAllocationExpirer;
+    private ResourceManager rm;
+    private boolean fromActive = false;
+    private StandByTransitionRunnable standByTransitionRunnable;
+    private RMNMInfo rmnmInfo;
+
+}
+// RMActiveServices也是服务，向上调用
+RMActiveServices(ResourceManager rm) {
+      super("RMActiveServices");
+      this.rm = rm;
+}
+```

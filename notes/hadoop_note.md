@@ -6506,7 +6506,143 @@ private void initAndStartNodeManager(Configuration conf, boolean hasToReboot) {
     }
 }
 ```
-#### 3.1.3.2 
+#### 3.1.3.2 serviceInit()
 ```java
+// 调用父类的init()，再调用serviceInit()
+protected void serviceInit(Configuration conf) throws Exception {
+    UserGroupInformation.setConfiguration(conf);
+    rmWorkPreservingRestartEnabled = conf.getBoolean(YarnConfiguration
+            .RM_WORK_PRESERVING_RECOVERY_ENABLED,
+        YarnConfiguration.DEFAULT_RM_WORK_PRESERVING_RECOVERY_ENABLED);
 
+    try {
+      initAndStartRecoveryStore(conf);
+    } catch (IOException e) {
+      String recoveryDirName = conf.get(YarnConfiguration.NM_RECOVERY_DIR);
+      throw new
+          YarnRuntimeException("Unable to initialize recovery directory at "
+              + recoveryDirName, e);
+    }
+	
+    // 容器令牌管理器
+    NMContainerTokenSecretManager containerTokenSecretManager =
+        new NMContainerTokenSecretManager(conf, nmStore);
+	 // NM令牌管理器
+    NMTokenSecretManagerInNM nmTokenSecretManager =
+        new NMTokenSecretManagerInNM(nmStore);
+
+    recoverTokens(nmTokenSecretManager, containerTokenSecretManager);
+    // App权限管理器
+    this.aclsManager = new ApplicationACLsManager(conf);
+
+    this.dirsHandler = new LocalDirsHandlerService(metrics);
+
+    boolean isDistSchedulingEnabled =
+        conf.getBoolean(YarnConfiguration.DIST_SCHEDULING_ENABLED,
+            YarnConfiguration.DEFAULT_DIST_SCHEDULING_ENABLED);
+	// NM上下文
+    this.context = createNMContext(containerTokenSecretManager,
+        nmTokenSecretManager, nmStore, isDistSchedulingEnabled, conf);
+
+    ResourcePluginManager pluginManager = createResourcePluginManager();
+    pluginManager.initialize(context);
+    ((NMContext)context).setResourcePluginManager(pluginManager);
+	// 容器启动器
+    ContainerExecutor exec = createContainerExecutor(conf);
+    try {
+      exec.init(context);
+    } catch (IOException e) {
+      throw new YarnRuntimeException("Failed to initialize container executor", e);
+    }
+    DeletionService del = createDeletionService(exec);
+    addService(del);
+
+    // NodeManager level dispatcher
+    this.dispatcher = createNMDispatcher();
+
+    this.nodeHealthChecker = new NodeHealthCheckerService(dirsHandler);
+    addService(nodeHealthChecker);
+
+    ((NMContext)context).setContainerExecutor(exec);
+    ((NMContext)context).setDeletionService(del);
+
+    nodeStatusUpdater =
+        createNodeStatusUpdater(context, dispatcher, nodeHealthChecker);
+	
+    nodeLabelsProvider = createNodeLabelsProvider(conf);
+    if (nodeLabelsProvider != null) {
+      addIfService(nodeLabelsProvider);
+      nodeStatusUpdater.setNodeLabelsProvider(nodeLabelsProvider);
+    }
+	// 节点状态更新服务
+    nodeAttributesProvider = createNodeAttributesProvider(conf);
+    if (nodeAttributesProvider != null) {
+      addIfService(nodeAttributesProvider);
+      nodeStatusUpdater.setNodeAttributesProvider(nodeAttributesProvider);
+    }
+	// 节点资源监控服务
+    nodeResourceMonitor = createNodeResourceMonitor();
+    addService(nodeResourceMonitor);
+    ((NMContext) context).setNodeResourceMonitor(nodeResourceMonitor);
+	// 容器管理器服务
+    containerManager =
+        createContainerManager(context, exec, del, nodeStatusUpdater,
+        this.aclsManager, dirsHandler);
+    addService(containerManager);
+    ((NMContext) context).setContainerManager(containerManager);
+
+    this.nmLogAggregationStatusTracker = createNMLogAggregationStatusTracker(
+        context);
+    addService(nmLogAggregationStatusTracker);
+    ((NMContext)context).setNMLogAggregationStatusTracker(
+        this.nmLogAggregationStatusTracker);
+	// web服务
+    WebServer webServer = createWebServer(context, containerManager
+        .getContainersMonitor(), this.aclsManager, dirsHandler);
+    addService(webServer);
+    ((NMContext) context).setWebServer(webServer);
+    int maxAllocationsPerAMHeartbeat = conf.getInt(
+        YarnConfiguration.OPP_CONTAINER_MAX_ALLOCATIONS_PER_AM_HEARTBEAT,
+        YarnConfiguration.
+            DEFAULT_OPP_CONTAINER_MAX_ALLOCATIONS_PER_AM_HEARTBEAT);
+    ((NMContext) context).setQueueableContainerAllocator(
+        new DistributedOpportunisticContainerAllocator(
+            context.getContainerTokenSecretManager(),
+            maxAllocationsPerAMHeartbeat));
+
+    dispatcher.register(ContainerManagerEventType.class, containerManager);
+    dispatcher.register(NodeManagerEventType.class, this);
+    addService(dispatcher);
+
+    pauseMonitor = new JvmPauseMonitor();
+    addService(pauseMonitor);
+    metrics.getJvmMetrics().setPauseMonitor(pauseMonitor);
+
+    DefaultMetricsSystem.initialize("NodeManager");
+
+    if (YarnConfiguration.timelineServiceV2Enabled(conf)) {
+      this.nmCollectorService = createNMCollectorService(context);
+      addService(nmCollectorService);
+    }
+
+    // StatusUpdater should be added last so that it get started last 
+    // so that we make sure everything is up before registering with RM. 
+    addService(nodeStatusUpdater);
+    ((NMContext) context).setNodeStatusUpdater(nodeStatusUpdater);
+    nmStore.setNodeStatusUpdater(nodeStatusUpdater);
+
+    // Do secure login before calling init for added services.
+    try {
+      doSecureLogin();
+    } catch (IOException e) {
+      throw new YarnRuntimeException("Failed NodeManager login", e);
+    }
+
+    registerMXBean();
+
+    context.getContainerExecutor().start();
+    // 循环初始化上面的服务
+    super.serviceInit(conf);
+    // TODO add local dirs to del
+}
 ```

@@ -7122,10 +7122,10 @@ private STATE doTransition
   throw new InvalidStateTransitionException(oldState, eventType);  
 }
 ```
-## 3.6 RMContainer
+## 3.5 RMContainer
 - `RMContainerImpl` 实现了 `RMContainer`
 - `RMContainerImpl` 中定义了 `Container` 的几种状态：
 	- `NEW`：调度器初始化一个 `RMContainerImpl`
 	- `RESERVED`：当调度器准备把某个 `Container` 分配给相应的 `NM`，资源不能满足需求时，调度器会让 `Container` 预订此 `NM`，然后创建一个 `RMContainerEventType.RESERVED` 事件，`RMContainerImpl` 会调用 `ContainerReservedTransition` 处理这个事件，把预订信息（资源，节点，优先级）保存下来，然后设置自己的状态为 `RESERVED`
 	- `ALLOCATED`：`RMContainerImpl` 已经处于分配状态，把相应的 `Container` 标记调度到 `NM` 上，并创建 `RMContainerEventType.START` 事件，`RMContainerImpl` 会调用 `ContainerStartedTransition`，创建 `RMAppAttemptEventType.CONTAINER_ALLOCATED`事件，然后 `RMContainerImpl` 状态被设置为 `ALLOCATED`
-	- `ACQUIRED`：
+	- `ACQUIRED`：已经分配资源的 `Container` 通知给 `AM`，`AM` 通过 `ApplicationMasterProtocol.allocate()`向 `RM` 发起资源请求，`RM` 会调用调度器处理 AM 的请求，在调度器中首先会把请求资源保存下来，然后把已经分配的资源返回给 AM，这期间调度器会生成 `RMContainerEventType.ACQUIRED` 事件，`RMContainerImpl` 调用 `AcquiredTransition` 处理这个事件，生成 `RMAppAttemptEventType.CONTAINER_ACQUIRED` 事件，然后 `RMContainerImpl` 状态改为 `ACQUIRED` 状态。

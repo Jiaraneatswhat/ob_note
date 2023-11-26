@@ -6968,4 +6968,26 @@ private interface Transition<OPERAND, STATE extends Enum<STATE>,
 }
 
 // Transition接口有两个实现类
+private class SingleInternalArc  
+                  implements Transition<OPERAND, STATE, EVENTTYPE, EVENT> {  
+  
+  private STATE postState;  
+  private SingleArcTransition<OPERAND, EVENT> hook; // transition hook  
+  
+  SingleInternalArc(STATE postState,  
+      SingleArcTransition<OPERAND, EVENT> hook) {  
+    this.postState = postState;  
+    this.hook = hook;  
+  }  
+  
+  @Override  
+  public STATE doTransition(OPERAND operand, STATE oldState,  
+                            EVENT event, EVENTTYPE eventType) {  
+    if (hook != null) {  
+      hook.transition(operand, event);  
+    }  
+    return postState;  
+  }  
+}
+
 ```

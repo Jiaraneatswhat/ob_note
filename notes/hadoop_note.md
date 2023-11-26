@@ -7115,10 +7115,17 @@ private STATE doTransition
     Transition<OPERAND, STATE, EVENTTYPE, EVENT> transition  
         = transitionMap.get(eventType);  
     if (transition != null) {  
-      // 转换
+      // 最终执行实现类的转换
       return transition.doTransition(operand, oldState, event, eventType);  
     }  
   }  
   throw new InvalidStateTransitionException(oldState, eventType);  
 }
 ```
+## 3.6 RMContainer
+- `RMContainerImpl` 实现了 `RMContainer`
+- `RMContainerImpl` 中定义了 `Container` 的几种状态：
+	- `NEW`：调度器初始化一个 `RMContainerImpl`
+	- `RESERVED`：当调度器准备把某个 `Container` 分配给相应的 `NM`，资源不能满足需求时，调度器会让 `Container` 预订此 `NM`，然后创建一个 `RMContainerEventType.RESERVED` 事件，`RMContainerImpl` 会调用 `ContainerReservedTransition` 处理这个事件，把预订信息（资源，节点，优先级）保存下来，然后设置自己的状态为 `RESERVED`
+	- `ALLOCATED`：`RMContainerImpl` 已经处于分配状态，把相应的 Container 标记调度到 NM 上，并创建 RMContainerEventType.START 事件，RMContainerImpl 会调用 ContainerStartedTransition，创建 RMAppAttemptEventType.CONTAINER_ALLOCATED（RMAppAttempt 状态机详解中有介绍）事件，然后 RMContainerImpl 状态被设置为 ALLOCATED
+	- 

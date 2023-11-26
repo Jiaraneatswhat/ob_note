@@ -6898,7 +6898,7 @@ protected void dispatch(Event event) {
 	- `RMContainer`：维护 `Container` 的生命周期
 	- `RMNode`：维护 `NM` 的生命周期 
 ### 3.4.1 状态机初始化
-- 以 `RMAppImpl` 为例
+#### 3.4.1.1 StateMachineFactory
 ```java
 // StateMachineFactory通过installTopology方法创建状态机
 private static final StateMachineFactory<RMAppImpl,  
@@ -6922,16 +6922,50 @@ final public class StateMachineFactory
   private Map<STATE, Map<EVENTTYPE,  
     Transition<OPERAND, STATE, EVENTTYPE, EVENT>>> stateMachineTable;
 }
-
+```
+#### 3.4.1.2 TransitionsListNode
+```java
 // TransitionsListNode是链表结构，存放
 private class TransitionsListNode {  
   final ApplicableTransition<OPERAND, STATE, EVENTTYPE, EVENT> transition;  
   final TransitionsListNode next;
 }
 // ApplicableTransition接口
+/*
+ * 四个泛型
+ *   OPERAND -> 操作对象
+ *   STATE -> 目的状态
+ *   EVENTTYPE -> 事件类型
+ *   EVENT -> 事件
+*/ 
+```
+#### 3.4.1.3 ApplicableTransition
+```java
 private interface ApplicableTransition  
            <OPERAND, STATE extends Enum<STATE>,  
             EVENTTYPE extends Enum<EVENTTYPE>, EVENT> {  
+  // 将TransitionsListNode节点存放至stateMachineTable中
   void apply(StateMachineFactory<OPERAND, STATE, EVENTTYPE, EVENT> subject);  
 }
+
+// ApplicableTransition的实现类ApplicableSingleOrMultipleTransition
+public void apply  
+         (StateMachineFactory<OPERAND, STATE, EVENTTYPE, EVENT> subject) {  
+ // 获取preState的对应表
+  Map<EVENTTYPE, Transition<OPERAND, STATE, EVENTTYPE, EVENT>> transitionMap  
+    = subject.stateMachineTable.get(preState);
+  // 放入事件类型和处理方法  
+  transitionMap.put(eventType, transition);  
+}
+```
+#### 3.4.1.4 Transition
+```java
+// Transition接口执行状态转换
+private interface Transition<OPERAND, STATE extends Enum<STATE>,  
+        EVENTTYPE extends Enum<EVENTTYPE>, EVENT> {  
+  STATE doTransition(OPERAND operand, STATE oldState,  
+                     EVENT event, EVENTTYPE eventType);  
+}
+
+// Transition接口有两个实现类
 ```

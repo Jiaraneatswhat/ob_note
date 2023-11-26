@@ -6968,17 +6968,12 @@ private interface Transition<OPERAND, STATE extends Enum<STATE>,
 }
 
 // Transition接口有两个实现类
+// SingleInternalArc表示初始状态转换后，只有一种结束状态
 private class SingleInternalArc  
                   implements Transition<OPERAND, STATE, EVENTTYPE, EVENT> {  
   
   private STATE postState;  
-  private SingleArcTransition<OPERAND, EVENT> hook; // transition hook  
-  
-  SingleInternalArc(STATE postState,  
-      SingleArcTransition<OPERAND, EVENT> hook) {  
-    this.postState = postState;  
-    this.hook = hook;  
-  }  
+  private SingleArcTransition<OPERAND, EVENT> hook; // transition hook    
   
   @Override  
   public STATE doTransition(OPERAND operand, STATE oldState,  

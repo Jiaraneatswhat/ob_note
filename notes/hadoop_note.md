@@ -7056,26 +7056,67 @@ private StateMachineFactory
 private void makeStateMachineTable() {  
   Stack<ApplicableTransition<OPERAND, STATE, EVENTTYPE, EVENT>> stack =  
     new Stack<ApplicableTransition<OPERAND, STATE, EVENTTYPE, EVENT>>();  
-  
-  Map<STATE, Map<EVENTTYPE, Transition<OPERAND, STATE, EVENTTYPE, EVENT>>>  
-    prototype = new HashMap<STATE, Map<EVENTTYPE, Transition<OPERAND, STATE, EVENTTYPE, EVENT>>>();  
-  
-  prototype.put(defaultInitialState, null);  
-  
-  // I use EnumMap here because it'll be faster and denser.  I would  
-  //  expect most of the states to have at least one transition.  
-  stateMachineTable  
-     = new EnumMap<STATE, Map<EVENTTYPE,  
-                         Transition<OPERAND, STATE, EVENTTYPE, EVENT>>>(prototype);  
-  
+ // 入栈
   for (TransitionsListNode cursor = transitionsListNode;  
        cursor != null;  
        cursor = cursor.next) {  
     stack.push(cursor.transition);  
   }  
-  
+  // apply处理后出栈
   while (!stack.isEmpty()) {  
     stack.pop().apply(this);  
   }  
+}
+
+// 注册Transition到stateMachineTable中
+public void apply  
+         (StateMachineFactory<OPERAND, STATE, EVENTTYPE, EVENT> subject) {  
+  Map<EVENTTYPE, Transition<OPERAND, STATE, EVENTTYPE, EVENT>> transitionMap  
+    = subject.stateMachineTable.get(preState);  
+  if (transitionMap == null) {  
+    transitionMap = new HashMap<EVENTTYPE,  
+      Transition<OPERAND, STATE, EVENTTYPE, EVENT>>();  
+    subject.stateMachineTable.put(preState, transitionMap);  
+  }  
+  transitionMap.put(eventType, transition);  
+}
+```
+### 3.4.3 使用状态机
+- `EventHandler` 调用 `handle` 方法就会转换状态
+```java
+public void handle(RMAppEvent event) {  
+  this.writeLock.lock();  
+  try {   
+    final RMAppState oldState = getState();  
+    try {  
+      this.stateMachine.doTransition(event.getType(), event); 
+		} 
+	} 
+}  
+
+public synchronized STATE doTransition(EVENTTYPE eventType, EVENT event)  
+     throws InvalidStateTransitionException  {  
+  listener.preTransition(operand, currentState, event);  
+  previousState = currentState;  
+  // 转换状态
+  currentState = StateMachineFactory.this.doTransition  
+      (operand, currentState, eventType, event);  
+  listener.postTransition(operand, previousState, currentState, event);  
+  return currentState;  
+}
+
+private STATE doTransition  
+         (OPERAND operand, STATE oldState, EVENTTYPE eventType, EVENT event)  
+    throws InvalidStateTransitionException {  
+	Map<EVENTTYPE, Transition<OPERAND, STATE, EVENTTYPE, EVENT>> transitionMap  
+    = stateMachineTable.get(oldState);  
+  if (transitionMap != null) {  
+    Transition<OPERAND, STATE, EVENTTYPE, EVENT> transition  
+        = transitionMap.get(eventType);  
+    if (transition != null) {  
+      return transition.doTransition(operand, oldState, event, eventType);  
+    }  
+  }  
+  throw new InvalidStateTransitionException(oldState, eventType);  
 }
 ```

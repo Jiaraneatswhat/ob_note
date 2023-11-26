@@ -7063,7 +7063,8 @@ private void makeStateMachineTable() {
   prototype.put(defaultInitialState, null);  
   
   // I use EnumMap here because it'll be faster and denser.  I would  
-  //  expect most of the states to have at least one transition.  stateMachineTable  
+  //  expect most of the states to have at least one transition.  
+  stateMachineTable  
      = new EnumMap<STATE, Map<EVENTTYPE,  
                          Transition<OPERAND, STATE, EVENTTYPE, EVENT>>>(prototype);  
   

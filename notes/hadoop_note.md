@@ -7110,10 +7110,12 @@ private STATE doTransition
     throws InvalidStateTransitionException {  
 	Map<EVENTTYPE, Transition<OPERAND, STATE, EVENTTYPE, EVENT>> transitionMap  
     = stateMachineTable.get(oldState);  
+  // 从transitionMap中取出Transition
   if (transitionMap != null) {  
     Transition<OPERAND, STATE, EVENTTYPE, EVENT> transition  
         = transitionMap.get(eventType);  
     if (transition != null) {  
+      // 转换
       return transition.doTransition(operand, oldState, event, eventType);  
     }  
   }  

@@ -6975,45 +6975,43 @@ private interface Transition<OPERAND, STATE extends Enum<STATE>,
 
 // Transition接口有两个实现类
 // SingleInternalArc表示初始状态转换后，只有一种结束状态
-private class SingleInternalArc  
-                  implements Transition<OPERAND, STATE, EVENTTYPE, EVENT> {  
-  
-  private STATE postState;  
-  private SingleArcTransition<OPERAND, EVENT> hook; // transition hook    
-  
-  @Override  
-  public STATE doTransition(OPERAND operand, STATE oldState,  
-                            EVENT event, EVENTTYPE eventType) {  
-    if (hook != null) {  
-      hook.transition(operand, event);  
-    }  
-    return postState;  
-  }  
+public interface SingleArcTransition<OPERAND, EVENT> {  
+	public void transition(OPERAND operand, EVENT event);
 }
 // MultipleInternalArc表示状态转换后，根据Transition的执行结果返回结束状态
-private class MultipleInternalArc  
-            implements Transition<OPERAND, STATE, EVENTTYPE, EVENT>{  
-  
-  // Fields  
-  private Set<STATE> validPostStates;  
-  private MultipleArcTransition<OPERAND, EVENT, STATE> hook;  // transition hook  
-  
-  @Override  
-  public STATE doTransition(OPERAND operand, STATE oldState,  
-                            EVENT event, EVENTTYPE eventType)  
-      throws InvalidStateTransitionException {  
-    STATE postState = hook.transition(operand, event);  
-  
-    if (!validPostStates.contains(postState)) {  
-      throw new InvalidStateTransitionException(oldState, eventType);  
-    }  
-    return postState;  
-  }  
+ public interface MultipleArcTransition  
+        <OPERAND, EVENT, STATE extends Enum<STATE>> {  
+	public STATE transition(OPERAND operand, EVENT event);  
+	}
 }
 ```
 #### 3.4.1.5 stateMachineTable
-- stateMachineTable 就是状态机，由两层 Map 组成
+- `stateMachineTable` 就是状态机，由两层 Map 组成
 ```java
+/*
+ * 外层Map的STATE表示旧状态，内层Map的EVENTTYPE表示事件类型
+ * 内层Map的value是Transition
+ * stateMachineTable的作用是：
+ *     组件可能有多种旧状态，每种旧状态对应多种事件类型
+ *     根据旧状态和要处理事件的类型，映射到状态转换方法和目的状态
+*/
 Map<STATE, Map<EVENTTYPE,  
   Transition<OPERAND, STATE, EVENTTYPE, EVENT>>> stateMachineTable;
+```
+### 3.4.2 构建状态机
+#### 3.4.2.1 addTransition()
+```java
+//SigleArcTransition和MultipleArcTransition注册的方法不同
+
+// 第二个传入的是EnumSet.of(...)
+public StateMachineFactory  
+           <OPERAND, STATE, EVENTTYPE, EVENT>  
+        addTransition(STATE preState, Set<STATE> postStates,  
+                      EVENTTYPE eventType,  
+                      MultipleArcTransition<OPERAND, EVENT, STATE> hook){  
+  return new StateMachineFactory<OPERAND, STATE, EVENTTYPE, EVENT>  
+      (this,  
+       new ApplicableSingleOrMultipleTransition<OPERAND, STATE, EVENTTYPE, EVENT>  
+         (preState, eventType, new MultipleInternalArc(postStates, hook)));  
+}
 ```

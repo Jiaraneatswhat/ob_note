@@ -6912,12 +6912,6 @@ private static final StateMachineFactory<RMAppImpl,
 		 .addTransition()...
 		 .installTopology();
 
-public StateMachineFactory  
-           <OPERAND, STATE, EVENTTYPE, EVENT>  
-        installTopology() {  
-  return new StateMachineFactory<OPERAND, STATE, EVENTTYPE, EVENT>(this, true);  
-}
-
 // StateMachineFactory有两个属性
 final public class StateMachineFactory  
              <OPERAND, STATE extends Enum<STATE>,  
@@ -7001,8 +6995,19 @@ Map<STATE, Map<EVENTTYPE,
 ### 3.4.2 构建状态机
 #### 3.4.2.1 addTransition()
 ```java
-//SigleArcTransition和MultipleArcTransition注册的方法不同
+// SigleArcTransition和MultipleArcTransition注册的方法不同
+// SigleArcTransition
+public StateMachineFactory  
+           <OPERAND, STATE, EVENTTYPE, EVENT>  
+        addTransition(STATE preState, STATE postState,  
+                      EVENTTYPE eventType,  
+                      SingleArcTransition<OPERAND, EVENT> hook){  
+  return new StateMachineFactory<OPERAND, STATE, EVENTTYPE, EVENT>  
+      (this, new ApplicableSingleOrMultipleTransition<OPERAND, STATE, EVENTTYPE, EVENT>  
+         (preState, eventType, new SingleInternalArc(postState, hook)));  
+}
 
+// MultipleArcTransition 
 // 第二个传入的是EnumSet.of(...)
 public StateMachineFactory  
            <OPERAND, STATE, EVENTTYPE, EVENT>  
@@ -7013,5 +7018,63 @@ public StateMachineFactory
       (this,  
        new ApplicableSingleOrMultipleTransition<OPERAND, STATE, EVENTTYPE, EVENT>  
          (preState, eventType, new MultipleInternalArc(postStates, hook)));  
+}
+```
+#### 3.4.2.2 new StateMachineFactory()
+```java
+// addTransiton只完成对TransitionsListNode的构建，最终通过installTopology()方法构建映射表
+private StateMachineFactory  
+    (StateMachineFactory<OPERAND, STATE, EVENTTYPE, EVENT> that,  
+     ApplicableTransition<OPERAND, STATE, EVENTTYPE, EVENT> t) {  
+  this.defaultInitialState = that.defaultInitialState;  
+  // 向旧的TransitionsListNode中添加preState的Node
+  this.transitionsListNode = new TransitionsListNode(t, that.transitionsListNode);  
+  this.optimized = false;  
+  this.stateMachineTable = null;  
+}
+
+public StateMachineFactory  
+           <OPERAND, STATE, EVENTTYPE, EVENT>  
+        installTopology() {  
+  return new StateMachineFactory<OPERAND, STATE, EVENTTYPE, EVENT>(this, true);  
+}
+
+private StateMachineFactory  
+    (StateMachineFactory<OPERAND, STATE, EVENTTYPE, EVENT> that,  
+     boolean optimized) {  
+  this.defaultInitialState = that.defaultInitialState;  
+  this.transitionsListNode = that.transitionsListNode;  
+  this.optimized = optimized;  
+  // 上一个方法传入的是true，构建映射表
+  if (optimized) {  
+    makeStateMachineTable();  
+  }
+}
+```
+#### 3.4.2.3 makeStateMachineTable()
+```java
+private void makeStateMachineTable() {  
+  Stack<ApplicableTransition<OPERAND, STATE, EVENTTYPE, EVENT>> stack =  
+    new Stack<ApplicableTransition<OPERAND, STATE, EVENTTYPE, EVENT>>();  
+  
+  Map<STATE, Map<EVENTTYPE, Transition<OPERAND, STATE, EVENTTYPE, EVENT>>>  
+    prototype = new HashMap<STATE, Map<EVENTTYPE, Transition<OPERAND, STATE, EVENTTYPE, EVENT>>>();  
+  
+  prototype.put(defaultInitialState, null);  
+  
+  // I use EnumMap here because it'll be faster and denser.  I would  
+  //  expect most of the states to have at least one transition.  stateMachineTable  
+     = new EnumMap<STATE, Map<EVENTTYPE,  
+                         Transition<OPERAND, STATE, EVENTTYPE, EVENT>>>(prototype);  
+  
+  for (TransitionsListNode cursor = transitionsListNode;  
+       cursor != null;  
+       cursor = cursor.next) {  
+    stack.push(cursor.transition);  
+  }  
+  
+  while (!stack.isEmpty()) {  
+    stack.pop().apply(this);  
+  }  
 }
 ```

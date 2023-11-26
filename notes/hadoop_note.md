@@ -6912,6 +6912,12 @@ private static final StateMachineFactory<RMAppImpl,
 		 .addTransition()...
 		 .installTopology();
 
+public StateMachineFactory  
+           <OPERAND, STATE, EVENTTYPE, EVENT>  
+        installTopology() {  
+  return new StateMachineFactory<OPERAND, STATE, EVENTTYPE, EVENT>(this, true);  
+}
+
 // StateMachineFactory有两个属性
 final public class StateMachineFactory  
              <OPERAND, STATE extends Enum<STATE>,  
@@ -6984,5 +6990,30 @@ private class SingleInternalArc
     return postState;  
   }  
 }
-
+// MultipleInternalArc表示状态转换后，根据Transition的执行结果返回结束状态
+private class MultipleInternalArc  
+            implements Transition<OPERAND, STATE, EVENTTYPE, EVENT>{  
+  
+  // Fields  
+  private Set<STATE> validPostStates;  
+  private MultipleArcTransition<OPERAND, EVENT, STATE> hook;  // transition hook  
+  
+  @Override  
+  public STATE doTransition(OPERAND operand, STATE oldState,  
+                            EVENT event, EVENTTYPE eventType)  
+      throws InvalidStateTransitionException {  
+    STATE postState = hook.transition(operand, event);  
+  
+    if (!validPostStates.contains(postState)) {  
+      throw new InvalidStateTransitionException(oldState, eventType);  
+    }  
+    return postState;  
+  }  
+}
+```
+#### 3.4.1.5 stateMachineTable
+- stateMachineTable 就是状态机，由两层 Map 组成
+```java
+Map<STATE, Map<EVENTTYPE,  
+  Transition<OPERAND, STATE, EVENTTYPE, EVENT>>> stateMachineTable;
 ```

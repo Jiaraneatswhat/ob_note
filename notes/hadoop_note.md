@@ -7364,4 +7364,65 @@ protected void submitApplication(
 ```
 ### 3.9.3 状态转换
 #### 3.9.3.1 RMAppEventType.START
+```java
+// RMAppImpl中的Transition
+.addTransition(RMAppState.NEW, RMAppState.NEW_SAVING,  
+    RMAppEventType.START, new RMAppNewlySavingTransition())
 
+private static final class RMAppNewlySavingTransition extends RMAppTransition {  
+  @Override  
+  public void transition(RMAppImpl app, RMAppEvent event) {  
+    app.rmContext.getStateStore().storeNewApplication(app);  
+  }  
+}
+
+public void storeNewApplication(RMApp app) {  
+  ApplicationStateData appState =  ApplicationStateData.newInstance(...); 
+  getRMStateStoreEventHandler().handle(new RMStateStoreAppEvent(appState));  
+}
+
+// 产生一个RMStateStoreEventType.STORE_APP事件
+public RMStateStoreAppEvent(ApplicationStateData appState) {  
+  super(RMStateStoreEventType.STORE_APP);  
+  this.appState = appState;  
+}
+```
+#### 3.9.3.2 RMStateStoreEventType.STORE_APP
+```java
+// RMStateStore.java中定义了状态机，注册了处理RMStateStoreEvent的Transition
+.addTransition(RMStateStoreState.ACTIVE,  
+    EnumSet.of(RMStateStoreState.ACTIVE, RMStateStoreState.FENCED),  
+    RMStateStoreEventType.STORE_APP, new StoreAppTransition())
+    
+private static class StoreAppTransition  
+    implements MultipleArcTransition<RMStateStore, RMStateStoreEvent,  
+        RMStateStoreState> {  
+  @Override  
+  public RMStateStoreState transition(RMStateStore store,  
+      RMStateStoreEvent event) {  
+
+    boolean isFenced = false;  
+    ApplicationStateData appState =  
+        ((RMStateStoreAppEvent) event).getAppState();  
+    ApplicationId appId =  
+        appState.getApplicationSubmissionContext().getApplicationId();  
+    LOG.info("Storing info for app: " + appId);  
+    try {  
+      store.storeApplicationStateInternal(appId, appState);  
+      store.notifyApplication(  
+          new RMAppEvent(appId, RMAppEventType.APP_NEW_SAVED));  
+    } catch (Exception e) {  
+      LOG.error("Error storing app: " + appId, e);  
+      if (e instanceof StoreLimitException) {  
+        store.notifyApplication(  
+            new RMAppEvent(appId, RMAppEventType.APP_SAVE_FAILED,  
+                e.getMessage()));  
+      } else {  
+        isFenced = store.notifyStoreOperationFailedInternal(e);  
+      }  
+    }  
+    return finalState(isFenced);  
+  };  
+  
+}
+```

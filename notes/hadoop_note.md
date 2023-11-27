@@ -7310,48 +7310,58 @@ public ApplicationId submitApplication(ApplicationSubmissionContext appContext) 
     SubmitApplicationRequest request =
         Records.newRecord(SubmitApplicationRequest.class);
     request.setApplicationSubmissionContext(appContext);
-    ...
+
     // rmClient是ApplicationClientProtocol
     // ClientRMService处理客户端的请求
     rmClient.submitApplication(request);
-
-    int pollCount = 0;
-    long startTime = System.currentTimeMillis();
-    EnumSet<YarnApplicationState> waitingStates = 
-                                 EnumSet.of(YarnApplicationState.NEW,
-                                 YarnApplicationState.NEW_SAVING,
-                                 YarnApplicationState.SUBMITTED);
-    EnumSet<YarnApplicationState> failToSubmitStates = 
-                                  EnumSet.of(YarnApplicationState.FAILED,
-                                  YarnApplicationState.KILLED);		
-    while (true) {
-     	...
-        if (++pollCount % 10 == 0) {
-          LOG.info("Application submission is not finished, " +
-              "submitted application " + applicationId +
-              " is still in " + state);
-        }
-        try {
-          Thread.sleep(submitPollIntervalMillis);
-        } catch (InterruptedException ie) {
-          String msg = "Interrupted while waiting for application "
-              + applicationId + " to be successfully submitted.";
-          LOG.error(msg);
-          throw new YarnException(msg, ie);
-        }
-      } catch (ApplicationNotFoundException ex) {
-        // FailOver or RM restart happens before RMStateStore saves
-        // ApplicationState
-        LOG.info("Re-submit application " + applicationId + "with the " +
-            "same ApplicationSubmissionContext");
-        // 提交失败可再次提交
-        rmClient.submitApplication(request);
-      }
-    }
 
     return applicationId;
   }
 }
 
+// ClientRMService.java
+public SubmitApplicationResponse submitApplication(
+      SubmitApplicationRequest request) throws YarnException, IOException {
+    try {
+      // call RMAppManager to submit application directly
+      rmAppManager.submitApplication(submissionContext,
+          System.currentTimeMillis(), userUgi);
+          
+      // 创建default队列
+      if (submissionContext.getQueue() == null) {
+      submissionContext.setQueue(YarnConfiguration.DEFAULT_QUEUE_NAME);    
+    } catch (YarnException e) {...}
+	// 返回一个SubmitApplicationResponse对象
+    return recordFactory
+        .newRecordInstance(SubmitApplicationResponse.class);
+}
 
+// RMAppManager.java
+protected void submitApplication(
+      ApplicationSubmissionContext submissionContext, long submitTime,
+      UserGroupInformation userUgi) throws YarnException {
+    ApplicationId applicationId = submissionContext.getApplicationId();
+
+    // Passing start time as -1. It will be eventually set in RMAppImpl
+    // constructor.
+    // 创建RMAppImpl的对象
+    RMAppImpl application = createAndPopulateNewRMApp(
+        submissionContext, submitTime, userUgi, false, -1, null);
+    try {
+      if (UserGroupInformation.isSecurityEnabled()) {...} 
+        else {
+ 		// 创建一个START类型的RMAppEvent交给EventHandler处理
+        this.rmContext.getDispatcher().getEventHandler()
+            .handle(new RMAppEvent(applicationId, RMAppEventType.START));
+      }
+    } catch (Exception e) {
+      this.rmContext.getDispatcher().getEventHandler()
+          .handle(new RMAppEvent(applicationId,
+              RMAppEventType.APP_REJECTED, e.getMessage()));
+      throw RPCUtil.getRemoteException(e);
+    }
+}
 ```
+### 3.9.3 状态转换
+#### 3.9.3.1 RMAppEventType.START
+

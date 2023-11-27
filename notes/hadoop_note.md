@@ -6461,7 +6461,7 @@ protected void serviceStart() throws Exception {
 
 ### 3.1.3 NodeManager
 
-![[nodeManager.svg]]
+![[nodeManager 1.svg]]
 
 - 主要功能
 	- 启动后向 `RM` 注册，然后保持通信，通过心跳汇报自己的状态，接受来自 `RM` 的指令
@@ -7136,4 +7136,8 @@ private STATE doTransition
 		- 当 `NM` 发送心跳给 `RM`，`NM` 会把自己节点上运行的 `Container` 列表汇报给 `RM`，`RM` 让调度器负责处理，调度器生成 `RMContainerEventType.LAUNCHED` 事件，`RMContainerImpl` 会调用 `LaunchedTransition` 处理此事件，然后 `RMContainerImpl` 状态改为 `RUNNING`
 	- `COMPLETED`：
 		- 调度器生成 `RMContainerEventType.FINISHED` 事件，`RMContainerImpl` 会调用 `FinishedTransition` 处理此事件，生成 `RMAppAttemptEventType.CONTAINER_FINISHED` 事件，然后 `RMContainerImpl` 改为 `COMPLETED`
-	- EXOIRE
+	- `EXPIRED`
+	- `RELEASED` 
+	- `KILLED`
+
+![[RMContainer.gif]]

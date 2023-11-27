@@ -7122,7 +7122,7 @@ private STATE doTransition
   throw new InvalidStateTransitionException(oldState, eventType);  
 }
 ```
-## 3.5 RMContainer
+## 3.5 RMContainerImpl
 - `RMContainerImpl` 实现了 `RMContainer`
 - `RMContainerImpl` 中定义了 `Container` 的几种状态：
 	- `NEW`：调度器初始化一个 `RMContainerImpl`
@@ -7141,3 +7141,217 @@ private STATE doTransition
 	- `KILLED`
 
 ![[RMContainer.gif]]
+## 3.6 RMAppImpl
+## 3.7 RMAppAttemptImpl
+## 3.8 RMNodeImpl
+## 3.9 提交任务
+### 3.9.1 YARNRunner.submitJob()
+```java
+public JobStatus submitJob(JobID jobId, String jobSubmitDir, Credentials ts)
+  throws IOException, InterruptedException {
+    
+    addHistoryToken(ts);
+	// 创建提交任务的上下文
+    ApplicationSubmissionContext appContext =
+      createApplicationSubmissionContext(conf, jobSubmitDir, ts);
+
+    // Submit to ResourceManager
+    try {
+      ApplicationId applicationId =
+          // 提交任务
+          resMgrDelegate.submitApplication(appContext);
+          
+      return clientCache.getClient(jobId).getJobStatus(jobId);
+    } 
+}
+
+// Constructs all the necessary information to start the MR AM.
+public ApplicationSubmissionContext createApplicationSubmissionContext(
+      Configuration jobConf, String jobSubmitDir, Credentials ts)
+      throws IOException {
+    ApplicationId applicationId = resMgrDelegate.getApplicationId();
+
+    // Setup LocalResources
+    // 获取job需要的本地jar包，配置文件
+    Map<String, LocalResource> localResources =
+        setupLocalResources(jobConf, jobSubmitDir);
+
+    // Setup ContainerLaunchContext for AM container
+    // 封装启动AM的命令
+    List<String> vargs = setupAMCommand(jobConf);
+    // 创建启动Container的上下文
+    ContainerLaunchContext amContainer = setupContainerLaunchContextForAM(
+        jobConf, localResources, securityTokens, vargs);
+
+    // Set up the ApplicationSubmissionContext
+    // 创建ApplicationSubmissionContext
+    ApplicationSubmissionContext appContext =
+  recordFactory.newRecordInstance(ApplicationSubmissionContext.class);
+    // ApplicationId
+    appContext.setApplicationId(applicationId); 
+    // Queue name
+    appContext.setQueue(                                      
+        jobConf.get(JobContext.QUEUE_NAME,
+        YarnConfiguration.DEFAULT_QUEUE_NAME));
+    // Job name
+    appContext.setApplicationName(                             
+        jobConf.get(JobContext.JOB_NAME,
+        YarnConfiguration.DEFAULT_APPLICATION_NAME));
+    // AM Container
+    appContext.setAMContainerSpec(amContainer);  
+    // 默认最大重试次数2
+    appContext.setMaxAppAttempts(
+        conf.getInt(MRJobConfig.MR_AM_MAX_ATTEMPTS,
+            MRJobConfig.DEFAULT_MR_AM_MAX_ATTEMPTS));
+
+    // Setup the AM ResourceRequests
+    List<ResourceRequest> amResourceRequests = generateResourceRequests();
+    appContext.setAMContainerResourceRequests(amResourceRequests);
+
+    appContext.setApplicationType(MRJobConfig.MR_APPLICATION_TYPE);
+    if (tagsFromConf != null && !tagsFromConf.isEmpty()) {
+      appContext.setApplicationTags(new HashSet<>(tagsFromConf));
+    }
+
+    String jobPriority = jobConf.get(MRJobConfig.PRIORITY);
+    if (jobPriority != null) {
+      int iPriority;
+      try {
+        iPriority = TypeConverter.toYarnApplicationPriority(jobPriority);
+      } catch (IllegalArgumentException e) {
+        iPriority = Integer.parseInt(jobPriority);
+      }
+      appContext.setPriority(Priority.newInstance(iPriority));
+    }
+
+    return appContext;
+  }
+```
+#### 3.9.1.1 setupLocalResources()
+```java
+private Map<String, LocalResource> setupLocalResources(Configuration jobConf,
+      String jobSubmitDir) throws IOException {
+    Map<String, LocalResource> localResources = new HashMap<>();
+	
+    // MRJobConfig.JOB_CONF_FILE="job.xml"
+    Path jobConfPath = new Path(jobSubmitDir, MRJobConfig.JOB_CONF_FILE);
+
+    URL yarnUrlForJobSubmitDir = URL.fromPath(defaultFileContext
+        .getDefaultFileSystem().resolvePath(
+            defaultFileContext.makeQualified(new Path(jobSubmitDir))));
+    LOG.debug("Creating setup context, jobSubmitDir url is "
+        + yarnUrlForJobSubmitDir);
+
+    localResources.put(MRJobConfig.JOB_CONF_FILE,
+        // 将path转为URL
+        createApplicationResource(defaultFileContext,
+            jobConfPath, LocalResourceType.FILE));
+    // 类似的，获取jar包的URL
+    if (jobConf.get(MRJobConfig.JAR) != null) {...}
+
+    return localResources;
+  }
+```
+#### 3.9.1.2 setupAMCommand()
+```java
+private List<String> setupAMCommand(Configuration jobConf) {
+    List<String> vargs = new ArrayList<>(8);
+    // 启动java的命令
+    vargs.add(MRApps.crossPlatformifyMREnv(jobConf, Environment.JAVA_HOME) + "/bin/java");
+    Path amTmpDir =
+        new Path(MRApps.crossPlatformifyMREnv(conf, Environment.PWD),
+            YarnConfiguration.DEFAULT_CONTAINER_TEMP_DIR);
+    vargs.add("-Djava.io.tmpdir=" + amTmpDir);
+    MRApps.addLog4jSystemProperties(null, vargs, conf);
+
+    // Check for Java Lib Path usage in MAP and REDUCE configs
+   ...
+    // Add AM admin command opts before user command opts
+    // so that it can be overridden by user
+    ...
+    // Add AM user command opts
+    //\DEFAULT_MR_AM_COMMAND_OPTS = "-Xmx1024m";
+    String mrAppMasterUserOptions = conf.get(MRJobConfig.MR_AM_COMMAND_OPTS,
+        MRJobConfig.DEFAULT_MR_AM_COMMAND_OPTS);
+    warnForJavaLibPath(mrAppMasterUserOptions, "app master",
+        MRJobConfig.MR_AM_COMMAND_OPTS, MRJobConfig.MR_AM_ENV);
+    vargs.add(mrAppMasterUserOptions);
+
+    if (jobConf.getBoolean(MRJobConfig.MR_AM_PROFILE,
+        MRJobConfig.DEFAULT_MR_AM_PROFILE)) {
+      final String profileParams = jobConf.get(MRJobConfig.MR_AM_PROFILE_PARAMS,
+          MRJobConfig.DEFAULT_TASK_PROFILE_PARAMS);
+      if (profileParams != null) {
+        vargs.add(String.format(profileParams,
+            ApplicationConstants.LOG_DIR_EXPANSION_VAR + Path.SEPARATOR
+                + TaskLog.LogName.PROFILE));
+      }
+    }
+	// public static final String APPLICATION_MASTER_CLASS =
+    // "org.apache.hadoop.mapreduce.v2.app.MRAppMaster";
+    vargs.add(MRJobConfig.APPLICATION_MASTER_CLASS);
+    vargs.add("1>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR +
+        Path.SEPARATOR + ApplicationConstants.STDOUT);
+    vargs.add("2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR +
+        Path.SEPARATOR + ApplicationConstants.STDERR);
+    return vargs;
+  }
+```
+### 3.9.2 submitApplication()
+```java
+// ResourceMgrDelegate.java
+public ApplicationId submitApplication(ApplicationSubmissionContext appContext) throws YarnException, IOException {
+    return client.submitApplication(appContext);
+}
+
+// YarnClientImpl.java
+public ApplicationId submitApplication(ApplicationSubmissionContext appContext) throws YarnException, IOException {
+    // 提交请求
+    SubmitApplicationRequest request =
+        Records.newRecord(SubmitApplicationRequest.class);
+    request.setApplicationSubmissionContext(appContext);
+    ...
+    // rmClient是ApplicationClientProtocol
+    // ClientRMService处理客户端的请求
+    rmClient.submitApplication(request);
+
+    int pollCount = 0;
+    long startTime = System.currentTimeMillis();
+    EnumSet<YarnApplicationState> waitingStates = 
+                                 EnumSet.of(YarnApplicationState.NEW,
+                                 YarnApplicationState.NEW_SAVING,
+                                 YarnApplicationState.SUBMITTED);
+    EnumSet<YarnApplicationState> failToSubmitStates = 
+                                  EnumSet.of(YarnApplicationState.FAILED,
+                                  YarnApplicationState.KILLED);		
+    while (true) {
+     	...
+        if (++pollCount % 10 == 0) {
+          LOG.info("Application submission is not finished, " +
+              "submitted application " + applicationId +
+              " is still in " + state);
+        }
+        try {
+          Thread.sleep(submitPollIntervalMillis);
+        } catch (InterruptedException ie) {
+          String msg = "Interrupted while waiting for application "
+              + applicationId + " to be successfully submitted.";
+          LOG.error(msg);
+          throw new YarnException(msg, ie);
+        }
+      } catch (ApplicationNotFoundException ex) {
+        // FailOver or RM restart happens before RMStateStore saves
+        // ApplicationState
+        LOG.info("Re-submit application " + applicationId + "with the " +
+            "same ApplicationSubmissionContext");
+        // 提交失败可再次提交
+        rmClient.submitApplication(request);
+      }
+    }
+
+    return applicationId;
+  }
+}
+
+
+```

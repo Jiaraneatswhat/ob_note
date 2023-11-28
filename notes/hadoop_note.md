@@ -7677,12 +7677,13 @@ private static final class AcquiredTransition extends BaseTransition {
   public void transition(RMContainerImpl container, RMContainerEvent event) {  
     
     // Tell the app  
+    // 添加到node后，返回RMAppAttemptState.ALLOCATED_SAVING
     container.eventHandler.handle(new RMAppRunningOnNodeEvent(container  
         .getApplicationAttemptId().getApplicationId(), container.nodeId));  
   }  
 }
 ```
-##### 3.9.3.8.2 RMAppAttemptState.ALLOCATED_SAVING
+#### 3.9.3.9 RMAppAttemptState.ALLOCATED_SAVING
 ```java
 .addTransition(RMAppAttemptState.ALLOCATED_SAVING,   
     RMAppAttemptState.ALLOCATED,  
@@ -7702,7 +7703,7 @@ private void launchAttempt(){
   eventHandler.handle(new AMLauncherEvent(AMLauncherEventType.LAUNCH, this));  
 }
 ```
-#### 3.9.3.9 AMLauncherEventType.LAUNCH
+#### 3.9.3.10 AMLauncherEventType.LAUNCH
 ```java
 // AMLauncher.java
 public void run() {  
@@ -7753,20 +7754,25 @@ public StartContainersResponse startContainers(
 protected void startContainerInternal(  
     ContainerTokenIdentifier containerTokenIdentifier,  
     StartContainerRequest request, String remoteUser)  
-    throws YarnException, IOException {
-    // 创建Container
-    Container container =  
-    new ContainerImpl(getConfig(), this.dispatcher,  
-        launchContext, credentials, metrics, containerTokenIdentifier,  
-        context, containerStartTime);
-        
-	this.readLock.lock();  
-	try {  
-	  if (!isServiceStopped()) {
-		  dispatcher.getEventHandler().handle(  
-  new ApplicationContainerInitEvent(container));
-		  }
-	  }
+    throws YarnException, IOException {  
+  
+  try {  
+    if (!isServiceStopped()) {  
+      if (!context.getApplications().containsKey(applicationID)) {  
+        // 创建App
+        Application application =  
+            new ApplicationImpl(dispatcher, user, flowContext,  
+                applicationID, credentials, context);    
+          dispatcher.getEventHandler().handle(new ApplicationInitEvent(  
+              applicationID, appAcls, logAggregationContext));  
+        }  
+      } 
+	  // 启动容器
+      this.context.getNMStateStore().storeContainer(containerId,  
+          containerTokenIdentifier.getVersion(), containerStartTime, request);  
+      dispatcher.getEventHandler().handle(  
+        new ApplicationContainerInitEvent(container));  
+ }
 }
 ```
 ##### 3.9.3.10.1 RMAppAttemptEventType.LAUNCHED
@@ -7776,7 +7782,78 @@ protected void startContainerInternal(
     RMAppAttemptEventType.LAUNCHED, LAUNCHED_TRANSITION)
 // 从ALLOCATED转为LAUNCHED
 ```
-#### 3.9.3.11 ApplicationEventType.INIT_CONTAINER
+#### 3.9.3.11 ApplicationEventType.INIT_APPLICATION
+```java
+public ApplicationInitEvent(ApplicationId appId,  
+    Map<ApplicationAccessType, String> acls,  
+    LogAggregationContext logAggregationContext) {  
+  super(appId, ApplicationEventType.INIT_APPLICATION);  
+}
+
+.addTransition(ApplicationState.NEW, ApplicationState.INITING,  
+    ApplicationEventType.INIT_APPLICATION, new AppInitTransition())
+
+static class AppInitTransition implements  
+    SingleArcTransition<ApplicationImpl, ApplicationEvent> {  
+  @Override  
+  public void transition(ApplicationImpl app, ApplicationEvent event) {  
+    app.dispatcher.getEventHandler().handle(  
+        new LogHandlerAppStartedEvent(app.appId, app.user,  
+            app.credentials, app.applicationACLs,  
+            app.logAggregationContext, app.applicationLogInitedTimestamp));  
+  }  
+}
+```
+### 3.9.3.12 LogHandlerEventType.APPLICATION_STARTED
+```java
+public LogHandlerAppStartedEvent(ApplicationId appId, String user,  
+    Credentials credentials, Map<ApplicationAccessType, String> appAcls,  
+    LogAggregationContext logAggregationContext, long appLogInitedTime) {  
+  super(LogHandlerEventType.APPLICATION_STARTED);  
+}
+
+// LogAggregationService.java
+public void handle(LogHandlerEvent event) {
+    switch (event.getType()) {
+      case APPLICATION_STARTED:
+        initApp();
+        break;
+    }
+}
+
+private void initApp(final ApplicationId appId, String user,  
+    Credentials credentials, Map<ApplicationAccessType, String> appAcls,  
+    LogAggregationContext logAggregationContext,  
+    long recoveredLogInitedTime) {  
+  try {   
+    eventResponse = new ApplicationEvent(appId,  
+        ApplicationEventType.APPLICATION_LOG_HANDLING_INITED);  
+  }
+  this.dispatcher.getEventHandler().handle(eventResponse);  
+}
+```
+### 3.9.3.13 ApplicationEventType.APPLICATION_LOG_HANDLING_INITED
+```java
+.addTransition(ApplicationState.INITING, ApplicationState.INITING,  
+    ApplicationEventType.APPLICATION_LOG_HANDLING_INITED,  
+    new AppLogInitDoneTransition())
+
+static class AppLogInitDoneTransition implements  
+    SingleArcTransition<ApplicationImpl, ApplicationEvent> {  
+  @Override  
+  public void transition(ApplicationImpl app, ApplicationEvent event) {  
+    app.dispatcher.getEventHandler().handle(  
+        new ApplicationLocalizationEvent(  
+            LocalizationEventType.INIT_APPLICATION_RESOURCES, app));  
+  }  
+}
+```
+### 3.9.3.14 LocalizationEventType.INIT_APPLICATION_RESOURCES
+```java
+// ResourceLocalizationService.java
+
+```
+ApplicationEventType.INIT_CONTAINER
 ```java
 public ApplicationContainerInitEvent(Container container) {  
   super(container.getContainerId().getApplicationAttemptId()  

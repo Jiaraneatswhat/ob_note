@@ -7407,3 +7407,73 @@ private static class StoreAppTransition
     }
 }
 ```
+#### 3.9.3.3 RMAppEventType.APP_NEW_SAVED
+```java
+// RMAppImpl转为RMAppState.SUBMITTED状态
+.addTransition(RMAppState.NEW_SAVING, RMAppState.SUBMITTED,  
+    RMAppEventType.APP_NEW_SAVED, new AddApplicationToSchedulerTransition())
+
+private static final class AddApplicationToSchedulerTransition extends  
+    RMAppTransition {  
+  @Override  
+  public void transition(RMAppImpl app, RMAppEvent event) {  
+    app.handler.handle(  
+        new AppAddedSchedulerEvent(app.user, app.submissionContext, false, app.applicationPriority, app.placementContext));  
+  }  
+}
+
+// 产生一个SchedulerEventType.APP_ADDED事件, 会被队列的调度器接收处理
+public AppAddedSchedulerEvent(ApplicationId applicationId, String queue,  
+    String user, boolean isAppRecovering, ReservationId reservationID,  
+    Priority appPriority, ApplicationPlacementContext placementContext) { 
+  super(SchedulerEventType.APP_ADDED);
+}
+
+// CapacityScheduler.java
+public void handle(SchedulerEvent event) {  
+  switch(event.getType()) {
+  case APP_ADDED:  
+{  
+  if (queueName != null) {  
+    if (!appAddedEvent.getIsAppRecovering()) {  
+      addApplication(...);  
+    } 
+  }  
+}  
+break;
+
+private void addApplication(ApplicationId applicationId, String queueName, String user, Priority priority,  
+    ApplicationPlacementContext placementContext) {  
+  writeLock.lock();  
+  try {  
+    // Submit to the queue  
+    try {  
+      queue.submitApplication(applicationId, user, queueName);  
+    }  
+    rmContext.getDispatcher().getEventHandler().handle(  
+    new RMAppEvent(applicationId, RMAppEventType.APP_ACCEPTED));
+  }
+}
+```
+#### 3.9.3.4 RMAppEventType.APP_ACCEPTED
+```java
+// RMAppImpl
+.addTransition(RMAppState.SUBMITTED, RMAppState.ACCEPTED,  
+    RMAppEventType.APP_ACCEPTED, new StartAppAttemptTransition())
+
+private static final class StartAppAttemptTransition extends RMAppTransition {  
+  @Override  
+  public void transition(RMAppImpl app, RMAppEvent event) {  
+    app.createAndStartNewAttempt(false);  
+  };  
+}
+
+private void  
+    createAndStartNewAttempt(boolean transferStateFromPreviousAttempt) {  
+  createNewAttempt();  
+  handler.handle(new RMAppStartAttemptEvent(currentAttempt.getAppAttemptId(),  
+    transferStateFromPreviousAttempt));  
+}
+
+
+```

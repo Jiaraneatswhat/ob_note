@@ -7652,7 +7652,7 @@ public void run() {
     try {  
       LOG.info("Launching master" + application.getAppAttemptId());  
       launch();  
-      handler.handle(new RMAppAttemptEvent(application.getAppAttemptId(),  
+      handler.handle(new RMAppAttemptEvent(application.getAppAttemptId(), 
           RMAppAttemptEventType.LAUNCHED, System.currentTimeMillis()));  
     } catch(Exception ie) {  
       onAMLaunchFailed(masterContainer.getId(), ie);  
@@ -7672,8 +7672,48 @@ private void launch() throws IOException, YarnException {
       containerMgrProxy.startContainers(allRequests);  
 }
 
+// ContainerManagerImpl.java
+public StartContainersResponse startContainers(  
+    StartContainersRequest requests) throws YarnException, IOException {  
+
+    for (StartContainerRequest request : requests  
+        .getStartContainerRequests()) {  
+      ContainerId containerId = null;  
+      try {  
+        startContainerInternal(containerTokenIdentifier, request,  
+            remoteUser);  
+        succeededContainers.add(containerId);  
+      }  
+    }  
+    return StartContainersResponse  
+        .newInstance(getAuxServiceMetaData(), succeededContainers,  
+            failedContainers);  
+  }
+}
+
+protected void startContainerInternal(  
+    ContainerTokenIdentifier containerTokenIdentifier,  
+    StartContainerRequest request, String remoteUser)  
+    throws YarnException, IOException {
+    // 创建Container
+    Container container =  
+    new ContainerImpl(getConfig(), this.dispatcher,  
+        launchContext, credentials, metrics, containerTokenIdentifier,  
+        context, containerStartTime);
+        
+	this.readLock.lock();  
+	try {  
+	  if (!isServiceStopped()) {
+		  dispatcher.getEventHandler().handle(  
+  new ApplicationContainerInitEvent(container));
+		  }
+	  }
+}
+```
+##### 3.9.3.10.1 RMAppAttemptEventType.LAUNCHED
+```java
+// run()方法调用完launch()方法后，发送RMAppAttemptEventType.LAUNCHED事件
 
 ```
-#### 3.9.3.6
 #### 3.9.3.6
 #### 3.9.3.6

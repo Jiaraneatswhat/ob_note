@@ -7578,12 +7578,102 @@ public static final class ScheduleTransition
   }  
 }
 ```
-#### 3.9.3.8 RMAppAttemptState.SCHEDULED
+##### 3.9.3.7.1 RMContainerEventType.ACQUIRED
 ```java
+// ResourceScheduler分配返回资源前，会向 RMContainerlmpl 发送一个 RMContainerEventType.ACQUIRED 事件
 
 ```
-#### 3.9.3.6
-#### 3.9.3.6
+#### 3.9.3.8 RMAppAttemptState.SCHEDULED
+```java
+.addTransition(RMAppAttemptState.SCHEDULED,  
+    EnumSet.of(RMAppAttemptState.ALLOCATED_SAVING,  
+      RMAppAttemptState.SCHEDULED),  
+    RMAppAttemptEventType.CONTAINER_ALLOCATED,  
+    new AMContainerAllocatedTransition())
+
+private static final class AMContainerAllocatedTransition  
+    implements  
+    MultipleArcTransition<RMAppAttemptImpl, RMAppAttemptEvent, RMAppAttemptState> {  
+  @Override  
+  public RMAppAttemptState transition(RMAppAttemptImpl appAttempt,  
+      RMAppAttemptEvent event) {  
+    // Acquire the AM container from the scheduler.  
+    Allocation amContainerAllocation =  
+        appAttempt.scheduler.allocate(appAttempt.applicationAttemptId,  
+          EMPTY_CONTAINER_REQUEST_LIST, null, EMPTY_CONTAINER_RELEASE_LIST, null,  
+          null, new ContainerUpdates());  
+    // 还未获取到资源，保持SCHEDULED状态        
+    if (amContainerAllocation.getContainers().size() == 0) {  
+      appAttempt.retryFetchingAMContainer(appAttempt);  
+      return RMAppAttemptState.SCHEDULED;  
+    }  
+  
+    // Set the masterContainer  
+    Container amContainer = amContainerAllocation.getContainers().get(0);  
+    RMContainerImpl rmMasterContainer = (RMContainerImpl)appAttempt.scheduler  
+        .getRMContainer(amContainer.getId());  
+
+    if (rmMasterContainer == null) {  
+      return RMAppAttemptState.SCHEDULED;  
+    }  
+    appAttempt.setMasterContainer(amContainer);  
+    rmMasterContainer.setAMContainer(true); 
+     
+    return RMAppAttemptState.ALLOCATED_SAVING;  
+  }  
+}
+```
+#### 3.9.3.9 RMAppAttemptState.ALLOCATED_SAVING
+```java
+.addTransition(RMAppAttemptState.ALLOCATED_SAVING,   
+    RMAppAttemptState.ALLOCATED,  
+    RMAppAttemptEventType.ATTEMPT_NEW_SAVED, new AttemptStoredTransition())
+
+private static final class AttemptStoredTransition extends BaseTransition {  
+  @Override  
+  public void transition(RMAppAttemptImpl appAttempt,  
+     RMAppAttemptEvent event) {  
+
+    appAttempt.launchAttempt();  
+  }  
+}
+
+private void launchAttempt(){  
+  // Send event to launch the AM Container  
+  eventHandler.handle(new AMLauncherEvent(AMLauncherEventType.LAUNCH, this));  
+}
+```
+#### 3.9.3.10 AMLauncherEventType.LAUNCH
+```java
+// AMLauncher.java
+public void run() {  
+  switch (eventType) {  
+  case LAUNCH:  
+    try {  
+      LOG.info("Launching master" + application.getAppAttemptId());  
+      launch();  
+      handler.handle(new RMAppAttemptEvent(application.getAppAttemptId(),  
+          RMAppAttemptEventType.LAUNCHED, System.currentTimeMillis()));  
+    } catch(Exception ie) {  
+      onAMLaunchFailed(masterContainer.getId(), ie);  
+    }  
+    break;
+}
+
+// 启动AM
+private void launch() throws IOException, YarnException {  
+  // 获取AM和NM的通信协议
+  connect();  
+  // 创建启动AM的上下文
+  ContainerLaunchContext launchContext =  
+      createAMContainerLaunchContext(applicationContext, masterContainerID); 
+  // 启动AMContainer
+  StartContainersResponse response =  
+      containerMgrProxy.startContainers(allRequests);  
+}
+
+
+```
 #### 3.9.3.6
 #### 3.9.3.6
 #### 3.9.3.6

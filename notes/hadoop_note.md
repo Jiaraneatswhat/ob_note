@@ -7713,7 +7713,18 @@ protected void startContainerInternal(
 ##### 3.9.3.10.1 RMAppAttemptEventType.LAUNCHED
 ```java
 // run()方法调用完launch()方法后，发送RMAppAttemptEventType.LAUNCHED事件
+.addTransition(RMAppAttemptState.ALLOCATED, RMAppAttemptState.LAUNCHED,  
+    RMAppAttemptEventType.LAUNCHED, LAUNCHED_TRANSITION)
+// 从ALLOCATED转为LAUNCHED
+```
+#### 3.9.3.11 ApplicationEventType.INIT_CONTAINER
+```java
+public ApplicationContainerInitEvent(Container container) {  
+  super(container.getContainerId().getApplicationAttemptId()  
+      .getApplicationId(), ApplicationEventType.INIT_CONTAINER);  
+  this.container = container;  
+}
+
 
 ```
-#### 3.9.3.6
 #### 3.9.3.6

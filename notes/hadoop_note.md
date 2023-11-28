@@ -7622,8 +7622,67 @@ private static final class AMContainerAllocatedTransition
     return RMAppAttemptState.ALLOCATED_SAVING;  
   }  
 }
+
+public Allocation allocate(ApplicationAttemptId applicationAttemptId,
+                           List<ResourceRequest> ask, List<SchedulingRequest> schedulingRequests, List<ContainerId> release, List<String> blacklistAdditions, List<String> blacklistRemovals, ContainerUpdates updateRequests) {
+    synchronized (application) {
+        Resource headroom = application.getHeadroom();
+        application.setApplicationHeadroomForMetrics(headroom);
+        return new Allocation(application.pullNewlyAllocatedContainers(),
+           headroom, null, null, null, application.pullUpdatedNMTokens());
+    }
+}
+
+// SchedulerApplicationAttempt.pullNewlyAllocatedContainers
+public List<Container> pullNewlyAllocatedContainers() {
+    writeLock.lock();
+    try {
+        List<Container> returnContainerList = new ArrayList<Container>(
+            newlyAllocatedContainers.size());
+
+        Iterator<RMContainer> i = newlyAllocatedContainers.iterator();
+        while (i.hasNext()) {
+            RMContainer rmContainer = i.next();
+            // 为新分配空间的container更新状态
+            Container updatedContainer =
+            updateContainerAndNMToken(rmContainer, null);
+        }
+        return returnContainerList;
+    } finally {
+        writeLock.unlock();
+    }
+}
+
+private Container updateContainerAndNMToken(RMContainer rmContainer,
+      ContainerUpdateType updateType) {
+    Container container = rmContainer.getContainer();
+    ContainerType containerType = ContainerType.TASK;
+
+    if (updateType == null) {
+      // This is a newly allocated container
+      rmContainer.handle(new RMContainerEvent(
+          rmContainer.getContainerId(), RMContainerEventType.ACQUIRED));
+    }
+    return container;
+}
 ```
-#### 3.9.3.9 RMAppAttemptState.ALLOCATED_SAVING
+##### 3.9.3.8.1 RMContainerEventType.ACQUIRED
+```java
+.addTransition(RMContainerState.ALLOCATED, RMContainerState.ACQUIRED,  
+    RMContainerEventType.ACQUIRED, new AcquiredTransition())
+
+private static final class AcquiredTransition extends BaseTransition {  
+  
+  @Override  
+  public void transition(RMContainerImpl container, RMContainerEvent event) {  
+    
+    // Tell the app  
+    container.eventHandler.handle(new RMAppRunningOnNodeEvent(container  
+        .getApplicationAttemptId().getApplicationId(), container.nodeId));  
+  }  
+}
+```
+##### 3.9.3.8.2 RMAppAttemptState.ALLOCATED_SAVING
 ```java
 .addTransition(RMAppAttemptState.ALLOCATED_SAVING,   
     RMAppAttemptState.ALLOCATED,  
@@ -7643,7 +7702,7 @@ private void launchAttempt(){
   eventHandler.handle(new AMLauncherEvent(AMLauncherEventType.LAUNCH, this));  
 }
 ```
-#### 3.9.3.10 AMLauncherEventType.LAUNCH
+#### 3.9.3.9 AMLauncherEventType.LAUNCH
 ```java
 // AMLauncher.java
 public void run() {  
@@ -7724,6 +7783,14 @@ public ApplicationContainerInitEvent(Container container) {
       .getApplicationId(), ApplicationEventType.INIT_CONTAINER);  
   this.container = container;  
 }
+
+// ApplicationImpl
+.addTransition(ApplicationState.INITING, ApplicationState.INITING,  
+    ApplicationEventType.INIT_CONTAINER,  
+    INIT_CONTAINER_TRANSITION)
+
+private static final InitContainerTransition INIT_CONTAINER_TRANSITION =  
+    new InitContainerTransition();
 
 
 ```

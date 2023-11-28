@@ -7470,10 +7470,120 @@ private static final class StartAppAttemptTransition extends RMAppTransition {
 
 private void  
     createAndStartNewAttempt(boolean transferStateFromPreviousAttempt) {  
+  // 创建一个RMAppAttemptImpl对象
   createNewAttempt();  
   handler.handle(new RMAppStartAttemptEvent(currentAttempt.getAppAttemptId(),  
     transferStateFromPreviousAttempt));  
 }
 
+public RMAppStartAttemptEvent(ApplicationAttemptId appAttemptId,  
+    boolean transferStateFromPreviousAttempt) {  
+  super(appAttemptId, RMAppAttemptEventType.START);  
+  this.transferStateFromPreviousAttempt = transferStateFromPreviousAttempt;  
+}
+```
+#### 3.9.3.5 RMAppAttemptEventType.START
+```java
+// RMAppAttemptImpl
+.addTransition(RMAppAttemptState.NEW, RMAppAttemptState.SUBMITTED,  
+    RMAppAttemptEventType.START, new AttemptStartedTransition())
+
+private static final class AttemptStartedTransition extends BaseTransition {  
+@Override  
+   public void transition(RMAppAttemptImpl appAttempt,  
+       RMAppAttemptEvent event) {  
+          
+    appAttempt.eventHandler.handle(new AppAttemptAddedSchedulerEvent(  
+       appAttempt.applicationAttemptId, transferStateFromPreviousAttempt));  
+   }  
+ }
+
+public AppAttemptAddedSchedulerEvent(  
+    ApplicationAttemptId applicationAttemptId,  
+    boolean transferStateFromPreviousAttempt,  
+    boolean isAttemptRecovering) {  
+  super(SchedulerEventType.APP_ATTEMPT_ADDED); 
+}
+```
+#### 3.9.3.6 SchedulerEventType.APP_ATTEMPT_ADDED
+```java
+// 容量调度器的switch：
+case APP_ATTEMPT_ADDED:  
+{  
+  addApplicationAttempt(...);  
+}  
+break;
+
+private void addApplicationAttempt(  
+    ApplicationAttemptId applicationAttemptId,  
+    boolean transferStateFromPreviousAttempt,  
+    boolean isAttemptRecovering) {  
+  writeLock.lock();  
+  try {  
+    SchedulerApplication<FiCaSchedulerApp> application = applications.get(  
+        applicationAttemptId.getApplicationId());  
+    
+    CSQueue queue = (CSQueue) application.getQueue();  
+  
+    FiCaSchedulerApp attempt = new FiCaSchedulerApp(applicationAttemptId,  
+        application.getUser(), queue, queue.getAbstractUsersManager(),  
+        rmContext, application.getPriority(), isAttemptRecovering,  
+        activitiesManager);  
+ 
+    application.setCurrentAppAttempt(attempt);  
+
+	// 提交attempt
+    queue.submitApplicationAttempt(attempt, application.getUser());  
+    if (isAttemptRecovering) {  
+      LOG.debug("{} is recovering. Skipping notifying ATTEMPT_ADDED",  
+          applicationAttemptId);  
+    } else{  
+      rmContext.getDispatcher().getEventHandler().handle(  
+          new RMAppAttemptEvent(applicationAttemptId,  
+              RMAppAttemptEventType.ATTEMPT_ADDED));  
+    }  
+  } finally {  
+    writeLock.unlock();  
+  }  
+}
+```
+#### 3.9.3.7 RMAppAttemptEventType.ATTEMPT_ADDED
+```java
+// RMAppAttemptImpl
+.addTransition(RMAppAttemptState.SUBMITTED,   
+    EnumSet.of(RMAppAttemptState.LAUNCHED_UNMANAGED_SAVING,  
+               RMAppAttemptState.SCHEDULED),  
+    RMAppAttemptEventType.ATTEMPT_ADDED,  
+    new ScheduleTransition())
+
+public static final class ScheduleTransition  
+    implements  
+    MultipleArcTransition<RMAppAttemptImpl, RMAppAttemptEvent, RMAppAttemptState> {  
+  @Override  
+  public RMAppAttemptState transition(RMAppAttemptImpl appAttempt,  
+      RMAppAttemptEvent event) {  
+    ApplicationSubmissionContext subCtx = appAttempt.submissionContext;  
+    if (!subCtx.getUnmanagedAM()) {  
+      // 分配资源
+      // AM resource has been checked when submission  
+      Allocation amContainerAllocation =  
+          appAttempt.scheduler.allocate(  
+              appAttempt.applicationAttemptId,  
+              appAttempt.amReqs, null, EMPTY_CONTAINER_RELEASE_LIST,  
+              amBlacklist.getBlacklistAdditions(),  
+              amBlacklist.getBlacklistRemovals(),  
+              new ContainerUpdates());  
+      return RMAppAttemptState.SCHEDULED;  
+    } 
+  }  
+}
+```
+#### 3.9.3.8 RMAppAttemptState.SCHEDULED
+```java
 
 ```
+#### 3.9.3.6
+#### 3.9.3.6
+#### 3.9.3.6
+#### 3.9.3.6
+#### 3.9.3.6

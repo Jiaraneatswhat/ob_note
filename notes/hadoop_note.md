@@ -7804,7 +7804,7 @@ static class AppInitTransition implements
   }  
 }
 ```
-### 3.9.3.12 LogHandlerEventType.APPLICATION_STARTED
+#### 3.9.3.12 LogHandlerEventType.APPLICATION_STARTED
 ```java
 public LogHandlerAppStartedEvent(ApplicationId appId, String user,  
     Credentials credentials, Map<ApplicationAccessType, String> appAcls,  
@@ -7832,7 +7832,7 @@ private void initApp(final ApplicationId appId, String user,
   this.dispatcher.getEventHandler().handle(eventResponse);  
 }
 ```
-### 3.9.3.13 ApplicationEventType.APPLICATION_LOG_HANDLING_INITED
+#### 3.9.3.13 ApplicationEventType.APPLICATION_LOG_HANDLING_INITED
 ```java
 .addTransition(ApplicationState.INITING, ApplicationState.INITING,  
     ApplicationEventType.APPLICATION_LOG_HANDLING_INITED,  
@@ -7848,27 +7848,97 @@ static class AppLogInitDoneTransition implements
   }  
 }
 ```
-### 3.9.3.14 LocalizationEventType.INIT_APPLICATION_RESOURCES
+#### 3.9.3.14 LocalizationEventType.INIT_APPLICATION_RESOURCES
 ```java
 // ResourceLocalizationService.java
-
-```
-ApplicationEventType.INIT_CONTAINER
-```java
-public ApplicationContainerInitEvent(Container container) {  
-  super(container.getContainerId().getApplicationAttemptId()  
-      .getApplicationId(), ApplicationEventType.INIT_CONTAINER);  
-  this.container = container;  
+public void handle(LocalizationEvent event) {  
+  // TODO: create log dir as $logdir/$user/$appId  
+  switch (event.getType()) {  
+  case INIT_APPLICATION_RESOURCES:  
+    handleInitApplicationResources(  
+        ((ApplicationLocalizationEvent)event).getApplication());  
+    break;
+    }
 }
 
-// ApplicationImpl
-.addTransition(ApplicationState.INITING, ApplicationState.INITING,  
-    ApplicationEventType.INIT_CONTAINER,  
-    INIT_CONTAINER_TRANSITION)
-
-private static final InitContainerTransition INIT_CONTAINER_TRANSITION =  
-    new InitContainerTransition();
-
-
+private void handleInitApplicationResources(Application app) {  
+  dispatcher.getEventHandler().handle(new ApplicationInitedEvent(  
+        app.getAppId()));  
+}
 ```
-#### 3.9.3.6
+#### 3.9.3.15 ApplicationEventType.APPLICATION_INITED
+```java
+public ApplicationInitedEvent(ApplicationId appID) {  
+  super(appID, ApplicationEventType.APPLICATION_INITED);  
+}
+
+.addTransition(ApplicationState.INITING, ApplicationState.RUNNING,  
+    ApplicationEventType.APPLICATION_INITED,  
+    new AppInitDoneTransition())
+    
+static class AppInitDoneTransition implements  
+    SingleArcTransition<ApplicationImpl, ApplicationEvent> {  
+  @Override  
+  public void transition(ApplicationImpl app, ApplicationEvent event) {  
+    // Start all the containers waiting for ApplicationInit  
+    for (Container container : app.containers.values()) {  
+      app.dispatcher.getEventHandler().handle(new ContainerInitEvent(  
+            container.getContainerId()));  
+    }  
+  }  
+}
+```
+#### 3.9.3.16 ContainerEventType.INIT_CONTAINER
+```java
+public ContainerInitEvent(ContainerId c) {  
+  super(c, ContainerEventType.INIT_CONTAINER);  
+}
+
+// containerImpl
+.addTransition(ContainerState.NEW,  
+    EnumSet.of(ContainerState.LOCALIZING,  
+        ContainerState.SCHEDULED,  
+        ContainerState.LOCALIZATION_FAILED,  
+        ContainerState.DONE),  
+    ContainerEventType.INIT_CONTAINER, new RequestResourcesTransition())
+
+static class RequestResourcesTransition implements  
+    MultipleArcTransition<ContainerImpl,ContainerEvent,ContainerState> {  
+  @Override  
+  public ContainerState transition(ContainerImpl container,  
+      ContainerEvent event) {  
+
+    Map<String, LocalResource> cntrRsrc;  
+    try {  
+      // 获取本地资源
+      cntrRsrc = container.context  
+          .getContainerExecutor().getLocalResources(container);  
+      if (!cntrRsrc.isEmpty()) {  
+        Map<LocalResourceVisibility, Collection<LocalResourceRequest>> req = container.resourceSet.addResources(ctxt.getLocalResources());  
+        container.dispatcher.getEventHandler().handle(  
+            new ContainerLocalizationRequestEvent(container, req));  
+        return ContainerState.LOCALIZING;  
+      }
+    }  
+  }  
+}
+```
+##### 3.9.3.16.1 (LocalizationEventType.LOCALIZE_CONTAINER_RESOURCES
+```java
+public ContainerLocalizationRequestEvent(Container c,  
+    Map<LocalResourceVisibility, Collection<LocalResourceRequest>> rsrc) {  
+  super(LocalizationEventType.LOCALIZE_CONTAINER_RESOURCES, c);  
+  this.rsrc = rsrc;  
+}
+
+public void handle(LocalizationEvent event) {  
+  // TODO: create log dir as $logdir/$user/$appId  
+  switch (event.getType()) {  
+  case LOCALIZE_CONTAINER_RESOURCES:  
+    handleInitContainerResources((ContainerLocalizationRequestEvent) event);  
+    break;
+}
+
+// 通过LocalResourcesTrackerImpl分配资源
+```
+##### 3.9.3.16.2 

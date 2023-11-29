@@ -8362,7 +8362,21 @@ public ContainerRequestEvent(TaskAttemptId attemptID,
 ```
 #### 3.9.4.9 ContainerAllocator.EventType.CONTAINER_REQ
 ```java
-
+// RMContainerAllocator收到事件后，会放在队列中
+// 之后通过handleEvent方法来处理
+  
+  recalculateReduceSchedule = true;  
+  if (event.getType() == ContainerAllocator.EventType.CONTAINER_REQ) {  
+    ContainerRequestEvent reqEvent = (ContainerRequestEvent) event;  
+    boolean isMap = reqEvent.getAttemptID().getTaskId().getTaskType().  
+        equals(TaskType.MAP);  
+    if (isMap) {  
+      handleMapContainerRequest(reqEvent);  
+    } else {  
+      handleReduceContainerRequest(reqEvent);  
+    }  
+  }
+}
 ```
 #### 3.9.4.
 

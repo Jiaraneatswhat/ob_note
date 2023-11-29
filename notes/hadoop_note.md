@@ -8288,9 +8288,81 @@ private static class SetupCompletedTransition
     }  
   }  
 }
+
+protected void scheduleTasks(Set<TaskId> taskIDs,  
+    boolean recoverTaskOutput) {  
+  for (TaskId taskID : taskIDs) {  
+    TaskInfo taskInfo = completedTasksFromPreviousRun.remove(taskID);  
+    if (taskInfo != null) {} else {  
+      eventHandler.handle(new TaskEvent(taskID, TaskEventType.T_SCHEDULE));  
+    }  
+  }  
+}
 ```
-#### 3.9.4.
-#### 3.9.4.
-#### 3.9.4.
+#### 3.9.4.7 TaskEventType.T_SCHEDULE
+```java
+// TaskImpl
+.addTransition(TaskStateInternal.NEW, TaskStateInternal.SCHEDULED,   
+    TaskEventType.T_SCHEDULE, new InitialScheduleTransition())
+
+private static class InitialScheduleTransition  
+  implements SingleArcTransition<TaskImpl, TaskEvent> {  
+  
+  @Override  
+  public void transition(TaskImpl task, TaskEvent event) {  
+    task.addAndScheduleAttempt(Avataar.VIRGIN);  
+    task.scheduledTime = task.clock.getTime();  
+    task.sendTaskStartedEvent();  
+  }  
+}
+
+private void addAndScheduleAttempt(Avataar avataar, boolean reschedule) {  
+  TaskAttempt attempt = addAttempt(avataar);  
+  inProgressAttempts.add(attempt.getID());  
+  //schedule the nextAttemptNumber  
+  if (failedAttempts.size() > 0 || reschedule) {} 
+  else {  
+    eventHandler.handle(new TaskAttemptEvent(attempt.getID(),  
+        TaskAttemptEventType.TA_SCHEDULE));  
+  }  
+}
+```
+#### 3.9.4.8 TaskAttemptEventType.TA_SCHEDULE
+```java
+// TaskAttemptImpl
+.addTransition(TaskAttemptStateInternal.NEW, TaskAttemptStateInternal.UNASSIGNED,  
+    TaskAttemptEventType.TA_SCHEDULE, new RequestContainerTransition(false))
+
+static class RequestContainerTransition implements  
+    SingleArcTransition<TaskAttemptImpl, TaskAttemptEvent> {  
+  private final boolean rescheduled;  
+  public RequestContainerTransition(boolean rescheduled) {  
+    this.rescheduled = rescheduled;  
+  }  
+  @SuppressWarnings("unchecked")  
+  @Override  
+  public void transition(TaskAttemptImpl taskAttempt,   
+      TaskAttemptEvent event) {  
+    //request for container  
+    if (rescheduled) {} 
+    else {  
+      taskAttempt.eventHandler.handle(new ContainerRequestEvent(...);  
+    }  
+  }  
+}
+
+public ContainerRequestEvent(TaskAttemptId attemptID,   
+    Resource capability,  
+    String[] hosts, String[] racks) {  
+  super(attemptID, ContainerAllocator.EventType.CONTAINER_REQ);  
+  this.capability = capability;  
+  this.hosts = hosts;  
+  this.racks = racks;  
+}									  
+```
+#### 3.9.4.9 ContainerAllocator.EventType.CONTAINER_REQ
+```java
+
+```
 #### 3.9.4.
 

@@ -7941,4 +7941,310 @@ public void handle(LocalizationEvent event) {
 
 // 通过LocalResourcesTrackerImpl分配资源
 ```
-##### 3.9.3.16.2 
+##### 3.9.3.16.2 ContainerState.LOCALIZING
+```java
+.addTransition(ContainerState.LOCALIZING,  
+    EnumSet.of(ContainerState.LOCALIZING, ContainerState.SCHEDULED),  
+    ContainerEventType.RESOURCE_LOCALIZED, new LocalizedTransition())
+
+static class LocalizedTransition implements  
+    MultipleArcTransition<ContainerImpl,ContainerEvent,ContainerState> {  
+
+  public ContainerState transition(ContainerImpl container,  
+      ContainerEvent event) {  
+
+    container.dispatcher.getEventHandler().handle(  
+        new ContainerLocalizationEvent(LocalizationEventType.  
+            CONTAINER_RESOURCES_LOCALIZED, container));  
+  
+    container.sendScheduleEvent();  
+    container.metrics.endInitingContainer();  
+  
+    return ContainerState.SCHEDULED;  
+  }  
+}
+```
+### 3.9.3.17 ContainerSchedulerEventType.SCHEDULE_CONTAINER
+```java
+private void sendScheduleEvent() {  
+  if (recoveredStatus == RecoveredContainerStatus.PAUSED) {  
+  } else {  
+    dispatcher.getEventHandler().handle(new ContainerSchedulerEvent(this, 
+        ContainerSchedulerEventType.SCHEDULE_CONTAINER));  
+  }  
+}
+
+// ContainerScheduler.java
+public void handle(ContainerSchedulerEvent event) {  
+  switch (event.getType()) {  
+  case SCHEDULE_CONTAINER:  
+    // 加入队列调用startPendingContainers()
+    scheduleContainer(event.getContainer());  
+    break;
+}
+```
+### 3.9.3.18 startPendingContainers()
+```java
+private void startPendingContainers(boolean forceStartGuaranteedContaieners) {  
+  // Start guaranteed containers that are paused, if resources available.  
+  boolean resourcesAvailable = startContainers(  
+        queuedGuaranteedContainers.values(), forceStartGuaranteedContaieners);  
+  // Start opportunistic containers, if resources available.  
+  if (resourcesAvailable) {  
+    startContainers(queuedOpportunisticContainers.values(), false);  
+  }  
+}
+
+private boolean startContainers(  
+    Collection<Container> containersToBeStarted, boolean force) {  
+  Iterator<Container> cIter = containersToBeStarted.iterator();  
+  boolean resourcesAvailable = true;  
+  while (cIter.hasNext() && resourcesAvailable) {  
+    Container container = cIter.next();  
+    if (tryStartContainer(container, force)) {  
+      cIter.remove();  
+    } else {  
+      resourcesAvailable = false;  
+    }  
+  }  
+  return resourcesAvailable;  
+}
+
+private boolean tryStartContainer(Container container, boolean force) {  
+  boolean containerStarted = false;  
+  // call startContainer without checking available resource when force==true  
+  if (force || resourceAvailableToStartContainer(  
+      container)) {  
+    startContainer(container);  
+    containerStarted = true;  
+  }  
+  return containerStarted;  
+}
+
+private void startContainer(Container container) {  
+  container.sendLaunchEvent();  
+}
+
+public void sendLaunchEvent() {  
+  if (ContainerState.PAUSED == getContainerState()) {
+  } else {  
+    ContainersLauncherEventType launcherEvent =  
+        ContainersLauncherEventType.LAUNCH_CONTAINER;  
+    if (recoveredStatus == RecoveredContainerStatus.LAUNCHED) {  
+      // try to recover a container that was previously launched  
+      launcherEvent = ContainersLauncherEventType.RECOVER_CONTAINER;  
+    }
+  
+    containerLaunchStartTime = clock.getTime();  
+    dispatcher.getEventHandler().handle(  
+        new ContainersLauncherEvent(this, launcherEvent));  
+  }  
+}
+```
+### 3.9.3.19 ContainersLauncherEventType.LAUNCH_CONTAINER
+```java
+public void handle(ContainersLauncherEvent event) {  
+  // TODO: ContainersLauncher launches containers one by one!!  
+  Container container = event.getContainer();  
+  ContainerId containerId = container.getContainerId();  
+  switch (event.getType()) {  
+    case LAUNCH_CONTAINER:   
+	  // 新建一个ContainerLaunch对象，放入ContainerLaunch线程池对象中
+      ContainerLaunch launch =  
+          new ContainerLaunch(context, getConfig(), dispatcher, exec, app, event.getContainer(), dirsHandler, containerManager);  
+      containerLauncher.submit(launch);  
+      running.put(containerId, launch);  
+      break;
+}
+
+// ContainerLaunch继承了Callable，运行方法在call中
+public Integer call() {  
+  
+  final ContainerLaunchContext launchContext = container.getLaunchContext();  
+  ContainerId containerID = container.getContainerId();  
+  String containerIdStr = containerID.toString();  
+  final List<String> command = launchContext.getCommands();  
+  int ret = -1;  
+  
+  Path containerLogDir;  
+  try {  
+    Map<Path, List<String>> localResources = getLocalizedResources();  
+  
+    final String user = container.getUser();  
+    // /////////////////////////// Variable expansion  
+    // Before the container script gets written out.    List<String> newCmds = new ArrayList<String>(command.size());  
+    String appIdStr = app.getAppId().toString();  
+    String relativeContainerLogDir = ContainerLaunch  
+        .getRelativeContainerLogDir(appIdStr, containerIdStr);  
+    containerLogDir =  
+        dirsHandler.getLogPathForWrite(relativeContainerLogDir, false);  
+    recordContainerLogDir(containerID, containerLogDir.toString());  
+    for (String str : command) {  
+      // TODO: Should we instead work via symlinks without this grammar?  
+      newCmds.add(expandEnvironment(str, containerLogDir));  
+    }  
+    launchContext.setCommands(newCmds);  
+  
+    // The actual expansion of environment variables happens after calling  
+    // sanitizeEnv.  This allows variables specified in NM_ADMIN_USER_ENV    // to reference user or container-defined variables.    Map<String, String> environment = launchContext.getEnvironment();  
+    // /////////////////////////// End of variable expansion  
+  
+    // Use this to track variables that are added to the environment by nm.    LinkedHashSet<String> nmEnvVars = new LinkedHashSet<String>();  
+  
+    FileContext lfs = FileContext.getLocalFSFileContext();  
+  
+    Path nmPrivateContainerScriptPath = dirsHandler.getLocalPathForWrite(  
+        getContainerPrivateDir(appIdStr, containerIdStr) + Path.SEPARATOR  
+            + CONTAINER_SCRIPT);  
+    Path nmPrivateTokensPath = dirsHandler.getLocalPathForWrite(  
+        getContainerPrivateDir(appIdStr, containerIdStr) + Path.SEPARATOR  
+            + String.format(TOKEN_FILE_NAME_FMT, containerIdStr));  
+    Path nmPrivateKeystorePath = dirsHandler.getLocalPathForWrite(  
+        getContainerPrivateDir(appIdStr, containerIdStr) + Path.SEPARATOR  
+            + KEYSTORE_FILE);  
+    Path nmPrivateTruststorePath = dirsHandler.getLocalPathForWrite(  
+        getContainerPrivateDir(appIdStr, containerIdStr) + Path.SEPARATOR  
+            + TRUSTSTORE_FILE);  
+    Path nmPrivateClasspathJarDir = dirsHandler.getLocalPathForWrite(  
+        getContainerPrivateDir(appIdStr, containerIdStr));  
+  
+    // Select the working directory for the container  
+    Path containerWorkDir = deriveContainerWorkDir();  
+    recordContainerWorkDir(containerID, containerWorkDir.toString());  
+  
+    // Select a root dir for all csi volumes for the container  
+    Path csiVolumesRoot = deriveCsiVolumesRootDir();  
+    recordContainerCsiVolumesRootDir(containerID, csiVolumesRoot.toString());  
+  
+    String pidFileSubpath = getPidFileSubpath(appIdStr, containerIdStr);  
+    // pid file should be in nm private dir so that it is not  
+    // accessible by users    pidFilePath = dirsHandler.getLocalPathForWrite(pidFileSubpath);  
+    List<String> localDirs = dirsHandler.getLocalDirs();  
+    List<String> localDirsForRead = dirsHandler.getLocalDirsForRead();  
+    List<String> logDirs = dirsHandler.getLogDirs();  
+    List<String> filecacheDirs = getNMFilecacheDirs(localDirsForRead);  
+    List<String> userLocalDirs = getUserLocalDirs(localDirs);  
+    List<String> containerLocalDirs = getContainerLocalDirs(localDirs);  
+    List<String> containerLogDirs = getContainerLogDirs(logDirs);  
+    List<String> userFilecacheDirs = getUserFilecacheDirs(localDirsForRead);  
+    List<String> applicationLocalDirs = getApplicationLocalDirs(localDirs,  
+        appIdStr);  
+  
+    if (!dirsHandler.areDisksHealthy()) {  
+      ret = ContainerExitStatus.DISKS_FAILED;  
+      throw new IOException("Most of the disks failed. "  
+          + dirsHandler.getDisksHealthReport(false));  
+    }  
+    List<Path> appDirs = new ArrayList<Path>(localDirs.size());  
+    for (String localDir : localDirs) {  
+      Path usersdir = new Path(localDir, ContainerLocalizer.USERCACHE);  
+      Path userdir = new Path(usersdir, user);  
+      Path appsdir = new Path(userdir, ContainerLocalizer.APPCACHE);  
+      appDirs.add(new Path(appsdir, appIdStr));  
+    }  
+  
+    byte[] keystore = container.getCredentials().getSecretKey(  
+        AMSecretKeys.YARN_APPLICATION_AM_KEYSTORE);  
+    if (keystore != null) {  
+      try (DataOutputStream keystoreOutStream =  
+               lfs.create(nmPrivateKeystorePath,  
+                   EnumSet.of(CREATE, OVERWRITE))) {  
+        keystoreOutStream.write(keystore);  
+      }  
+    } else {  
+      nmPrivateKeystorePath = null;  
+    }  
+    byte[] truststore = container.getCredentials().getSecretKey(  
+        AMSecretKeys.YARN_APPLICATION_AM_TRUSTSTORE);  
+    if (truststore != null) {  
+      try (DataOutputStream truststoreOutStream =  
+               lfs.create(nmPrivateTruststorePath,  
+                   EnumSet.of(CREATE, OVERWRITE))) {  
+        truststoreOutStream.write(truststore);  
+      }  
+    } else {  
+      nmPrivateTruststorePath = null;  
+    }  
+  
+    // Set the token location too.  
+    addToEnvMap(environment, nmEnvVars,  
+        ApplicationConstants.CONTAINER_TOKEN_FILE_ENV_NAME,  
+        new Path(containerWorkDir,  
+            FINAL_CONTAINER_TOKENS_FILE).toUri().getPath());  
+  
+    // /////////// Write out the container-script in the nmPrivate space.  
+    try (DataOutputStream containerScriptOutStream =  
+             lfs.create(nmPrivateContainerScriptPath,  
+                 EnumSet.of(CREATE, OVERWRITE))) {  
+      // Sanitize the container's environment  
+      sanitizeEnv(environment, containerWorkDir, appDirs, userLocalDirs,  
+          containerLogDirs, localResources, nmPrivateClasspathJarDir,  
+          nmEnvVars);  
+  
+      expandAllEnvironmentVars(environment, containerLogDir);  
+  
+      // Add these if needed after expanding so we don't expand key values.  
+      if (keystore != null) {  
+        addKeystoreVars(environment, containerWorkDir);  
+      }  
+      if (truststore != null) {  
+        addTruststoreVars(environment, containerWorkDir);  
+      }  
+  
+      prepareContainer(localResources, containerLocalDirs);  
+  
+      // Write out the environment  
+      exec.writeLaunchEnv(containerScriptOutStream, environment,  
+          localResources, launchContext.getCommands(),  
+          containerLogDir, user, nmEnvVars);  
+    }  
+    // /////////// End of writing out container-script  
+  
+    // /////////// Write out the container-tokens in the nmPrivate space.    try (DataOutputStream tokensOutStream =  
+             lfs.create(nmPrivateTokensPath, EnumSet.of(CREATE, OVERWRITE))) {  
+      Credentials creds = container.getCredentials();  
+      creds.writeTokenStorageToStream(tokensOutStream);  
+    }  
+    // /////////// End of writing out container-tokens  
+  
+    ret = launchContainer(new ContainerStartContext.Builder()  
+        .setContainer(container)  
+        .setLocalizedResources(localResources)  
+        .setNmPrivateContainerScriptPath(nmPrivateContainerScriptPath)  
+        .setNmPrivateTokensPath(nmPrivateTokensPath)  
+        .setNmPrivateKeystorePath(nmPrivateKeystorePath)  
+        .setNmPrivateTruststorePath(nmPrivateTruststorePath)  
+        .setUser(user)  
+        .setAppId(appIdStr)  
+        .setContainerWorkDir(containerWorkDir)  
+        .setContainerCsiVolumesRootDir(csiVolumesRoot)  
+        .setLocalDirs(localDirs)  
+        .setLogDirs(logDirs)  
+        .setFilecacheDirs(filecacheDirs)  
+        .setUserLocalDirs(userLocalDirs)  
+        .setContainerLocalDirs(containerLocalDirs)  
+        .setContainerLogDirs(containerLogDirs)  
+        .setUserFilecacheDirs(userFilecacheDirs)  
+        .setApplicationLocalDirs(applicationLocalDirs).build());  
+  } catch (ConfigurationException e) {  
+    LOG.error("Failed to launch container due to configuration error.", e);  
+    dispatcher.getEventHandler().handle(new ContainerExitEvent(  
+        containerID, ContainerEventType.CONTAINER_EXITED_WITH_FAILURE, ret,  
+        e.getMessage()));  
+    // Mark the node as unhealthy  
+    context.getNodeStatusUpdater().reportException(e);  
+    return ret;  
+  } catch (Throwable e) {  
+    LOG.warn("Failed to launch container.", e);  
+    dispatcher.getEventHandler().handle(new ContainerExitEvent(  
+        containerID, ContainerEventType.CONTAINER_EXITED_WITH_FAILURE, ret,  
+        e.getMessage()));  
+    return ret;  
+  } finally {  
+    setContainerCompletedStatus(ret);  
+  }  
+  
+  handleContainerExitCode(ret, containerLogDir);  
+  return ret;  
+}
+```

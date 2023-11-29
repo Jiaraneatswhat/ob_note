@@ -8402,6 +8402,20 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 });
 }
 ```
+# 4. Shell 操作
+- `hadoop fs` 或 `hdfs dfs`
+```shell
+# 追加数据到文件
+-appendToFIle <localsrc> <dst>
 
+# 移动文件到指定目录
+-mv <src> <dst>
 
-# 4. 
+# 从本地上传文件
+-put [-f] <localsrc> <dst>
+-f: 覆盖目标文件
+
+# 下载文件
+-get [-f] [-p] <src> <localdst>
+```
+

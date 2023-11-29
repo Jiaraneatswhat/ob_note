@@ -7144,7 +7144,7 @@ private STATE doTransition
 ## 3.6 RMAppImpl
 ## 3.7 RMAppAttemptImpl
 ## 3.8 RMNodeImpl
-## 3.9 提交任务
+## 3.9 提交执行任务
 ### 3.9.1 YARNRunner.submitJob()
 ```java
 public JobStatus submitJob(JobID jobId, String jobSubmitDir, Credentials ts)
@@ -8377,6 +8377,31 @@ public ContainerRequestEvent(TaskAttemptId attemptID,
     }  
   }
 }
+// 给任务分配到资源后启动YarnChild
 ```
-#### 3.9.4.
+### 3.9.5 启动 YarnChild
+```java
+public static void main(String[] args) throws Throwable {  
+	// job.xml
+	final JobConf job = new JobConf(MRJobConfig.JOB_CONF_FILE);
+	
+	task = myTask.getTask();  
+	YarnChild.taskid = task.getTaskID();  
+	  
+	// Create the job-conf and set credentials  
+	configureTask(job, task, credentials, jt);
 
+	final Task taskFinal = task;  
+childUGI.doAs(new PrivilegedExceptionAction<Object>() {  
+  @Override  
+  // MapTask|ReduceTask的run()方法
+  public Object run() throws Exception {  
+    taskFinal.run(job, umbilical); // run the task  
+    return null;  
+  }  
+});
+}
+```
+
+
+# 4. 

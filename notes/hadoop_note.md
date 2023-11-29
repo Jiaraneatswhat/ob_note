@@ -8176,22 +8176,10 @@ protected void serviceInit(final Configuration conf) throws Exception {
 ```java
 protected void serviceStart() throws Exception {  
   
-  amInfos = new LinkedList<AMInfo>();  
-  completedTasksFromPreviousRun = new HashMap<TaskId, TaskInfo>();  
-  processRecovery();  
-  cleanUpPreviousJobOutput();  
-  
-  // Current an AMInfo for the current AM generation.  
-  AMInfo amInfo =  
-      MRBuilderUtils.newAMInfo(appAttemptID, startTime, containerID, nmHost,  
-          nmPort, nmHttpPort);  
-  
-  // /////////////////// Create the job itself.  
+  // 创建job对象
   job = createJob(getConfig(), forcedState, shutDownMessage);  
   
-  // End of creating the job.  
-  
-  // Send out an MR AM inited event for all previous AMs.  for (AMInfo info : amInfos) {  
+  // 通知AM启动
     dispatcher.getEventHandler().handle(  
         new JobHistoryEvent(job.getID(), new AMStartedEvent(info  
             .getAppAttemptId(), info.getStartTime(), info.getContainerId(),  
@@ -8207,58 +8195,100 @@ protected void serviceStart() throws Exception {
               .getNodeManagerHttpPort(), this.forcedState == null ? null  
                   : this.forcedState.toString(), appSubmitTime)));  
   amInfos.add(amInfo);  
-  
-  // metrics system init is really init & start.  
-  // It's more test friendly to put it here.  DefaultMetricsSystem.initialize("MRAppMaster");  
-  
-  boolean initFailed = false;  
-  if (!errorHappenedShutDown) {  
-    // create a job event for job initialization  
-    JobEvent initJobEvent = new JobEvent(job.getID(), JobEventType.JOB_INIT);  
-    // Send init to the job (this does NOT trigger job execution)  
-    // This is a synchronous call, not an event through dispatcher. We want    // job-init to be done completely here.    jobEventDispatcher.handle(initJobEvent);  
-  
-    // If job is still not initialized, an error happened during  
-    // initialization. Must complete starting all of the services so failure    // events can be processed.    initFailed = (((JobImpl)job).getInternalState() != JobStateInternal.INITED);  
-  
-    // JobImpl's InitTransition is done (call above is synchronous), so the  
-    // "uber-decision" (MR-1220) has been made.  Query job and switch to    // ubermode if appropriate (by registering different container-allocator    // and container-launcher services/event-handlers).  
-    if (job.isUber()) {  
-      speculatorEventDispatcher.disableSpeculation();  
-      LOG.info("MRAppMaster uberizing job " + job.getID()  
-          + " in local container (\"uber-AM\") on node "  
-          + nmHost + ":" + nmPort + ".");  
-    } else {  
-      // send init to speculator only for non-uber jobs.   
-      // This won't yet start as dispatcher isn't started yet.  
-      dispatcher.getEventHandler().handle(  
-          new SpeculatorEvent(job.getID(), clock.getTime()));  
-      LOG.info("MRAppMaster launching normal, non-uberized, multi-container "  
-          + "job " + job.getID() + ".");  
-    }  
-    // Start ClientService here, since it's not initialized if  
-    // errorHappenedShutDown is true    clientService.start();  
-  }  
-  //start all the components  
-  super.serviceStart();  
-  
-  // finally set the job classloader  
-  MRApps.setClassLoader(jobClassLoader, getConfig());  
-  
+
   if (initFailed) {  
     JobEvent initFailedEvent = new JobEvent(job.getID(), JobEventType.JOB_INIT_FAILED);  
     jobEventDispatcher.handle(initFailedEvent);  
   } else {  
-    // All components have started, start the job.  
+    // All components have started, start the job. 
+    // 启动Job 
     startJobs();  
   }  
 }
 
+protected void startJobs() {  
+  /** create a job-start event to get this ball rolling */  
+  JobEvent startJobEvent = new JobStartEvent(job.getID(),  
+      recoveredJobStartTime);  
+  /** send the job-start event. this triggers the job execution. */  
+  dispatcher.getEventHandler().handle(startJobEvent);  
+}
 
+// GenericEventHandler将JobEventType.JOB_START事件放入队列中
+public JobStartEvent(JobId jobID, long recoveredJobStartTime) {  
+  super(jobID, JobEventType.JOB_START);  
+  this.recoveredJobStartTime = recoveredJobStartTime;  
+}
 ```
-#### 3.9.4.
-#### 3.9.4.
-#### 3.9.4.
+#### 3.9.4.4 JobEventType.JOB_START
+```java
+// JobImpl中的状态机进行处理
+.addTransition(JobStateInternal.INITED, JobStateInternal.SETUP,  
+    JobEventType.JOB_START,  
+    new StartTransition())
+
+public static class StartTransition  
+implements SingleArcTransition<JobImpl, JobEvent> {  
+  /**  
+   * This transition executes in the event-dispatcher thread, though it's   * triggered in MRAppMaster's startJobs() method.   */  
+  @Override  
+  public void transition(JobImpl job, JobEvent event) {  
+    JobStartEvent jse = (JobStartEvent) event;  
+    job.eventHandler.handle(new CommitterJobSetupEvent(  
+            job.jobId, job.jobContext));  
+  }  
+}
+
+public CommitterJobSetupEvent(JobId jobID, JobContext jobContext) {  
+  super(CommitterEventType.JOB_SETUP);  
+  this.jobID = jobID;  
+  this.jobContext = jobContext;  
+}
+```
+#### 3.9.4.5 CommitterEventType.JOB_SETUP
+```java
+// CommitterEventHandler.java
+public void run() {  
+  switch (event.getType()) {  
+  case JOB_SETUP:  
+    handleJobSetup((CommitterJobSetupEvent) event);  
+    break;
+}
+
+protected void handleJobSetup(CommitterJobSetupEvent event) {  
+  try {  
+    committer.setupJob(event.getJobContext());  
+    context.getEventHandler().handle(  
+        new JobSetupCompletedEvent(event.getJobID()));  
+  }  
+}
+
+public JobSetupCompletedEvent(JobId jobID) {  
+  super(jobID, JobEventType.JOB_SETUP_COMPLETED);  
+}
+```
+#### 3.9.4.6 obEventType.JOB_SETUP_COMPLETED
+```java
+.addTransition(JobStateInternal.SETUP, JobStateInternal.RUNNING,  
+    JobEventType.JOB_SETUP_COMPLETED,  
+    new SetupCompletedTransition())
+
+private static class SetupCompletedTransition  
+    implements SingleArcTransition<JobImpl, JobEvent> {  
+  @Override  
+  public void transition(JobImpl job, JobEvent event) {  
+    job.setupProgress = 1.0f;  
+    job.scheduleTasks(job.mapTasks, job.numReduceTasks == 0);  
+    job.scheduleTasks(job.reduceTasks, true);  
+  
+    // If we have no tasks, just transition to job completed  
+    if (job.numReduceTasks == 0 && job.numMapTasks == 0) {  
+      job.eventHandler.handle(new JobEvent(job.jobId,  
+          JobEventType.JOB_COMPLETED));  
+    }  
+  }  
+}
+```
 #### 3.9.4.
 #### 3.9.4.
 #### 3.9.4.

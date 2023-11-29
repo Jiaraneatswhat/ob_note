@@ -7964,7 +7964,7 @@ static class LocalizedTransition implements
   }  
 }
 ```
-### 3.9.3.17 ContainerSchedulerEventType.SCHEDULE_CONTAINER
+#### 3.9.3.17 ContainerSchedulerEventType.SCHEDULE_CONTAINER
 ```java
 private void sendScheduleEvent() {  
   if (recoveredStatus == RecoveredContainerStatus.PAUSED) {  
@@ -7983,7 +7983,7 @@ public void handle(ContainerSchedulerEvent event) {
     break;
 }
 ```
-### 3.9.3.18 startPendingContainers()
+#### 3.9.3.18 startPendingContainers()
 ```java
 private void startPendingContainers(boolean forceStartGuaranteedContaieners) {  
   // Start guaranteed containers that are paused, if resources available.  
@@ -8041,7 +8041,7 @@ public void sendLaunchEvent() {
   }  
 }
 ```
-### 3.9.3.19 ContainersLauncherEventType.LAUNCH_CONTAINER
+#### 3.9.3.19 ContainersLauncherEventType.LAUNCH_CONTAINER
 ```java
 public void handle(ContainersLauncherEvent event) {  
   // TODO: ContainersLauncher launches containers one by one!!  
@@ -8061,190 +8061,206 @@ public void handle(ContainersLauncherEvent event) {
 public Integer call() {  
   
   final ContainerLaunchContext launchContext = container.getLaunchContext();  
-  ContainerId containerID = container.getContainerId();  
-  String containerIdStr = containerID.toString();  
+  
   final List<String> command = launchContext.getCommands();  
   int ret = -1;  
   
-  Path containerLogDir;  
   try {  
-    Map<Path, List<String>> localResources = getLocalizedResources();  
-  
-    final String user = container.getUser();  
-    // /////////////////////////// Variable expansion  
-    // Before the container script gets written out.    List<String> newCmds = new ArrayList<String>(command.size());  
-    String appIdStr = app.getAppId().toString();  
-    String relativeContainerLogDir = ContainerLaunch  
-        .getRelativeContainerLogDir(appIdStr, containerIdStr);  
-    containerLogDir =  
-        dirsHandler.getLogPathForWrite(relativeContainerLogDir, false);  
-    recordContainerLogDir(containerID, containerLogDir.toString());  
-    for (String str : command) {  
-      // TODO: Should we instead work via symlinks without this grammar?  
-      newCmds.add(expandEnvironment(str, containerLogDir));  
-    }  
-    launchContext.setCommands(newCmds);  
-  
-    // The actual expansion of environment variables happens after calling  
-    // sanitizeEnv.  This allows variables specified in NM_ADMIN_USER_ENV    // to reference user or container-defined variables.    Map<String, String> environment = launchContext.getEnvironment();  
-    // /////////////////////////// End of variable expansion  
-  
-    // Use this to track variables that are added to the environment by nm.    LinkedHashSet<String> nmEnvVars = new LinkedHashSet<String>();  
-  
-    FileContext lfs = FileContext.getLocalFSFileContext();  
-  
-    Path nmPrivateContainerScriptPath = dirsHandler.getLocalPathForWrite(  
-        getContainerPrivateDir(appIdStr, containerIdStr) + Path.SEPARATOR  
-            + CONTAINER_SCRIPT);  
-    Path nmPrivateTokensPath = dirsHandler.getLocalPathForWrite(  
-        getContainerPrivateDir(appIdStr, containerIdStr) + Path.SEPARATOR  
-            + String.format(TOKEN_FILE_NAME_FMT, containerIdStr));  
-    Path nmPrivateKeystorePath = dirsHandler.getLocalPathForWrite(  
-        getContainerPrivateDir(appIdStr, containerIdStr) + Path.SEPARATOR  
-            + KEYSTORE_FILE);  
-    Path nmPrivateTruststorePath = dirsHandler.getLocalPathForWrite(  
-        getContainerPrivateDir(appIdStr, containerIdStr) + Path.SEPARATOR  
-            + TRUSTSTORE_FILE);  
-    Path nmPrivateClasspathJarDir = dirsHandler.getLocalPathForWrite(  
-        getContainerPrivateDir(appIdStr, containerIdStr));  
-  
-    // Select the working directory for the container  
-    Path containerWorkDir = deriveContainerWorkDir();  
-    recordContainerWorkDir(containerID, containerWorkDir.toString());  
-  
-    // Select a root dir for all csi volumes for the container  
-    Path csiVolumesRoot = deriveCsiVolumesRootDir();  
-    recordContainerCsiVolumesRootDir(containerID, csiVolumesRoot.toString());  
-  
-    String pidFileSubpath = getPidFileSubpath(appIdStr, containerIdStr);  
-    // pid file should be in nm private dir so that it is not  
-    // accessible by users    pidFilePath = dirsHandler.getLocalPathForWrite(pidFileSubpath);  
-    List<String> localDirs = dirsHandler.getLocalDirs();  
-    List<String> localDirsForRead = dirsHandler.getLocalDirsForRead();  
-    List<String> logDirs = dirsHandler.getLogDirs();  
-    List<String> filecacheDirs = getNMFilecacheDirs(localDirsForRead);  
-    List<String> userLocalDirs = getUserLocalDirs(localDirs);  
-    List<String> containerLocalDirs = getContainerLocalDirs(localDirs);  
-    List<String> containerLogDirs = getContainerLogDirs(logDirs);  
-    List<String> userFilecacheDirs = getUserFilecacheDirs(localDirsForRead);  
-    List<String> applicationLocalDirs = getApplicationLocalDirs(localDirs,  
-        appIdStr);  
-  
-    if (!dirsHandler.areDisksHealthy()) {  
-      ret = ContainerExitStatus.DISKS_FAILED;  
-      throw new IOException("Most of the disks failed. "  
-          + dirsHandler.getDisksHealthReport(false));  
-    }  
-    List<Path> appDirs = new ArrayList<Path>(localDirs.size());  
-    for (String localDir : localDirs) {  
-      Path usersdir = new Path(localDir, ContainerLocalizer.USERCACHE);  
-      Path userdir = new Path(usersdir, user);  
-      Path appsdir = new Path(userdir, ContainerLocalizer.APPCACHE);  
-      appDirs.add(new Path(appsdir, appIdStr));  
-    }  
-  
-    byte[] keystore = container.getCredentials().getSecretKey(  
-        AMSecretKeys.YARN_APPLICATION_AM_KEYSTORE);  
-    if (keystore != null) {  
-      try (DataOutputStream keystoreOutStream =  
-               lfs.create(nmPrivateKeystorePath,  
-                   EnumSet.of(CREATE, OVERWRITE))) {  
-        keystoreOutStream.write(keystore);  
-      }  
-    } else {  
-      nmPrivateKeystorePath = null;  
-    }  
-    byte[] truststore = container.getCredentials().getSecretKey(  
-        AMSecretKeys.YARN_APPLICATION_AM_TRUSTSTORE);  
-    if (truststore != null) {  
-      try (DataOutputStream truststoreOutStream =  
-               lfs.create(nmPrivateTruststorePath,  
-                   EnumSet.of(CREATE, OVERWRITE))) {  
-        truststoreOutStream.write(truststore);  
-      }  
-    } else {  
-      nmPrivateTruststorePath = null;  
-    }  
-  
-    // Set the token location too.  
-    addToEnvMap(environment, nmEnvVars,  
-        ApplicationConstants.CONTAINER_TOKEN_FILE_ENV_NAME,  
-        new Path(containerWorkDir,  
-            FINAL_CONTAINER_TOKENS_FILE).toUri().getPath());  
-  
-    // /////////// Write out the container-script in the nmPrivate space.  
-    try (DataOutputStream containerScriptOutStream =  
-             lfs.create(nmPrivateContainerScriptPath,  
-                 EnumSet.of(CREATE, OVERWRITE))) {  
-      // Sanitize the container's environment  
-      sanitizeEnv(environment, containerWorkDir, appDirs, userLocalDirs,  
-          containerLogDirs, localResources, nmPrivateClasspathJarDir,  
-          nmEnvVars);  
-  
-      expandAllEnvironmentVars(environment, containerLogDir);  
-  
-      // Add these if needed after expanding so we don't expand key values.  
-      if (keystore != null) {  
-        addKeystoreVars(environment, containerWorkDir);  
-      }  
-      if (truststore != null) {  
-        addTruststoreVars(environment, containerWorkDir);  
-      }  
-  
-      prepareContainer(localResources, containerLocalDirs);  
-  
-      // Write out the environment  
-      exec.writeLaunchEnv(containerScriptOutStream, environment,  
-          localResources, launchContext.getCommands(),  
-          containerLogDir, user, nmEnvVars);  
-    }  
-    // /////////// End of writing out container-script  
-  
-    // /////////// Write out the container-tokens in the nmPrivate space.    try (DataOutputStream tokensOutStream =  
-             lfs.create(nmPrivateTokensPath, EnumSet.of(CREATE, OVERWRITE))) {  
-      Credentials creds = container.getCredentials();  
-      creds.writeTokenStorageToStream(tokensOutStream);  
-    }  
-    // /////////// End of writing out container-tokens  
-  
-    ret = launchContainer(new ContainerStartContext.Builder()  
-        .setContainer(container)  
-        .setLocalizedResources(localResources)  
-        .setNmPrivateContainerScriptPath(nmPrivateContainerScriptPath)  
-        .setNmPrivateTokensPath(nmPrivateTokensPath)  
-        .setNmPrivateKeystorePath(nmPrivateKeystorePath)  
-        .setNmPrivateTruststorePath(nmPrivateTruststorePath)  
-        .setUser(user)  
-        .setAppId(appIdStr)  
-        .setContainerWorkDir(containerWorkDir)  
-        .setContainerCsiVolumesRootDir(csiVolumesRoot)  
-        .setLocalDirs(localDirs)  
-        .setLogDirs(logDirs)  
-        .setFilecacheDirs(filecacheDirs)  
-        .setUserLocalDirs(userLocalDirs)  
-        .setContainerLocalDirs(containerLocalDirs)  
-        .setContainerLogDirs(containerLogDirs)  
-        .setUserFilecacheDirs(userFilecacheDirs)  
-        .setApplicationLocalDirs(applicationLocalDirs).build());  
-  } catch (ConfigurationException e) {  
-    LOG.error("Failed to launch container due to configuration error.", e);  
-    dispatcher.getEventHandler().handle(new ContainerExitEvent(  
-        containerID, ContainerEventType.CONTAINER_EXITED_WITH_FAILURE, ret,  
-        e.getMessage()));  
-    // Mark the node as unhealthy  
-    context.getNodeStatusUpdater().reportException(e);  
-    return ret;  
-  } catch (Throwable e) {  
-    LOG.warn("Failed to launch container.", e);  
-    dispatcher.getEventHandler().handle(new ContainerExitEvent(  
-        containerID, ContainerEventType.CONTAINER_EXITED_WITH_FAILURE, ret,  
-        e.getMessage()));  
-    return ret;  
-  } finally {  
-    setContainerCompletedStatus(ret);  
-  }  
-  
-  handleContainerExitCode(ret, containerLogDir);  
+    ret = launchContainer(...);  
+  } 
   return ret;  
 }
+
+protected int launchContainer(ContainerStartContext ctx)  
+    throws IOException, ConfigurationException {  
+  int launchPrep = prepareForLaunch(ctx);  
+  if (launchPrep == 0) {  
+    launchLock.lock();  
+    try {  
+      return exec.launchContainer(ctx);  
+    } finally {  
+      launchLock.unlock();  
+    }  
+  }  
+  return launchPrep;  
+}
 ```
+### 3.9.4 启动 MRAppMaster
+#### 3.9.4.1 main()
+```java
+public static void main(String[] args) {  
+  try { 
+    ContainerId containerId = ContainerId.fromString(containerIdStr);  
+    ApplicationAttemptId applicationAttemptId =  
+        containerId.getApplicationAttemptId();  
+    if (applicationAttemptId != null) {  
+      CallerContext.setCurrent(new CallerContext.Builder(  
+          "mr_appmaster_" + applicationAttemptId.toString()).build());  
+    }  
+    long appSubmitTime = Long.parseLong(appSubmitTimeStr);  
+      
+    // 创建AM对象
+    MRAppMaster appMaster =  
+        new MRAppMaster(applicationAttemptId, containerId, nodeHostString, Integer.parseInt(nodePortString),  
+		Integer.parseInt(nodeHttpPortString), appSubmitTime);  
+	
+    initAndStartAppMaster(appMaster, conf, jobUserName);  
+  }   
+}
+
+protected static void initAndStartAppMaster(final MRAppMaster appMaster,  
+    final JobConf conf, String jobUserName) throws IOException,  
+    InterruptedException {  
+  appMasterUgi.doAs(new PrivilegedExceptionAction<Object>() {  
+    @Override  
+    public Object run() throws Exception {  
+      appMaster.init(conf);  
+      appMaster.start();  
+      if(appMaster.errorHappenedShutDown) {  
+        throw new IOException("Was asked to shut down.");  
+      }  
+      return null;  
+    }  
+  });  
+}
+```
+#### 3.9.4.2 ServiceInit()
+```java
+protected void serviceInit(final Configuration conf) throws Exception {  
+  // create the job classloader if enabled  
+  createJobClassLoader(conf);  
+
+  dispatcher = createDispatcher();  
+  jobId = MRBuilderUtils.newJobId(appAttemptID.getApplicationId(),  
+      appAttemptID.getApplicationId().getId());  
+  int numReduceTasks = conf.getInt(MRJobConfig.NUM_REDUCES, 0);  
+  if ((numReduceTasks > 0 &&   
+      conf.getBoolean("mapred.reducer.new-api", false)) ||  
+        (numReduceTasks == 0 &&   
+         conf.getBoolean("mapred.mapper.new-api", false)))  {  
+    newApiCommitter = true;  
+    LOG.info("Using mapred newApiCommitter.");  
+  }  
+    // service to allocate containers from RM (if non-uber) or to fake it (uber)  
+    containerAllocator = createContainerAllocator(null, context);  
+    addIfService(containerAllocator);  
+    dispatcher.register(ContainerAllocator.EventType.class, containerAllocator);  
+  
+    //service to handle requests from JobClient  
+    clientService = createClientService(context);  
+    clientService.init(conf);  
+      
+    containerAllocator = createContainerAllocator(clientService, context);  
+      
+    this.jobEventDispatcher = new JobEventDispatcher();  
+  
+    //register the event dispatchers  
+    dispatcher.register(JobEventType.class, jobEventDispatcher);  
+    dispatcher.register(TaskEventType.class, new TaskEventDispatcher());  
+    dispatcher.register(TaskAttemptEventType.class,   
+        new TaskAttemptEventDispatcher());  
+    dispatcher.register(CommitterEventType.class, committerEventHandler); 
+    
+    addIfService(containerAllocator);  
+    dispatcher.register(ContainerAllocator.EventType.class, containerAllocator);  
+  
+    // corresponding service to launch allocated containers via NodeManager  
+    containerLauncher = createContainerLauncher(context);  
+    addIfService(containerLauncher);  
+    dispatcher.register(ContainerLauncher.EventType.class, containerLauncher);  
+  }  
+  super.serviceInit(conf);  
+} // end of init()
+```
+#### 3.9.4.3 serviceStart()
+```java
+protected void serviceStart() throws Exception {  
+  
+  amInfos = new LinkedList<AMInfo>();  
+  completedTasksFromPreviousRun = new HashMap<TaskId, TaskInfo>();  
+  processRecovery();  
+  cleanUpPreviousJobOutput();  
+  
+  // Current an AMInfo for the current AM generation.  
+  AMInfo amInfo =  
+      MRBuilderUtils.newAMInfo(appAttemptID, startTime, containerID, nmHost,  
+          nmPort, nmHttpPort);  
+  
+  // /////////////////// Create the job itself.  
+  job = createJob(getConfig(), forcedState, shutDownMessage);  
+  
+  // End of creating the job.  
+  
+  // Send out an MR AM inited event for all previous AMs.  for (AMInfo info : amInfos) {  
+    dispatcher.getEventHandler().handle(  
+        new JobHistoryEvent(job.getID(), new AMStartedEvent(info  
+            .getAppAttemptId(), info.getStartTime(), info.getContainerId(),  
+            info.getNodeManagerHost(), info.getNodeManagerPort(), info  
+                .getNodeManagerHttpPort(), appSubmitTime)));  
+  }  
+  
+  // Send out an MR AM inited event for this AM.  
+  dispatcher.getEventHandler().handle(  
+      new JobHistoryEvent(job.getID(), new AMStartedEvent(amInfo  
+          .getAppAttemptId(), amInfo.getStartTime(), amInfo.getContainerId(),  
+          amInfo.getNodeManagerHost(), amInfo.getNodeManagerPort(), amInfo  
+              .getNodeManagerHttpPort(), this.forcedState == null ? null  
+                  : this.forcedState.toString(), appSubmitTime)));  
+  amInfos.add(amInfo);  
+  
+  // metrics system init is really init & start.  
+  // It's more test friendly to put it here.  DefaultMetricsSystem.initialize("MRAppMaster");  
+  
+  boolean initFailed = false;  
+  if (!errorHappenedShutDown) {  
+    // create a job event for job initialization  
+    JobEvent initJobEvent = new JobEvent(job.getID(), JobEventType.JOB_INIT);  
+    // Send init to the job (this does NOT trigger job execution)  
+    // This is a synchronous call, not an event through dispatcher. We want    // job-init to be done completely here.    jobEventDispatcher.handle(initJobEvent);  
+  
+    // If job is still not initialized, an error happened during  
+    // initialization. Must complete starting all of the services so failure    // events can be processed.    initFailed = (((JobImpl)job).getInternalState() != JobStateInternal.INITED);  
+  
+    // JobImpl's InitTransition is done (call above is synchronous), so the  
+    // "uber-decision" (MR-1220) has been made.  Query job and switch to    // ubermode if appropriate (by registering different container-allocator    // and container-launcher services/event-handlers).  
+    if (job.isUber()) {  
+      speculatorEventDispatcher.disableSpeculation();  
+      LOG.info("MRAppMaster uberizing job " + job.getID()  
+          + " in local container (\"uber-AM\") on node "  
+          + nmHost + ":" + nmPort + ".");  
+    } else {  
+      // send init to speculator only for non-uber jobs.   
+      // This won't yet start as dispatcher isn't started yet.  
+      dispatcher.getEventHandler().handle(  
+          new SpeculatorEvent(job.getID(), clock.getTime()));  
+      LOG.info("MRAppMaster launching normal, non-uberized, multi-container "  
+          + "job " + job.getID() + ".");  
+    }  
+    // Start ClientService here, since it's not initialized if  
+    // errorHappenedShutDown is true    clientService.start();  
+  }  
+  //start all the components  
+  super.serviceStart();  
+  
+  // finally set the job classloader  
+  MRApps.setClassLoader(jobClassLoader, getConfig());  
+  
+  if (initFailed) {  
+    JobEvent initFailedEvent = new JobEvent(job.getID(), JobEventType.JOB_INIT_FAILED);  
+    jobEventDispatcher.handle(initFailedEvent);  
+  } else {  
+    // All components have started, start the job.  
+    startJobs();  
+  }  
+}
+
+
+```
+#### 3.9.4.
+#### 3.9.4.
+#### 3.9.4.
+#### 3.9.4.
+#### 3.9.4.
+#### 3.9.4.
+#### 3.9.4.
+

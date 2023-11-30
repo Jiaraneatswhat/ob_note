@@ -659,5 +659,116 @@ public BucketCache(...)
 #### 3.1.3.3 Bucket 和 BucketSizeInfo 类
 ```java
 // Bucket是BucketAllocator的静态内部类
-// 默认大小: 
+// 默认大小:  DEFAULT_BUCKET_SIZES[] = {4 * 1024 + 1024, 8 * 1024 + 1024, ..., 512 * 1024 + 1024 };
+
+public final static class Bucket {
+    // Bucket在实际物理空间中的起始地址，Block的地址通过baseoffset和该Block在Bucket的偏移量唯一确定
+    private long baseOffset;
+
+    public Bucket(long offset) {
+      baseOffset = offset;
+      sizeIndex = -1;
+    }
+}
+
+// BucketSizeInfo也是BucketAllocator的静态内部类
+final class BucketSizeInfo {
+    // Free bucket means it has space to allocate a block;
+    // Completely free bucket means it has no block.
+    private LinkedMap bucketList, freeBuckets, completelyFreeBuckets;
+    private int sizeIndex;
+
+    BucketSizeInfo(int sizeIndex) {
+      bucketList = new LinkedMap();
+      freeBuckets = new LinkedMap();
+      completelyFreeBuckets = new LinkedMap();
+      this.sizeIndex = sizeIndex;
+    }
+}
+```
+#### 3.1.3.4 new BucketAllocator()
+```java
+BucketAllocator(long availableSpace, int[] bucketSizes)
+      throws BucketAllocatorException {
+    this.bucketSizes = bucketSizes == null ? DEFAULT_BUCKET_SIZES : bucketSizes;
+    Arrays.sort(this.bucketSizes);
+    this.bigItemSize = Ints.max(this.bucketSizes);
+    //  FEWEST_ITEMS_IN_BUCKET = 4
+    this.bucketCapacity = FEWEST_ITEMS_IN_BUCKET * (long) bigItemSize;
+    // 创建Bucket数组
+    buckets = new Bucket[(int) (availableSpace / bucketCapacity)];
+    bucketSizeInfos = new BucketSizeInfo[this.bucketSizes.length];
+    // 创建并初始化BucketSizeInfo数组
+    for (int i = 0; i < this.bucketSizes.length; ++i) {
+      bucketSizeInfos[i] = new BucketSizeInfo(i);
+    }
+    for (int i = 0; i < buckets.length; ++i) {
+      // 初始化Bucket数组
+      buckets[i] = new Bucket(bucketCapacity * i);
+      bucketSizeInfos[i < this.bucketSizes.length ? i : this.bucketSizes.length - 1]
+          .instantiateBucket(buckets[i]);
+    }
+    this.totalSize = ((long) buckets.length) * bucketCapacity;
+  }
+```
+### 3.1.4 BucketCache 读写 Block 流程
+
+![[BucketCache.svg]]
+
+- 写流程
+	- 将 `Block` 写入 `RamCache`，根据 `blockKey` 的 `hash` 值存储在不同的 `RamCache` 中
+	- `WriteThread` 从 `RAMCache` 中取出所有的 `Block`，每个 `WriteTheead` 对应一个 `RAMCache`
+	- 每个 `WriteTheead` 会遍历 `RAMCache` 中所有 `Block`，分别调用 `bucketAllocator` 为这些 `Block` 分配内存空间
+	- `BucketAllocator` 会选择与 `Block` 大小对应的 `Bucket` 进行存放，并且返回对应的物理地址偏移量 `offset`
+	- `WriteThread` 将 `Block` 以及分配好的 offset 传给 `IOEngine` 模块，执行具体的内存写入操作
+	- 写入成功后，将 `blockKey` 和 `offset` 的对应关系存在 `BackingMap` 中，便于之后查找
+- 读流程
+	- 首先从 `RAMCache` 中查找，对于还未写入 `Bucket` 的缓存 `Block`，一定存储在 `RAMCache` 中
+	- 在 `RAMCache` 中没有找到，根据 `blockKey` 去 `BackingMap` 中找 `offset`
+	- 根据 `offset` 去内存中查找对应的 `block` 的数据
+#### 3.1.4.1 cacheBlock()
+```java
+public void cacheBlock(BlockCacheKey cacheKey, Cacheable buf) {
+    cacheBlock(cacheKey, buf, false);
+}
+
+public void cacheBlock(BlockCacheKey cacheKey, Cacheable cachedItem, boolean inMemory) {
+    // wait_when_cache默认false
+    cacheBlockWithWait(cacheKey, cachedItem, inMemory, wait_when_cache);
+}
+
+// Cache the block to ramCache
+private void cacheBlockWithWait(BlockCacheKey cacheKey, Cacheable cachedItem, boolean inMemory,
+      boolean wait) {
+    if (cacheEnabled) {
+      if (backingMap.containsKey(cacheKey) || ramCache.containsKey(cacheKey)) {
+        // 缓存已存在，同lruCache判断是否需要替换
+        if (BlockCacheUtil.shouldReplaceExistingCacheBlock(this, cacheKey, cachedItem)) {
+          cacheBlockWithWaitInternal(cacheKey, cachedItem, inMemory, wait);
+        }
+      } else {
+        cacheBlockWithWaitInternal(cacheKey, cachedItem, inMemory, wait);
+      }
+    }
+}
+
+private void cacheBlockWithWaitInternal(BlockCacheKey cacheKey, Cacheable cachedItem, boolean inMemory, boolean wait) {
+    if (!cacheEnabled) {
+      return;
+    }
+    LOG.trace("Caching key={}, item={}", cacheKey, cachedItem);
+    // Stuff the entry into the RAM cache so it can get drained to the persistent store
+    // 将需要写入的块封装成RAMQueueEntry
+    RAMQueueEntry re =
+        new RAMQueueEntry(cacheKey, cachedItem, accessCount.incrementAndGet(), inMemory);
+    int queueNum = (cacheKey.hashCode() & 0x7FFFFFFF) % writerQueues.size();
+    BlockingQueue<RAMQueueEntry> bq = writerQueues.get(queueNum);
+    boolean successfulAddition = false;
+    if (wait) {...}
+     else {
+      // 将Entry放在队列中，由BucketCache实例化时创建的writeThread处理
+      successfulAddition = bq.offer(re);
+    }
+    ...
+  }
 ```

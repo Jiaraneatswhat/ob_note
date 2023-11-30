@@ -327,7 +327,8 @@ public static synchronized BlockCache instantiateBlockCache(Configuration conf) 
     return GLOBAL_BLOCK_CACHE_INSTANCE;
   }
 ```
-### 3.1.2 getOnHeapCacheInternal()
+### 3.1.2 堆内内存 
+#### 3.1.2.1 getOnHeapCacheInternal()
 ```java
 // L1缓存
 private synchronized static LruBlockCache getOnHeapCacheInternal(final Configuration c) {
@@ -389,4 +390,274 @@ public LruBlockCache(long maxSize, long blockSize, boolean evictionThread,
     // every five minutes.
     this.scheduleThreadPool.scheduleAtFixedRate(new StatisticsThread(this), STAT_THREAD_PERIOD,STAT_THREAD_PERIOD, TimeUnit.SECONDS);
 }
+```
+#### 3.1.2.2 EvictionThread 淘汰缓存
+```java
+// 实例化LruBlockCache时会创建并启动EvictionThread
+public EvictionThread(LruBlockCache cache) {
+      super(Thread.currentThread().getName() + ".LruBlockCache.EvictionThread");
+      setDaemon(true);
+      // 标记为弱引用，会被JVM更快回收
+      this.cache = new WeakReference<>(cache);
+}
+
+public void run() {
+      enteringRun = true;
+      while (this.go) {
+        LruBlockCache cache = this.cache.get();
+        if (cache == null) break;
+        cache.evict();
+      }
+}
+
+void evict() {
+    // Ensure only one eviction at a time
+    // 确保只有一个eviction在执行
+    if(!evictionLock.tryLock()) return;
+
+    try {
+      evictionInProgress = true;
+      long currentSize = this.size.get();
+      // 应该释放的缓冲大小
+      long bytesToFree = currentSize - minSize();
+      // Instantiate priority buckets
+      // BlockBucket底层是LruCachedBlockQueue队列
+      // 实例化三个队列
+      BlockBucket bucketSingle = new BlockBucket("single", bytesToFree, blockSize, singleSize());
+      BlockBucket bucketMulti = new BlockBucket("multi", bytesToFree, blockSize, multiSize());
+      BlockBucket bucketMemory = new BlockBucket("memory", bytesToFree, blockSize, memorySize());
+
+      // Scan entire map putting into appropriate buckets
+      // 遍历block，根据优先级添加到不同的队列
+      for (LruCachedBlock cachedBlock : map.values()) {
+        switch (cachedBlock.getPriority()) {
+          case SINGLE: {
+            bucketSingle.add(cachedBlock);
+            break;
+          }
+          case MULTI: {
+            bucketMulti.add(cachedBlock);
+            break;
+          }
+          case MEMORY: {
+            bucketMemory.add(cachedBlock);
+            break;
+          }
+        }
+      }
+
+      long bytesFreed = 0;
+      // 如果memoryFactor或者InMemory缓存超过99.9%
+      if (forceInMemory || memoryFactor > 0.999f) {
+        long s = bucketSingle.totalSize();
+        long m = bucketMulti.totalSize();
+        // 需要回收的内存大于single和multi大小的和，全部回收
+        if (bytesToFree > (s + m)) {
+          // this means we need to evict blocks in memory bucket to make room,
+          // so the single and multi buckets will be emptied
+          bytesFreed = bucketSingle.free(s);
+          bytesFreed += bucketMulti.free(m);
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("freed " + StringUtils.byteDesc(bytesFreed) +
+              " from single and multi buckets");
+          }
+          // 剩余的从mem中释放
+          bytesFreed += bucketMemory.free(bytesToFree - bytesFreed);
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("freed " + StringUtils.byteDesc(bytesFreed) +
+              " total from all three buckets ");
+          }
+        } else {
+          // this means no need to evict block in memory bucket,
+          // and we try best to make the ratio between single-bucket and
+          // multi-bucket is 1:2
+          // s : m = 1 : 2
+          long bytesRemain = s + m - bytesToFree;
+          // s或m的大小不够，就去对方的队列释放内存
+          if (3 * s <= bytesRemain) {
+            // single-bucket is small enough that no eviction happens for it
+            // hence all eviction goes from multi-bucket
+            bytesFreed = bucketMulti.free(bytesToFree);
+          } else if (3 * m <= 2 * bytesRemain) {
+            // multi-bucket is small enough that no eviction happens for it
+            // hence all eviction goes from single-bucket
+            bytesFreed = bucketSingle.free(bytesToFree);
+          } else {
+            // both buckets need to evict some blocks
+            bytesFreed = bucketSingle.free(s - bytesRemain / 3);
+            if (bytesFreed < bytesToFree) {
+              bytesFreed += bucketMulti.free(bytesToFree - bytesFreed);
+            }
+          }
+        }
+        // 未超过0.99, 从三个队列循环释放
+      } else {
+        PriorityQueue<BlockBucket> bucketQueue = new PriorityQueue<>(3);
+
+        bucketQueue.add(bucketSingle);
+        bucketQueue.add(bucketMulti);
+        bucketQueue.add(bucketMemory);
+
+        int remainingBuckets = 3;
+
+        BlockBucket bucket;
+        while ((bucket = bucketQueue.poll()) != null) {
+          long overflow = bucket.overflow();
+          if (overflow > 0) {
+            long bucketBytesToFree =
+                Math.min(overflow, (bytesToFree - bytesFreed) / remainingBuckets);
+            bytesFreed += bucket.free(bucketBytesToFree);
+          }
+          remainingBuckets--;
+        }
+      }
+    }
+}
+
+public long free(long toFree) {
+      LruCachedBlock cb;
+      long freedBytes = 0;
+      // 从LruCachedBlockQueue中取出block进行释放
+      while ((cb = queue.pollLast()) != null) {
+        freedBytes += evictBlock(cb, true);
+        if (freedBytes >= toFree) {
+          return freedBytes;
+        }
+      }
+      return freedBytes;
+}
+```
+#### 3.1.2.3 LruBlockCache 缓存块
+```java
+
+/* LruBlockCache通过三种Factor，将缓存分为三个区域：single-access, multi-access以及in-memory
+ * single占 0.25，表示单次读取区，block被读取后会先放在这个区域，当多次被读取后会升级到下一个区域
+ * multi占 0.5，表示多次读取区
+ * in-memory占 0.25，只存放设置了IN-MEMORY=true的列族中读取的block
+ */
+
+public void cacheBlock(BlockCacheKey cacheKey, Cacheable buf, boolean inMemory) {
+    // 需要缓存的block的大小超过了最大块大小
+    if (buf.heapSize() > maxBlockSize) {
+      if (stats.failInsert() % 50 == 0) {
+      return;
+    }
+	// 从缓存map中根据cacheKey尝试获取已缓存数据块
+    LruCachedBlock cb = map.get(cacheKey);
+    // 缓存中有，比较缓存的内容
+    if (cb != null && !BlockCacheUtil.shouldReplaceExistingCacheBlock(this, cacheKey, buf)) {
+      return;
+    }
+    // 当前缓存大小
+    long currentSize = size.get();
+    // 可接受缓存大小
+    // (long)Math.floor(this.maxSize * this.acceptableFactor);
+    long currentAcceptableSize = acceptableSize();
+    // hardLimit
+    long hardLimitSize = (long) (hardCapacityLimitFactor * currentAcceptableSize);
+    // 通过cacheKry创建缓存块
+    cb = new LruCachedBlock(cacheKey, buf, count.incrementAndGet(), inMemory);
+    long newSize = updateSizeMetrics(cb, false);
+    // 将映射信息添加到map中
+    map.put(cacheKey, cb);
+    // 如果新大小超过当前可以接受的大小，且未执行回收过程中
+    if (newSize > currentAcceptableSize && !evictionInProgress) {
+      // 回收内存
+      runEviction();
+    }
+  }
+```
+### 3.1.3 堆外内存
+#### 3.1.3.1 getBucketCache()
+```java
+// L2 Cache
+// 将缓存划分为一个个的Bucket，每个Bucket都贴上一个size标签，将Block缓存在最接近且小于size的bucket中
+// size的分类在启动时确定，默认有(8+1)K、(16+1)K、(32+1)K、(40+1)K、(48+1)K、(56+1)K、(64+1)K、(96+1)K … (512+1)K，相同size标签的Bucket由同一个BucketSizeInfo管理
+// 每个Bucket默认大小为2M
+static BucketCache getBucketCache(Configuration c) {
+    // Check for L2.  ioengine name must be non-null.
+    // 通过hbase.bucketcache.ioengine进行设置：heap, offheap 或者 file 
+    String bucketCacheIOEngineName = c.get(BUCKET_CACHE_IOENGINE_KEY, null);
+    
+    // DEFAULT_BUCKET_CACHE_WRITER_THREADS = 3;
+    // DEFAULT_BUCKET_CACHE_WRITER_QUEUE = 64;
+    int writerThreads = c.getInt(BUCKET_CACHE_WRITER_THREADS_KEY,
+      DEFAULT_BUCKET_CACHE_WRITER_THREADS);
+    int writerQueueLen = c.getInt(BUCKET_CACHE_WRITER_QUEUE_KEY,
+      DEFAULT_BUCKET_CACHE_WRITER_QUEUE);
+    
+    // "hbase.bucketcache.bucket.sizes"
+    String[] configuredBucketSizes = c.getStrings(BUCKET_CACHE_BUCKETS_KEY);
+    int [] bucketSizes = null;
+    if (configuredBucketSizes != null) {
+      bucketSizes = new int[configuredBucketSizes.length];
+      for (int i = 0; i < configuredBucketSizes.length; i++) {
+        int bucketSize = Integer.parseInt(configuredBucketSizes[i].trim());
+        // 确保bucketSize是256的倍数
+        if (bucketSize % 256 != 0) {...}
+        bucketSizes[i] = bucketSize;
+      }
+    }
+    BucketCache bucketCache = null;
+    try {
+      int ioErrorsTolerationDuration = c.getInt(
+      // 创建BucketCache
+      bucketCache = new BucketCache(bucketCacheIOEngineName,
+        bucketCacheSize, blockSize, bucketSizes, writerThreads, writerQueueLen, persistentPath,
+        ioErrorsTolerationDuration, c);
+    }
+    return bucketCache;
+}
+```
+#### 3.1.3.2 new BucketCache()
+```java
+public BucketCache(...)
+      throws FileNotFoundException, IOException {
+    this.ioEngine = getIOEngineFromName(ioEngineName, capacity, persistencePath);
+    this.writerThreads = new WriterThread[writerThreadNum];
+    long blockNumCapacity = capacity / blockSize;
+    
+	// DEFAULT_ACCEPT_FACTOR = 0.95f;
+    this.acceptableFactor = conf.getFloat(ACCEPT_FACTOR_CONFIG_NAME, DEFAULT_ACCEPT_FACTOR);
+    // DEFAULT_MIN_FACTOR = 0.85f;
+    this.minFactor = conf.getFloat(MIN_FACTOR_CONFIG_NAME, DEFAULT_MIN_FACTOR);
+    // DEFAULT_EXTRA_FREE_FACTOR = 0.10f;
+    this.extraFreeFactor = conf.getFloat(EXTRA_FREE_FACTOR_CONFIG_NAME, DEFAULT_EXTRA_FREE_FACTOR);
+    this.singleFactor = conf.getFloat(SINGLE_FACTOR_CONFIG_NAME, DEFAULT_SINGLE_FACTOR);
+    this.multiFactor = conf.getFloat(MULTI_FACTOR_CONFIG_NAME, DEFAULT_MULTI_FACTOR);
+    this.memoryFactor = conf.getFloat(MEMORY_FACTOR_CONFIG_NAME, DEFAULT_MEMORY_FACTOR);
+    
+    this.cacheCapacity = capacity;
+    this.persistencePath = persistencePath;
+    this.blockSize = blockSize;
+    this.ioErrorsTolerationDuration = ioErrorsTolerationDuration;
+	// 对 Bucket 的组织管理，为 Block 分配内存空间
+    bucketAllocator = new BucketAllocator(capacity, bucketSizes);
+    for (int i = 0; i < writerThreads.length; ++i) {
+      writerQueues.add(new ArrayBlockingQueue<>(writerQLen));
+    }
+
+    assert writerQueues.size() == writerThreads.length;
+    // 创建一个ramCache的map，存储 blockKey 和 Block 对应关系
+    // ConcurrentMap<BlockCacheKey, RAMQueueEntry>
+    this.ramCache = new ConcurrentHashMap<>();
+    
+	// ConcurrentMap<BlockCacheKey, BucketEntry> backingMap
+    this.backingMap = new ConcurrentHashMap<>((int) blockNumCapacity);
+
+    final String threadName = Thread.currentThread().getName();
+    this.cacheEnabled = true;
+    for (int i = 0; i < writerThreads.length; ++i) {
+      writerThreads[i] = new WriterThread(writerQueues.get(i));
+      writerThreads[i].setName(threadName + "-BucketCacheWriter-" + i);
+      writerThreads[i].setDaemon(true);
+    }
+    // 开启writer线程，异步地将 Block 写入到内存空间
+    startWriterThreads();
+}
+```
+#### 3.1.3.3 Bucket 和 BucketSizeInfo 类
+```java
+// Bucket是BucketAllocator的静态内部类
+// 默认大小: 
 ```

@@ -977,3 +977,142 @@ public class CombinedBlockCache implements ResizableBlockCache, HeapSize {
         return onHeapCache.evictBlock(cacheKey) || l2Cache.evictBlock(cacheKey);
     }
 ```
+## 3.2 WAL
+- `AbstractFSWAL` 是对文件系统中 `WAL` 的实现，有两个子类：`FSHLog` 和 `AsyncFSWAL`
+- 和 `FSLog` 不同，`AsyncFSWAL` 采用异步方式来写日志，效率更高
+### 3.2.1 WALFactory 类
+```java
+public class WALFactory {
+	
+  // providers的类型，默认是AsyncFSWALProvider
+  static enum Providers {
+    defaultProvider(AsyncFSWALProvider.class),
+    filesystem(FSHLogProvider.class),
+    multiwal(RegionGroupingProvider.class),
+    asyncfs(AsyncFSWALProvider.class);
+
+  public static final String WAL_PROVIDER = "hbase.wal.provider";
+  static final String DEFAULT_WAL_PROVIDER = Providers.defaultProvider.name();
+
+  public static final String META_WAL_PROVIDER = "hbase.wal.meta_provider";
+
+  final String factoryId;
+  private final WALProvider provider;
+  private final AtomicReference<WALProvider> metaProvider = new AtomicReference<>();
+  private final Class<? extends AbstractFSWALProvider.Reader> logReaderClass;
+  
+ // provider相关的方法
+  WALProvider createProvider(Class<? extends WALProvider> clazz, String providerId)
+      throws IOException {...}
+  WALProvider getProvider(String key, String defaultValue, String providerId) throws IOException {...}
+  
+  // 初始化
+  public WALFactory(Configuration conf, String factoryId) throws IOException {
+    // until we've moved reader/writer construction down into providers, this initialization must
+    // happen prior to provider initialization, in case they need to instantiate a reader/writer.
+    timeoutMillis = conf.getInt("hbase.hlog.open.timeout", 300000);
+    /* TODO Both of these are probably specific to the fs wal provider */
+    logReaderClass = conf.getClass("hbase.regionserver.hlog.reader.impl", ProtobufLogReader.class,
+      AbstractFSWALProvider.Reader.class);
+    this.conf = conf;
+    this.factoryId = factoryId;
+    // end required early initialization
+    if (conf.getBoolean("hbase.regionserver.hlog.enabled", true)) {
+      // AsyncFSWALProvider会创建AsyncFSWAL对象, 向日志中写数据
+      provider = getProvider(WAL_PROVIDER, DEFAULT_WAL_PROVIDER, null);
+    } else {...}
+  }
+  
+  // WAL相关方法
+  public List<WAL> getWALs() {...}
+  public WAL getWAL(RegionInfo region) throws IOException {...}
+  
+  // Reader/Writer相关, Reader/Writer对HLog进行读写
+  public Reader createReader(final FileSystem fs, final Path path) throws IOException {...}
+  public Writer createWALWriter(final FileSystem fs, final Path path) throws IOException {...}
+}
+```
+### 3.2.2 WAL 类
+```java
+// Write Ahead Log, provides service for reading, writing waledits, provides APIs for WAL users (such as RegionServer) to use the WAL (do append, sync, etc)
+// 顶层接口，定义了操作WAL的api
+public interface WAL extends Closeable, WALFileLengthProvider {
+
+  byte[][] rollWriter() throws FailedLogCloseException, IOException;
+
+  long append(RegionInfo info, WALKeyImpl key, WALEdit edits, boolean inMemstore) throws IOException;
+
+  void sync() throws IOException;
+
+  Long startCacheFlush(final byte[] encodedRegionName, Map<byte[], Long> familyToSeq);
+
+  void completeCacheFlush(final byte[] encodedRegionName);
+  
+  // Reader的父接口 
+  interface Reader extends Closeable {
+    Entry next() throws IOException;
+    Entry next(Entry reuse) throws IOException;
+    void seek(long pos) throws IOException;
+    long getPosition() throws IOException;
+    void reset() throws IOException;
+  }
+
+  /**
+   * Utility class that lets us keep track of the edit with it's key.
+   */
+  // Entry的父类
+  class Entry {
+    private final WALEdit edit;
+    private final WALKeyImpl key;
+
+    public Entry(WALKeyImpl key, WALEdit edit) {...}
+	...
+  }
+}
+```
+## 3.3 HRegion
+```java
+public class HRegion implements HeapSize, PropagatingConfigurationObserver, Region {
+    // 默认cell的最大大小10m
+    public static final int DEFAULT_MAX_CELL_SIZE = 10485760;
+    // 默认的Durability
+    private static final Durability DEFAULT_DURABILITY = Durability.SYNC_WAL;
+    // 存放store
+    protected final Map<byte[], HStore> stores =
+      new ConcurrentSkipListMap<>(Bytes.BYTES_RAWCOMPARATOR);
+    private final WAL wal;
+    ...
+    
+    // 判断region是否需要split
+    public byte[] checkSplit() {...}
+    // compact的操作的逻辑
+    public void compact() {...} 
+    // 操作WAL
+    private WriteEntry doWALAppend(){...}
+    // 写流程的一些方法
+    private void doBatchMutate(Mutation mutation) throws IOException {...}
+    private void doMiniBatchMutate(BatchOperation<?> batchOp) throws IOException {...}
+    ...
+}
+```
+## 3.4 HStore
+```java
+// HStore是HRegion的属性
+//A Store holds a column family in a Region.  Its a memstore and a set of zero or more StoreFiles, which stretch backwards over time
+public class HStore implements Store, HeapSize, StoreConfigInformation, PropagatingConfigurationObserver {
+    public static final String DEFAULT_BLOCK_STORAGE_POLICY = "HOT";
+    public static final int DEFAULT_COMPACTCHECKER_INTERVAL_MULTIPLIER = 1000;
+    public static final int DEFAULT_BLOCKING_STOREFILE_COUNT = 16;
+    // MemStore
+    protected final MemStore memstore;
+    
+    protected HStore(final HRegion region, final ColumnFamilyDescriptor family,
+      final Configuration confParam) throws IOException {
+		
+        // 实例化该store中使用的MemSrtore
+        this.memstore = getMemstore();
+    	this.storeEngine = createStoreEngine(this, this.conf, this.comparator);
+    	// 根据列族名加载HStoreFile
+    	List<HStoreFile> hStoreFiles = loadStoreFiles();
+}
+```

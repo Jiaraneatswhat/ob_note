@@ -772,3 +772,208 @@ private void cacheBlockWithWaitInternal(BlockCacheKey cacheKey, Cacheable cached
     ...
   }
 ```
+#### 3.1.4.2 WriterThread.run()
+```java
+// WriterThread是BucketCache的内部类
+public void run() {  
+  List<RAMQueueEntry> entries = new ArrayList<>();  
+  try {  
+    while (cacheEnabled && writerEnabled) {  
+      try {  
+        try {  
+          // 从队列中获取Blocks  
+          entries = getRAMQueueEntries(inputQueue, entries);  
+        }   
+        doDrain(entries);  
+      }
+    }  
+  }
+}
+    
+static List<RAMQueueEntry> getRAMQueueEntries(final BlockingQueue<RAMQueueEntry> q,
+      final List<RAMQueueEntry> receptacle)
+  throws InterruptedException {
+    // Clear sets all entries to null and sets size to 0. We retain allocations. Presume it
+    // ok even if list grew to accommodate thousands.
+    // 从q中取出block添加到receptacle(容器)
+    receptacle.clear();
+    receptacle.add(q.take());
+    q.drainTo(receptacle);
+    return receptacle;
+}
+
+void doDrain(final List<RAMQueueEntry> entries) throws InterruptedException {
+      final int size = entries.size();
+      BucketEntry[] bucketEntries = new BucketEntry[size];
+      int index = 0;
+      while (cacheEnabled && index < size) {
+        RAMQueueEntry re = null;
+        try {
+          // 取到一个Entry
+          re = entries.get(index);
+          BucketEntry bucketEntry =
+            // 将Entry写入缓存中
+            re.writeToCache(ioEngine, bucketAllocator, deserialiserMap, realCacheSize);
+          // Successfully added.  Up index and add bucketEntry. Clear io exceptions.
+          bucketEntries[index] = bucketEntry;
+        }
+        
+      for (int i = 0; i < size; ++i) {
+        BlockCacheKey key = entries.get(i).getKey();
+        // Only add if non-null entry.
+        if (bucketEntries[i] != null) {
+          putIntoBackingMap(key, bucketEntries[i]);
+        }
+}
+          
+public BucketEntry writeToCache(final IOEngine ioEngine,
+        final BucketAllocator bucketAllocator,
+        final UniqueIndexMap<Integer> deserialiserMap,
+        final LongAdder realCacheSize) throws CacheFullException, IOException,
+        BucketAllocatorException {
+      // bucketAllocator给block在bucket中分配空间
+      long offset = bucketAllocator.allocateBlock(len);
+      BucketEntry bucketEntry = ioEngine.usesSharedMemory()
+          ? UnsafeAvailChecker.isAvailable()
+              ? new UnsafeSharedMemoryBucketEntry(offset, len, accessCounter, inMemory)
+              : new SharedMemoryBucketEntry(offset, len, accessCounter, inMemory)
+          : new BucketEntry(offset, len, accessCounter, inMemory);
+      bucketEntry.setDeserialiserReference(data.getDeserializer(), deserialiserMap);
+      try {
+        if (data instanceof HFileBlock) {
+          // If an instance of HFileBlock, save on some allocations.
+          HFileBlock block = (HFileBlock)data;
+          ByteBuff sliceBuf = block.getBufferReadOnly();
+          ByteBuffer metadata = block.getMetaData();
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("Write offset=" + offset + ", len=" + len);
+          }
+           // 通过ioEngine向内存写入数据
+          ioEngine.write(sliceBuf, offset);
+          ioEngine.write(metadata, offset + len - metadata.limit());
+        } else {
+          ByteBuffer bb = ByteBuffer.allocate(len);
+          data.serialize(bb, true);
+          ioEngine.write(bb, offset);
+        }
+      }
+      return bucketEntry;
+}      
+```
+#### 3.1.4.3 allocateBlock()
+```java
+public synchronized long allocateBlock(int blockSize) throws CacheFullException,Buc ketAllocatorException {
+    BucketSizeInfo bsi = roundUpToBucketSizeInfo(blockSize);
+    // 通过BucketSizeInfo分配空间返回offset
+    long offset = bsi.allocateBlock();
+    return offset;
+}
+
+public long allocateBlock() {
+      Bucket b = null;
+      // 存在空闲的bucket
+      if (freeBuckets.size() > 0) {
+        // Use up an existing one first...
+        b = (Bucket) freeBuckets.lastKey();
+      }
+      if (b == null) {
+        // 遍历BSI找到一个空闲的bucket
+        b = grabGlobalCompletelyFreeBucket();
+        // 找到后重新添加到free Map中
+        if (b != null) instantiateBucket(b);
+      }
+      if (b == null) return -1;
+      // 再通过bucket对象来分配空间
+      long result = b.allocate();
+      blockAllocated(b);
+      return result;
+}
+
+public long allocate() {
+      assert freeCount > 0; // Else should not have been called
+      assert sizeIndex != -1;
+      ++usedCount;
+      // 更新offset
+      long offset = baseOffset + (freeList[--freeCount] * itemAllocationSize);
+      assert offset >= 0;
+      return offset;
+}
+```
+#### 3.1.4.4 读 Block 流程
+```java
+public Cacheable getBlock(BlockCacheKey key, boolean caching, boolean repeat,
+      boolean updateCacheMetrics) {
+    if (!cacheEnabled) {
+      return null;
+    }
+    RAMQueueEntry re = ramCache.get(key);
+    // 在cache中找到了，计算命中率后返回数据
+    if (re != null) {
+      if (updateCacheMetrics) {
+        cacheStats.hit(caching, key.isPrimary(), key.getBlockType());
+      }
+      re.access(accessCount.incrementAndGet());
+      return re.getData();
+    }
+    // 否则去backingMap中
+    BucketEntry bucketEntry = backingMap.get(key);
+    if (bucketEntry != null) {
+      long start = System.nanoTime();
+      ReentrantReadWriteLock lock = offsetLock.getLock(bucketEntry.offset());
+      try {
+        lock.readLock().lock();
+        if (bucketEntry.equals(backingMap.get(key))) {
+          // 获取偏移量
+          int len = bucketEntry.getLength();
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("Read offset=" + bucketEntry.offset() + ", len=" + len);
+          }
+          // 通过offset去内存中读取
+          Cacheable cachedBlock = ioEngine.read(bucketEntry.offset(), len,
+              bucketEntry.deserializerReference(this.deserialiserMap));
+          ...
+    // 未在BackingMap中找到返回null
+    return null;
+}
+```
+### 3.1.5 混合内存
+```java
+public class CombinedBlockCache implements ResizableBlockCache, HeapSize {
+    protected final LruBlockCache onHeapCache;
+    protected final BlockCache l2Cache;
+    protected final CombinedCacheStats combinedCacheStats;
+
+    public CombinedBlockCache(LruBlockCache onHeapCache, BlockCache l2Cache) {
+        this.onHeapCache = onHeapCache;
+        this.l2Cache = l2Cache;
+        this.combinedCacheStats = new CombinedCacheStats(onHeapCache.getStats(),
+                                                         l2Cache.getStats());
+    }
+
+    public void cacheBlock(BlockCacheKey cacheKey, Cacheable buf, boolean inMemory) {
+        boolean metaBlock = buf.getBlockType().getCategory() != BlockCategory.DATA;
+        if (metaBlock) {
+            // 元数据的block存放在L1缓存中
+            onHeapCache.cacheBlock(cacheKey, buf, inMemory);
+        } else {
+            l2Cache.cacheBlock(cacheKey, buf, inMemory);
+        }
+    }
+
+    public Cacheable getBlock(BlockCacheKey cacheKey, boolean caching,
+                              boolean repeat, boolean updateCacheMetrics) {
+        // TODO: is there a hole here, or just awkwardness since in the lruCache getBlock
+        // we end up calling l2Cache.getBlock.
+        // We are not in a position to exactly look at LRU cache or BC as BlockType may not be getting
+        // passed always.
+        // 首先去L1缓存中找，找不到去L2缓存找
+        return onHeapCache.containsBlock(cacheKey)?
+            onHeapCache.getBlock(cacheKey, caching, repeat, updateCacheMetrics):
+        l2Cache.getBlock(cacheKey, caching, repeat, updateCacheMetrics);
+    }
+
+    public boolean evictBlock(BlockCacheKey cacheKey) {
+        // L1或L2缓存进行evict
+        return onHeapCache.evictBlock(cacheKey) || l2Cache.evictBlock(cacheKey);
+    }
+```

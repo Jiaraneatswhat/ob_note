@@ -281,5 +281,112 @@ public void run() {
           lastMsg = System.currentTimeMillis();
         }
     }
+}
+
+private RegionServerStartupResponse reportForDuty() throws IOException {
+      
+      // 创建RegionServerStartupRequest的Builder
+      RegionServerStartupRequest.Builder request = RegionServerStartupRequest.newBuilder();
+      // 调用MasterRpcService的方法发送请求给master，master返回RegionServerStartupResponse
+      result = this.rssStub.regionServerStartup(null, request.build());
+    }
+    return result;
+}
+
+protected void handleReportForDutyResponse(final RegionServerStartupResponse c)
+  throws IOException {
+    try {
+      // Set our ephemeral znode up in zookeeper now we have a name.
+      // 获取到name后在zk上/hbase/rs节点下创建znode
+      createMyEphemeralNode();
   }
+
+```
+# 2. 存储结构
+# 3. RegionServer 架构
+
+![[RegionServer_framework.svg]]
+## 3.1 BlockCache
+### 3.1.1 instantiateBlockCache()
+```java
+// 创建HMaster实例时初始化
+public static synchronized BlockCache instantiateBlockCache(Configuration conf) {
+    // 堆内缓存
+    LruBlockCache onHeapCache = getOnHeapCacheInternal(conf);
+    // EXTERNAL_BLOCKCACHE_DEFAULT默认false
+    boolean useExternal = conf.getBoolean(EXTERNAL_BLOCKCACHE_KEY, EXTERNAL_BLOCKCACHE_DEFAULT);
+    if (useExternal) {...} 
+    else {
+      // otherwise use the bucket cache.
+      // 堆外缓存
+      L2_CACHE_INSTANCE = getBucketCache(conf);
+      // 成功分配到堆外缓存，则通过CombinedBlockCache将两种缓存结合使用
+      GLOBAL_BLOCK_CACHE_INSTANCE = L2_CACHE_INSTANCE == null ? onHeapCache
+          : new CombinedBlockCache(onHeapCache, L2_CACHE_INSTANCE);
+    }
+    return GLOBAL_BLOCK_CACHE_INSTANCE;
+  }
+```
+### 3.1.2 getOnHeapCacheInternal()
+```java
+// L1缓存
+private synchronized static LruBlockCache getOnHeapCacheInternal(final Configuration c) {
+    // HFILE_BLOCK_CACHE_SIZE_DEFAULT = 0.4f
+    final long cacheSize = MemorySizeUtil.getOnHeapCacheSize(c);
+    // DEFAULT_BLOCKSIZE = 64 * 1024 block默认大小64kB
+    int blockSize = c.getInt(BLOCKCACHE_BLOCKSIZE_KEY, HConstants.DEFAULT_BLOCKSIZE);
+    ONHEAP_CACHE_INSTANCE = new LruBlockCache(cacheSize, blockSize, true, c);
+    return ONHEAP_CACHE_INSTANCE;
+}
+
+public LruBlockCache(long maxSize, long blockSize, boolean evictionThread, Configuration conf) {
+    this(maxSize, blockSize, evictionThread,
+        (int) Math.ceil(1.2 * maxSize / blockSize),
+        // Backing Concurrent Map Configuration 
+        DEFAULT_LOAD_FACTOR, 
+        DEFAULT_CONCURRENCY_LEVEL,
+        // eviction的参数: DEFAULT_MIN_FACTOR = 0.95f 
+        conf.getFloat(LRU_MIN_FACTOR_CONFIG_NAME, DEFAULT_MIN_FACTOR),
+        // DEFAULT_ACCEPTABLE_FACTOR = 0.99f
+        conf.getFloat(LRU_ACCEPTABLE_FACTOR_CONFIG_NAME, DEFAULT_ACCEPTABLE_FACTOR),
+        // 存储优先级的默认值
+        /* 
+         * DEFAULT_SINGLE_FACTOR = 0.25f;
+         * DEFAULT_MULTI_FACTOR = 0.50f;
+         * DEFAULT_MEMORY_FACTOR = 0.25f;
+        */
+        conf.getFloat(LRU_SINGLE_PERCENTAGE_CONFIG_NAME, DEFAULT_SINGLE_FACTOR),
+        conf.getFloat(LRU_MULTI_PERCENTAGE_CONFIG_NAME, DEFAULT_MULTI_FACTOR),
+        conf.getFloat(LRU_MEMORY_PERCENTAGE_CONFIG_NAME, DEFAULT_MEMORY_FACTOR),
+        // DEFAULT_HARD_CAPACITY_LIMIT_FACTOR = 1.2f;
+        conf.getFloat(LRU_HARD_CAPACITY_LIMIT_FACTOR_CONFIG_NAME,
+                      DEFAULT_HARD_CAPACITY_LIMIT_FACTOR),
+        conf.getBoolean(LRU_IN_MEMORY_FORCE_MODE_CONFIG_NAME, DEFAULT_IN_MEMORY_FORCE_MODE), // 默认false
+        // DEFAULT_MAX_BLOCK_SIZE = 16L * 1024L * 1024L 16M
+        conf.getLong(LRU_MAX_BLOCK_SIZE, DEFAULT_MAX_BLOCK_SIZE)
+    );
+  }
+
+public LruBlockCache(long maxSize, long blockSize, boolean evictionThread,
+      int mapInitialSize, float mapLoadFactor, int mapConcurrencyLevel,
+      float minFactor, float acceptableFactor, float singleFactor,
+      float multiFactor, float memoryFactor, float hardLimitFactor,
+      boolean forceInMemory, long maxBlockSize) {
+    this.maxBlockSize = maxBlockSize;
+    // 判断factor取值是否合法
+
+    // 初始化属性
+
+    // 创建一个ConcurrentHashMap保存Block的映射关系
+    map = new ConcurrentHashMap<>(mapInitialSize, mapLoadFactor, mapConcurrencyLevel);
+   // 开启淘汰线程
+    if (evictionThread) {
+      this.evictionThread = new EvictionThread(this);
+      this.evictionThread.start(); // FindBugs SC_START_IN_CTOR
+    } else {
+      this.evictionThread = null;
+    }
+    // every five minutes.
+    this.scheduleThreadPool.scheduleAtFixedRate(new StatisticsThread(this), STAT_THREAD_PERIOD,STAT_THREAD_PERIOD, TimeUnit.SECONDS);
+}
 ```

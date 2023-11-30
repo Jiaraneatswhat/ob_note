@@ -184,34 +184,102 @@ public HRegionServer(Configuration conf) throws IOException {
       // Open connection to zookeeper and set primary watcher 
       // 连接到ZK
       zooKeeper = new ZKWatcher(conf, getProcessName() + ":" +  
-        rpcServices.isa.getPort(), this, canCreateBaseZNode());  
-      // If no master in cluster, skip trying to track one or look for a cluster status.  
-      if (!this.masterless) {  
-        this.csm = new ZkCoordinatedStateManager(this);  
-  
-        masterAddressTracker = new MasterAddressTracker(getZooKeeper(), this);  
-        masterAddressTracker.start();  
-  
-        clusterStatusTracker = new ClusterStatusTracker(zooKeeper, this);  
-        clusterStatusTracker.start();  
-      } else {  
-        masterAddressTracker = null;  
-        clusterStatusTracker = null;  
-      }  
-    } else {  
-      zooKeeper = null;  
-      masterAddressTracker = null;  
-      clusterStatusTracker = null;  
-    }  
+    // 启动rpcServices, 等待regionserver端和客户端的请求
     this.rpcServices.start(zooKeeper);  
-    // This violates 'no starting stuff in Constructor' but Master depends on the below chore  
-    // and executor being created and takes a different startup route. Lots of overlap between HRS    // and M (An M IS A HRS now). Need to refactor so less duplication between M and its super    // Master expects Constructor to put up web servers. Ugh.    // class HRS. TODO.    this.choreService = new ChoreService(getName(), true);  
-    this.executorService = new ExecutorService(getName());  
-    putUpWebUI();  
-  } catch (Throwable t) {  
-    // Make sure we log the exception. HRegionServer is often started via reflection and the  
-    // cause of failed startup is lost.    LOG.error("Failed construction RegionServer", t);  
-    throw t;  
-  }  
+    }
 }
+```
+## 1.5 启动 HMaster
+```java
+public void run() {
+    try {
+      if (!conf.getBoolean("hbase.testing.nocluster", false)) {
+        Threads.setDaemonThreadRunning(new Thread(() -> {
+          try {
+            int infoPort = putUpJettyServer();
+            // 启动ActiveMasterManager
+            startActiveMasterManager(infoPort);
+          }
+        }));
+      }
+      // 成为active master后启动HRegionServer
+      super.run();
+    } 
+}
+
+private void startActiveMasterManager(int infoPort) throws KeeperException {
+      // 没有active的master时阻塞
+      while (!activeMasterManager.hasActiveMaster()) {
+        LOG.debug("Waiting for master address and cluster state znode to be written.");
+        Threads.sleep(timeout);
+      }
+    }
+    try {
+          // 尝试成为ActiveMaster, 在zk上创建active节点
+      if (activeMasterManager.blockUntilBecomingActiveMaster(timeout, status)) {
+          // 成为active master后执行
+          finishActiveMasterInitialization(status);
+      }
+    }
+}
+
+private void finishActiveMasterInitialization(MonitoredTask status)
+      throws IOException, InterruptedException, KeeperException {
+   
+    this.fileSystemManager = new MasterFileSystem(conf);
+    // MasterWalManager有一个属性成员SplitLogManager
+    this.walManager = new MasterWalManager(this);
+    
+    // HBase 集群启动的时候会存储 clusterID，当 hmaster 成为 active 的时候，会将这个 clusterID 信息写入到 zk 中
+    ClusterId clusterId = fileSystemManager.getClusterId();
+
+	// HMaster 用来维护 online RegionServer
+    this.serverManager = createServerManager(this);
+    // HBase的状态机
+    createProcedureExecutor();
+
+  initMetaProc = optProc.orElseGet(() -> {
+	// schedule an init meta procedure if meta has not been deployed yet
+	// 向procedureExecutor添加一个InitMetaProcedure任务，创建meta表
+	InitMetaProcedure temp = new InitMetaProcedure();
+	procedureExecutor.submitProcedure(temp);
+	return temp;
+      });
+    }
+    waitForRegionServers(status);
+  }
+```
+## 1.6 启动 RegionServer
+```java
+public void run() {
+    try {
+      // 初始化zk, RpcClient
+      preRegistrationInitialization();
+    } 
+    try {
+
+      while (keepLooping()) {
+        // 向master注册，master进行响应
+        RegionServerStartupResponse w = reportForDuty();
+        if (w == null) {
+        } else {
+          // 处理注册结果，若成功，在zk上创建节点
+          handleReportForDutyResponse(w);
+          break;
+        }
+      }
+
+      // We registered with the Master.  Go into run mode.
+      long lastMsg = System.currentTimeMillis();
+      long oldRequestCount = -1;
+      // The main run loop.
+      while (!isStopped() && isHealthy()) {
+        long now = System.currentTimeMillis();
+        if ((now - lastMsg) >= msgInterval) {
+          // 发送心跳
+          tryRegionServerReport(lastMsg, now);
+          lastMsg = System.currentTimeMillis();
+        }
+    }
+  }
 ```

@@ -303,6 +303,7 @@ protected void handleReportForDutyResponse(final RegionServerStartupResponse c)
 
 ```
 # 2. 存储结构
+
 # 3. RegionServer 架构
 
 ![[RegionServer_framework.svg]]

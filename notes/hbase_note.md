@@ -162,51 +162,27 @@ public HRegionServer(Configuration conf) throws IOException {
   super("RegionServer");  // thread name  
   TraceUtil.initTracer(conf);  
   try {  
-  
+    // 检测否有足够的内存分配给Memstore和Block Cache使用
+    // DEFAULT_MEMSTORE_SIZE = 0.4f 分配给memstore的内存
+    // HFILE_BLOCK_CACHE_SIZE_DEFAULT = 0.4f 分配给block cache的内存
+    MemorySizeUtil.checkForClusterFreeHeapMemoryLimit(this.conf);
+    // HMaster和HRegionServer创建各自的RpcService
     rpcServices = createRpcServices();  
-    useThisHostnameInstead = getUseThisHostnameInstead(conf);  
-    String hostName =  
-        StringUtils.isBlank(useThisHostnameInstead) ? this.rpcServices.isa.getHostName()  
-            : this.useThisHostnameInstead;  
+    // 根据主机名端口和启动时间确定服务名 
     serverName = ServerName.valueOf(hostName, this.rpcServices.isa.getPort(), this.startcode);  
   
-    rpcControllerFactory = RpcControllerFactory.instantiate(this.conf);  
-    rpcRetryingCallerFactory = RpcRetryingCallerFactory.instantiate(this.conf);  
-  
-    // login the zookeeper client principal (if using security)  
-    ZKUtil.loginClient(this.conf, HConstants.ZK_CLIENT_KEYTAB_FILE,  
-        HConstants.ZK_CLIENT_KERBEROS_PRINCIPAL, hostName);  
-    // login the server principal (if using secure Hadoop)  
-    login(userProvider, hostName);  
-    // init superusers and add the server principal (if using security)  
-    // or process owner as default super user.    Superusers.initialize(conf);  
-    regionServerAccounting = new RegionServerAccounting(conf);  
-  
-    boolean isMasterNotCarryTable =  
-        this instanceof HMaster && !LoadBalancer.isTablesOnMaster(conf);  
-    // no need to instantiate global block cache when master not carry table  
-    if (!isMasterNotCarryTable) {  
+    if (!isMasterNotCarryTable) {
+      // 实例化BlockCache
       CacheConfig.instantiateBlockCache(conf);  
-    }  
-    cacheConfig = new CacheConfig(conf);  
-    mobCacheConfig = new MobCacheConfig(conf);  
-  
-    uncaughtExceptionHandler = new UncaughtExceptionHandler() {  
-      @Override  
-      public void uncaughtException(Thread t, Throwable e) {  
-        abort("Uncaught exception in executorService thread " + t.getName(), e);  
-      }  
+	    }  
     };  
-  
+	// 获取HBase在hdfs上的各个存储目录: 比如WAL预写日志, 数据存储路径等
     initializeFileSystem();  
-    spanReceiverHost = SpanReceiverHost.getInstance(getConfiguration());  
-  
-    this.configurationManager = new ConfigurationManager();  
-    setupWindows(getConfiguration(), getConfigurationManager());  
-  
+   
     // Some unit tests don't need a cluster, so no zookeeper at all  
     if (!conf.getBoolean("hbase.testing.nocluster", false)) {  
-      // Open connection to zookeeper and set primary watcher  
+      // Open connection to zookeeper and set primary watcher 
+      // 连接到ZK
       zooKeeper = new ZKWatcher(conf, getProcessName() + ":" +  
         rpcServices.isa.getPort(), this, canCreateBaseZNode());  
       // If no master in cluster, skip trying to track one or look for a cluster status.  

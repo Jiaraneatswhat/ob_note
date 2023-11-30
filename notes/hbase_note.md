@@ -131,7 +131,7 @@ public int run(String args[]) throws Exception {
     } 
 }
 ```
-## 1.2 startMaster()
+## 1.3 startMaster()
 ```java
 private int startMaster() {
     try {
@@ -148,5 +148,94 @@ private int startMaster() {
         master.join();
     } 
     return 0;
+}
+```
+## 1.4 创建 HMaster 实例
+```java
+public HMaster(final Configuration conf)  
+    throws IOException, KeeperException {  
+  // 调用父类的构造器
+  super(conf);  
+}
+
+public HRegionServer(Configuration conf) throws IOException {  
+  super("RegionServer");  // thread name  
+  TraceUtil.initTracer(conf);  
+  try {  
+  
+    rpcServices = createRpcServices();  
+    useThisHostnameInstead = getUseThisHostnameInstead(conf);  
+    String hostName =  
+        StringUtils.isBlank(useThisHostnameInstead) ? this.rpcServices.isa.getHostName()  
+            : this.useThisHostnameInstead;  
+    serverName = ServerName.valueOf(hostName, this.rpcServices.isa.getPort(), this.startcode);  
+  
+    rpcControllerFactory = RpcControllerFactory.instantiate(this.conf);  
+    rpcRetryingCallerFactory = RpcRetryingCallerFactory.instantiate(this.conf);  
+  
+    // login the zookeeper client principal (if using security)  
+    ZKUtil.loginClient(this.conf, HConstants.ZK_CLIENT_KEYTAB_FILE,  
+        HConstants.ZK_CLIENT_KERBEROS_PRINCIPAL, hostName);  
+    // login the server principal (if using secure Hadoop)  
+    login(userProvider, hostName);  
+    // init superusers and add the server principal (if using security)  
+    // or process owner as default super user.    Superusers.initialize(conf);  
+    regionServerAccounting = new RegionServerAccounting(conf);  
+  
+    boolean isMasterNotCarryTable =  
+        this instanceof HMaster && !LoadBalancer.isTablesOnMaster(conf);  
+    // no need to instantiate global block cache when master not carry table  
+    if (!isMasterNotCarryTable) {  
+      CacheConfig.instantiateBlockCache(conf);  
+    }  
+    cacheConfig = new CacheConfig(conf);  
+    mobCacheConfig = new MobCacheConfig(conf);  
+  
+    uncaughtExceptionHandler = new UncaughtExceptionHandler() {  
+      @Override  
+      public void uncaughtException(Thread t, Throwable e) {  
+        abort("Uncaught exception in executorService thread " + t.getName(), e);  
+      }  
+    };  
+  
+    initializeFileSystem();  
+    spanReceiverHost = SpanReceiverHost.getInstance(getConfiguration());  
+  
+    this.configurationManager = new ConfigurationManager();  
+    setupWindows(getConfiguration(), getConfigurationManager());  
+  
+    // Some unit tests don't need a cluster, so no zookeeper at all  
+    if (!conf.getBoolean("hbase.testing.nocluster", false)) {  
+      // Open connection to zookeeper and set primary watcher  
+      zooKeeper = new ZKWatcher(conf, getProcessName() + ":" +  
+        rpcServices.isa.getPort(), this, canCreateBaseZNode());  
+      // If no master in cluster, skip trying to track one or look for a cluster status.  
+      if (!this.masterless) {  
+        this.csm = new ZkCoordinatedStateManager(this);  
+  
+        masterAddressTracker = new MasterAddressTracker(getZooKeeper(), this);  
+        masterAddressTracker.start();  
+  
+        clusterStatusTracker = new ClusterStatusTracker(zooKeeper, this);  
+        clusterStatusTracker.start();  
+      } else {  
+        masterAddressTracker = null;  
+        clusterStatusTracker = null;  
+      }  
+    } else {  
+      zooKeeper = null;  
+      masterAddressTracker = null;  
+      clusterStatusTracker = null;  
+    }  
+    this.rpcServices.start(zooKeeper);  
+    // This violates 'no starting stuff in Constructor' but Master depends on the below chore  
+    // and executor being created and takes a different startup route. Lots of overlap between HRS    // and M (An M IS A HRS now). Need to refactor so less duplication between M and its super    // Master expects Constructor to put up web servers. Ugh.    // class HRS. TODO.    this.choreService = new ChoreService(getName(), true);  
+    this.executorService = new ExecutorService(getName());  
+    putUpWebUI();  
+  } catch (Throwable t) {  
+    // Make sure we log the exception. HRegionServer is often started via reflection and the  
+    // cause of failed startup is lost.    LOG.error("Failed construction RegionServer", t);  
+    throw t;  
+  }  
 }
 ```

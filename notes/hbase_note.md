@@ -1217,7 +1217,7 @@ private RegionLocations locateRegionInMeta(TableName tableName, byte[] row, bool
   // true
   if (useCache) {  
     RegionLocations locations = getCachedLocation(tableName, row);
-    // 从缓存中读取到直接返回，否则进行缓存  
+    // 从缓存中读取到直接返回
     if (locations != null && locations.getRegionLocation(replicaId) != null) {  
       return locations;  
     }  
@@ -1252,7 +1252,7 @@ private RegionLocations locateRegionInMeta(TableName tableName, byte[] row, bool
           return locations;  
         }  
       }  
-      s.resetMvccReadPoint();  
+
       try (ReversedClientScanner rcs =  
         new ReversedClientScanner(conf, s, TableName.META_TABLE_NAME, this, rpcCallerFactory,  
           rpcControllerFactory, getMetaLookupPool(), metaReplicaCallTimeoutScanInMicroSecond)) {  
@@ -1344,7 +1344,7 @@ private RegionLocations locateRegionInMeta(TableName tableName, byte[] row, bool
 ```
 #### 4.1.2.4 getCachedLocation()
 ```java
-// 为 TableName 和 row 在 cache 中找一个位置进行缓存
+// 在 cache 中寻找 TableName 和 row 的位置
 RegionLocations getCachedLocation(final TableName tableName,  
     final byte [] row) {  
   return metaCache.getCachedLocation(tableName, row);  

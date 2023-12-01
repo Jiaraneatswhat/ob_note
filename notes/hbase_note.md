@@ -1426,18 +1426,61 @@ private RegionLocations locateMeta(final TableName tableName,
 }
 ```
 #### 4.1.2.7 zk 的作用
+##### 4.1.2.7.1 ZNodePaths
 ```java
 /*
  * HBase在zk创建节点信息对应的类是ZNodePaths，启动Master或RegionServer节点时会创建ZKWatcher对象，初始化ZNodePaths
 */
-public ZNodePaths(Configuration conf) { baseZNode = conf.get(ZOOKEEPER_ZNODE_PARENT, DEFAULT_ZOOKEEPER_ZNODE_PARENT); ImmutableMap.Builder<Integer, String> builder = ImmutableMap.builder(); metaZNodePrefix = conf.get("zookeeper.znode.metaserver", META_ZNODE_PREFIX); String defaultMetaReplicaZNode = ZNodePaths.joinZNode(baseZNode, metaZNodePrefix); builder.put(DEFAULT_REPLICA_ID, defaultMetaReplicaZNode); int numMetaReplicas = conf.getInt(META_REPLICAS_NUM, DEFAULT_META_REPLICA_NUM); IntStream.range(1, numMetaReplicas).forEachOrdered(i -> builder.put(i, defaultMetaReplicaZNode + "-" + i)); // metaServerZNode(元数据服务器地址)-/hbase/meta-region-server metaReplicaZNodes = builder.build(); // rsZNode-/hbase/rs rsZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.rs", "rs")); // drainingZNode-/hbase/draining(临时节点) drainingZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.draining.rs", "draining")); // masterAddressZNode(HMsater地址)-/hbase/master masterAddressZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.master", "master")); // backupMasterAddressesZNode(备用HMaster地址)-/hbase/backup-masters-0 backupMasterAddressesZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.backup.masters", "backup-masters")); // clusterStateZNode(集群状态)-/hbase/running clusterStateZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.state", "running")); // tableZNode(数据表信息)-/hbase/table tableZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.tableEnableDisable", "table")); // clusterIdZNode(集群ID)-/hbase/hbaseid clusterIdZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.clusterId", "hbaseid")); // splitLogZNode-/hbase/splitWAL splitLogZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.splitlog", SPLIT_LOGDIR_NAME)); // balancerZNode-/hbase/balancer balancerZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.balancer", "balancer")); // regionNormalizerZNode-/hbase/normalizer regionNormalizerZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.regionNormalizer", "normalizer")); // switchZNode-/hbase/switch switchZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.switch", "switch")); // tableLockZNode-/hbase/table-lock tableLockZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.tableLock", "table-lock")); // namespaceZNode(命名空间)-/hbase/namespace namespaceZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.namespace", "namespace")); masterMaintZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.masterMaintenance", "master-maintenance")); // replicationZNode-/hbase/replication replicationZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.replication", "replication")); peersZNode = joinZNode(replicationZNode, conf.get("zookeeper.znode.replication.peers", "peers")); queuesZNode = joinZNode(replicationZNode, conf.get("zookeeper.znode.replication.rs", "rs")); hfileRefsZNode = joinZNode(replicationZNode, conf.get("zookeeper.znode.replication.hfile.refs", "hfile-refs")); }
-
+public ZNodePaths(Configuration conf) {  
+  // "/hbase"
+  baseZNode = conf.get(ZOOKEEPER_ZNODE_PARENT, DEFAULT_ZOOKEEPER_ZNODE_PARENT);  
+   
+  // metaServerZNode(元数据服务器地址) --> /hbase/meta-region-server
+  metaReplicaZNodes = builder.build();  
+  // rsZNode --> /hbase/rs
+  rsZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.rs", "rs"));  
+  // masterAddressZNode --> /hbase/master
+  masterAddressZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.master", "master"));  
+  // 备用master --> /hbase/backup-masters-0
+  backupMasterAddressesZNode =  
+      joinZNode(baseZNode, conf.get("zookeeper.znode.backup.masters", "backup-masters"));  
+ // clusterStateZNode --> /hbase/running
+  clusterStateZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.state", "running"));  
+  // tableZNode --> /hbase/table
+  tableZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.tableEnableDisable", "table"));  
+  // splitLogZNode --> /hbase/splitWAL
+  splitLogZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.splitlog", SPLIT_LOGDIR_NAME));  
+  // namespaceZNode --> /hbase/namespace
+  namespaceZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.namespace", "namespace"));  
+}
+// 在zk上创建节点
+private void createBaseZNodes() throws ZooKeeperConnectionException { 
+try { 
+	// Create all the necessary "directories" of znodes 
+	ZKUtil.createWithParents(this, znodePaths.baseZNode); //createAndFailSilent创建Zookeeper节点，节点存在则忽略 
+	ZKUtil.createAndFailSilent(this, znodePaths.rsZNode);               
+	ZKUtil.createAndFailSilent(this, znodePaths.drainingZNode);  
+	ZKUtil.createAndFailSilent(this, znodePaths.tableZNode); 
+	ZKUtil.createAndFailSilent(this, znodePaths.splitLogZNode); 
+	ZKUtil.createAndFailSilent(this, znodePaths.backupMasterAddressesZNode); 
+	ZKUtil.createAndFailSilent(this, znodePaths.tableLockZNode); 
+	ZKUtil.createAndFailSilent(this, znodePaths.masterMaintZNode); 
+}
 ```
+##### 4.1.2.7.2 节点信息
+- `meta-region-server`
+	- 存储 `HBase` 集群 `hbase:meta` 元数据表所在的 `RegionServer` 访问地址，客户端读写数据首先会从此节点读取 `hbase:meta` 元数据的访问地址
+- `backup-masters`：HA 相关
+- `table`：集群中所有表的信息，创建表后进行表的信息存储
+- `master`：当前 `ative master` 节点
+- `namespace`：做表空间的逻辑隔离
+- `rs`：集群中所有运行的 `RegionServer`，`Master` 节点也会监听此节点信息
 #### 4.1.2.8 从 zk 上查找
 ```java
 // ZKAsyncRegistry.java
 public CompletableFuture<RegionLocations> getMetaRegionLocation() {  
   CompletableFuture<RegionLocations> future = new CompletableFuture<>();  
+  // metaReplicaZNodes = {0=/hbase/meta-region-server}
   HRegionLocation[] locs = new HRegionLocation[znodePaths.metaReplicaZNodes.size()];  
   MutableInt remaining = new MutableInt(locs.length);  
   znodePaths.metaReplicaZNodes.forEach((replicaId, path) -> {  

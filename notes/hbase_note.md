@@ -1229,14 +1229,11 @@ private RegionLocations locateRegionInMeta(TableName tableName, byte[] row, bool
   Scan s = new Scan().withStartRow(metaStartKey).withStopRow(metaStopKey, true)  
     .addFamily(HConstants.CATALOG_FAMILY).setReversed(true).setCaching(5) 
     .setReadType(ReadType.PREAD);
-  //   
+  // numTries = 16
   int maxAttempts = (retry ? numTries : 1);  
   for (int tries = 0; ; tries++) {  
-    if (tries >= maxAttempts) {  
-      throw new NoServerForRegionException("Unable to find region for "  
-          + Bytes.toStringBinary(row) + " in " + tableName + " after " + tries + " tries.");  
-    }  
     if (useCache) {  
+      // 再次去缓存里读
       RegionLocations locations = getCachedLocation(tableName, row);  
       if (locations != null && locations.getRegionLocation(replicaId) != null) {  
         return locations;  
@@ -1345,6 +1342,42 @@ private RegionLocations locateRegionInMeta(TableName tableName, byte[] row, bool
   }  
 }
 ```
+#### 4.1.2.4 getCachedLocation()
+```java
+// 为 TableName 和 row 在 cache 中找一个位置进行缓存
+RegionLocations getCachedLocation(final TableName tableName,  
+    final byte [] row) {  
+  return metaCache.getCachedLocation(tableName, row);  
+}
+
+// MetaCache.java
+public RegionLocations getCachedLocation(final TableName tableName, final byte [] row) {  
+  ConcurrentNavigableMap<byte[], RegionLocations> tableLocations =  
+    getTableLocations(tableName);  
+  
+  Entry<byte[], RegionLocations> e = tableLocations.floorEntry(row);  
+  if (e == null) {  
+    if (metrics != null) metrics.incrMetaCacheMiss();  
+    return null;  
+  }  
+  RegionLocations possibleRegion = e.getValue();  
+
+  if (Bytes.equals(endKey, HConstants.EMPTY_END_ROW) ||  
+      Bytes.compareTo(endKey, 0, endKey.length, row, 0, row.length) > 0) {  
+    if (metrics != null) metrics.incrMetaCacheHit();  
+    return possibleRegion;  
+  }  
+}
+
+// 返回null说明没有缓存
+private ConcurrentNavigableMap<byte[], RegionLocations> getTableLocations(  
+    final TableName tableName) {  
+  // find the map of cached locations for this table  
+  return computeIfAbsent(cachedRegionLocations, tableName,  
+    () -> new CopyOnWriteArrayMap<>(Bytes.BYTES_COMPARATOR));  
+}
+```
+
 ### 4.1.3 HRegion.put()
 ```java
 public void put(Put put) throws IOException {  

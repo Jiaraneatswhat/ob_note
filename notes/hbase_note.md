@@ -1419,6 +1419,7 @@ private RegionLocations locateMeta(final TableName tableName,
     // Look up from zookeeper  
     locations = get(this.registry.getMetaRegionLocation());  
     if (locations != null) {  
+	  // 查找结束后进行缓存
       cacheLocation(tableName, locations);  
     }  
   }  
@@ -1486,52 +1487,42 @@ public CompletableFuture<RegionLocations> getMetaRegionLocation() {
   znodePaths.metaReplicaZNodes.forEach((replicaId, path) -> {  
     if (replicaId == DEFAULT_REPLICA_ID) {  
       addListener(getAndConvert(path, ZKAsyncRegistry::getMetaProto), (proto, error) -> {  
-        if (error != null) {  
-          future.completeExceptionally(error);  
-          return;  
-        }  
-        if (proto == null) {  
-          future.completeExceptionally(new IOException("Meta znode is null"));  
-          return;  
-        }  
-        Pair<RegionState.State, ServerName> stateAndServerName = getStateAndServerName(proto);  
-        if (stateAndServerName.getFirst() != RegionState.State.OPEN) {  
-          future.completeExceptionally(  
-            new IOException("Meta region is in state " + stateAndServerName.getFirst()));  
-          return;  
-        }  
+        // 从HBaseProtos中获取到server地址和端口
         locs[DEFAULT_REPLICA_ID] = new HRegionLocation(  
           getRegionInfoForDefaultReplica(FIRST_META_REGIONINFO), stateAndServerName.getSecond());  
         tryComplete(remaining, locs, future);  
       });  
-    } else {  
-      addListener(getAndConvert(path, ZKAsyncRegistry::getMetaProto), (proto, error) -> {  
-        if (future.isDone()) {  
-          return;  
-        }  
-        if (error != null) {  
-          LOG.warn("Failed to fetch " + path, error);  
-          locs[replicaId] = null;  
-        } else if (proto == null) {  
-          LOG.warn("Meta znode for replica " + replicaId + " is null");  
-          locs[replicaId] = null;  
-        } else {  
-          Pair<RegionState.State, ServerName> stateAndServerName = getStateAndServerName(proto);  
-          if (stateAndServerName.getFirst() != RegionState.State.OPEN) {  
-            LOG.warn("Meta region for replica " + replicaId + " is in state " +  
-              stateAndServerName.getFirst());  
-            locs[replicaId] = null;  
-          } else {  
-            locs[replicaId] =  
-              new HRegionLocation(getRegionInfoForReplica(FIRST_META_REGIONINFO, replicaId),  
-                stateAndServerName.getSecond());  
-          }  
-        }  
-        tryComplete(remaining, locs, future);  
-      });  
-    }  
+    } 
   });  
   return future;  
+}
+```
+#### 4.1.2.9 cacheLocation()
+```java
+public void cacheLocation(final TableName tableName, final RegionLocations location) {  
+  metaCache.cacheLocation(tableName, location);  
+}
+
+public void cacheLocation(final TableName tableName, final RegionLocations locations) {  
+  byte [] startKey = locations.getRegionLocation().getRegion().getStartKey();  
+  ConcurrentMap<byte[], RegionLocations> tableLocations = getTableLocations(tableName);  
+  RegionLocations oldLocation = tableLocations.putIfAbsent(startKey, locations);  
+  boolean isNewCacheEntry = (oldLocation == null);  
+  if (isNewCacheEntry) {  
+    if (LOG.isTraceEnabled()) {  
+      LOG.trace("Cached location: " + locations);  
+    }  
+    addToCachedServers(locations);  
+    return;  
+  }  
+  
+  // merge old and new locations and add it to the cache  
+  // Meta record might be stale - some (probably the same) server has closed the region  // with later seqNum and told us about the new location.  RegionLocations mergedLocation = oldLocation.mergeLocations(locations);  
+  boolean replaced = tableLocations.replace(startKey, oldLocation, mergedLocation);  
+  if (replaced && LOG.isTraceEnabled()) {  
+    LOG.trace("Merged cached locations: " + mergedLocation);  
+  }  
+  addToCachedServers(locations);  
 }
 ```
 ### 4.1.3 HRegion.put()

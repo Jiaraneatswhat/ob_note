@@ -1159,7 +1159,7 @@ throws IOException, RuntimeException {
 // RegionServerCallable.java
 public void prepare(final boolean reload) throws IOException {  
   // tableNmae是要put数据的表
-  // row是
+  // row是存储rowkey值的字节数组
   try (RegionLocator regionLocator = connection.getRegionLocator(tableName)) {  
     this.location = regionLocator.getRegionLocation(row);  
   }  
@@ -1209,10 +1209,144 @@ public RegionLocations locateRegion(final TableName tableName, final byte[] row,
     return locateRegionInMeta(tableName, row, useCache, retry, replicaId);  
   }  
 }
-
-
 ```
-### 4.1.2 HRegion.put()
+#### 4.1.2.3 locateRegionInMeta()
+```java
+private RegionLocations locateRegionInMeta(TableName tableName, byte[] row, boolean useCache,  
+    boolean retry, int replicaId) throws IOException {  
+  // true
+  if (useCache) {  
+    RegionLocations locations = getCachedLocation(tableName, row);  
+    if (locations != null && locations.getRegionLocation(replicaId) != null) {  
+      return locations;  
+    }  
+  }  
+  // build the key of the meta region we should be looking for.  
+  // the extra 9's on the end are necessary to allow "exact" matches  // without knowing the precise region names.  byte[] metaStartKey = RegionInfo.createRegionName(tableName, row, HConstants.NINES, false);  
+  byte[] metaStopKey =  
+    RegionInfo.createRegionName(tableName, HConstants.EMPTY_START_ROW, "", false);  
+  Scan s = new Scan().withStartRow(metaStartKey).withStopRow(metaStopKey, true)  
+    .addFamily(HConstants.CATALOG_FAMILY).setReversed(true).setCaching(5)  
+    .setReadType(ReadType.PREAD);  
+  if (this.useMetaReplicas) {  
+    s.setConsistency(Consistency.TIMELINE);  
+  }  
+  int maxAttempts = (retry ? numTries : 1);  
+  for (int tries = 0; ; tries++) {  
+    if (tries >= maxAttempts) {  
+      throw new NoServerForRegionException("Unable to find region for "  
+          + Bytes.toStringBinary(row) + " in " + tableName + " after " + tries + " tries.");  
+    }  
+    if (useCache) {  
+      RegionLocations locations = getCachedLocation(tableName, row);  
+      if (locations != null && locations.getRegionLocation(replicaId) != null) {  
+        return locations;  
+      }  
+    } else {  
+      // If we are not supposed to be using the cache, delete any existing cached location  
+      // so it won't interfere.      // We are only supposed to clean the cache for the specific replicaId      metaCache.clearCache(tableName, row, replicaId);  
+    }  
+    // Query the meta region  
+    long pauseBase = this.pause;  
+    userRegionLock.lock();  
+    try {  
+      if (useCache) {// re-check cache after get lock  
+        RegionLocations locations = getCachedLocation(tableName, row);  
+        if (locations != null && locations.getRegionLocation(replicaId) != null) {  
+          return locations;  
+        }  
+      }  
+      s.resetMvccReadPoint();  
+      try (ReversedClientScanner rcs =  
+        new ReversedClientScanner(conf, s, TableName.META_TABLE_NAME, this, rpcCallerFactory,  
+          rpcControllerFactory, getMetaLookupPool(), metaReplicaCallTimeoutScanInMicroSecond)) {  
+        boolean tableNotFound = true;  
+        for (;;) {  
+          Result regionInfoRow = rcs.next();  
+          if (regionInfoRow == null) {  
+            if (tableNotFound) {  
+              throw new TableNotFoundException(tableName);  
+            } else {  
+              throw new IOException(  
+                "Unable to find region for " + Bytes.toStringBinary(row) + " in " + tableName);  
+            }  
+          }  
+          tableNotFound = false;  
+          // convert the row result into the HRegionLocation we need!  
+          RegionLocations locations = MetaTableAccessor.getRegionLocations(regionInfoRow);  
+          if (locations == null || locations.getRegionLocation(replicaId) == null) {  
+            throw new IOException("RegionInfo null in " + tableName + ", row=" + regionInfoRow);  
+          }  
+          RegionInfo regionInfo = locations.getRegionLocation(replicaId).getRegion();  
+          if (regionInfo == null) {  
+            throw new IOException("RegionInfo null or empty in " + TableName.META_TABLE_NAME +  
+              ", row=" + regionInfoRow);  
+          }  
+          // See HBASE-20182. It is possible that we locate to a split parent even after the  
+          // children are online, so here we need to skip this region and go to the next one.          if (regionInfo.isSplitParent()) {  
+            continue;  
+          }  
+          if (regionInfo.isOffline()) {  
+            throw new RegionOfflineException("Region offline; disable table call? " +  
+                regionInfo.getRegionNameAsString());  
+          }  
+          // It is possible that the split children have not been online yet and we have skipped  
+          // the parent in the above condition, so we may have already reached a region which does          // not contains us.          if (!regionInfo.containsRow(row)) {  
+            throw new IOException(  
+              "Unable to find region for " + Bytes.toStringBinary(row) + " in " + tableName);  
+          }  
+          ServerName serverName = locations.getRegionLocation(replicaId).getServerName();  
+          if (serverName == null) {  
+            throw new NoServerForRegionException("No server address listed in " +  
+              TableName.META_TABLE_NAME + " for region " + regionInfo.getRegionNameAsString() +  
+              " containing row " + Bytes.toStringBinary(row));  
+          }  
+          if (isDeadServer(serverName)) {  
+            throw new RegionServerStoppedException(  
+              "hbase:meta says the region " + regionInfo.getRegionNameAsString() +  
+                " is managed by the server " + serverName + ", but it is dead.");  
+          }  
+          // Instantiate the location  
+          cacheLocation(tableName, locations);  
+          return locations;  
+        }  
+      }  
+    } catch (TableNotFoundException e) {  
+      // if we got this error, probably means the table just plain doesn't  
+      // exist. rethrow the error immediately. this should always be coming      // from the HTable constructor.      throw e;  
+    } catch (IOException e) {  
+      ExceptionUtil.rethrowIfInterrupt(e);  
+      if (e instanceof RemoteException) {  
+        e = ((RemoteException)e).unwrapRemoteException();  
+      }  
+      if (e instanceof CallQueueTooBigException) {  
+        // Give a special check on CallQueueTooBigException, see #HBASE-17114  
+        pauseBase = this.pauseForCQTBE;  
+      }  
+      if (tries < maxAttempts - 1) {  
+        LOG.debug("locateRegionInMeta parentTable='{}', attempt={} of {} failed; retrying " +  
+          "after sleep of {}", TableName.META_TABLE_NAME, tries, maxAttempts, maxAttempts, e);  
+      } else {  
+        throw e;  
+      }  
+      // Only relocate the parent region if necessary  
+      if(!(e instanceof RegionOfflineException ||  
+          e instanceof NoServerForRegionException)) {  
+        relocateRegion(TableName.META_TABLE_NAME, metaStartKey, replicaId);  
+      }  
+    } finally {  
+      userRegionLock.unlock();  
+    }  
+    try{  
+      Thread.sleep(ConnectionUtils.getPauseTime(pauseBase, tries));  
+    } catch (InterruptedException e) {  
+      throw new InterruptedIOException("Giving up trying to location region in " +  
+        "meta: thread is interrupted.");  
+    }  
+  }  
+}
+```
+### 4.1.3 HRegion.put()
 ```java
 public void put(Put put) throws IOException {  
   checkReadOnly();  

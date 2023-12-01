@@ -1132,13 +1132,159 @@ public void put(final Put put) throws IOException {
     @Override  
     protected Void rpcCall() throws Exception {  
       MutateRequest request =            RequestConverter.buildMutateRequest(getLocation().getRegionInfo().getRegionName(), put);  
+      // 使用protobuf协议序列化，提交RPC请求
       doMutate(request);  
       return null;  
     }  
-  };  
+  }; 
+  // 调用callable的rpcCall方法
   rpcCallerFactory.<Void> newCaller(this.writeRpcTimeoutMs).callWithRetries(callable,  
       this.operationTimeoutMs);  
 }
 
+protected ClientProtos.MutateResponse doMutate(ClientProtos.MutateRequest request)  
+throws org.apache.hbase.thirdparty.com.google.protobuf.ServiceException {  
+  return getStub().mutate(getRpcController(), request);  
+}
 
+public MutateResponse mutate(final RpcController rpcc,  
+    final MutateRequest request) throws ServiceException {  
+
+  CellScanner cellScanner = controller != null ? controller.cellScanner() : null;  
+  OperationQuota quota = null;  
+  RpcCallContext context = RpcServer.getCurrentCall().orElse(null);  
+  ActivePolicyEnforcement spaceQuotaEnforcement = null;  
+  MutationType type = null;  
+  HRegion region = null;  
+  long before = EnvironmentEdgeManager.currentTime();  
+  // Clear scanner so we are not holding on to reference across call.  
+  if (controller != null) {  
+    controller.setCellScanner(null);  
+  }  
+  try {  
+    type = mutation.getMutateType();  
+
+    switch (type) {  
+      case APPEND:  
+        // TODO: this doesn't actually check anything.  
+        r = append(region, quota, mutation, cellScanner, nonceGroup, spaceQuotaEnforcement);  
+        break;  
+      case INCREMENT:  
+        // TODO: this doesn't actually check anything.  
+        r = increment(region, quota, mutation, cellScanner, nonceGroup, spaceQuotaEnforcement);  
+        break;  
+      case PUT:  
+        Put put = ProtobufUtil.toPut(mutation, cellScanner);  
+        checkCellSizeLimit(region, put);  
+        // Throws an exception when violated  
+        spaceQuotaEnforcement.getPolicyEnforcement(region).check(put);  
+        quota.addMutation(put);  
+        if (request.hasCondition()) {  
+          Condition condition = request.getCondition();  
+          byte[] row = condition.getRow().toByteArray();  
+          byte[] family = condition.getFamily().toByteArray();  
+          byte[] qualifier = condition.getQualifier().toByteArray();  
+          CompareOperator compareOp =  
+            CompareOperator.valueOf(condition.getCompareType().name());  
+          ByteArrayComparable comparator = ProtobufUtil.toComparator(condition.getComparator());  
+          TimeRange timeRange = condition.hasTimeRange() ?  
+            ProtobufUtil.toTimeRange(condition.getTimeRange()) :  
+            TimeRange.allTime();  
+          if (region.getCoprocessorHost() != null) {  
+            processed = region.getCoprocessorHost().preCheckAndPut(row, family, qualifier,  
+                compareOp, comparator, put);  
+          }  
+          if (processed == null) {  
+            boolean result = region.checkAndMutate(row, family,  
+              qualifier, compareOp, comparator, timeRange, put);  
+            if (region.getCoprocessorHost() != null) {  
+              result = region.getCoprocessorHost().postCheckAndPut(row, family,  
+                qualifier, compareOp, comparator, put, result);  
+            }  
+            processed = result;  
+          }  
+        } else {  
+          region.put(put);  
+          processed = Boolean.TRUE;  
+        }  
+        break;  
+      case DELETE:  
+        Delete delete = ProtobufUtil.toDelete(mutation, cellScanner);  
+        checkCellSizeLimit(region, delete);  
+        spaceQuotaEnforcement.getPolicyEnforcement(region).check(delete);  
+        quota.addMutation(delete);  
+        if (request.hasCondition()) {  
+          Condition condition = request.getCondition();  
+          byte[] row = condition.getRow().toByteArray();  
+          byte[] family = condition.getFamily().toByteArray();  
+          byte[] qualifier = condition.getQualifier().toByteArray();  
+          CompareOperator op = CompareOperator.valueOf(condition.getCompareType().name());  
+          ByteArrayComparable comparator = ProtobufUtil.toComparator(condition.getComparator());  
+          TimeRange timeRange = condition.hasTimeRange() ?  
+            ProtobufUtil.toTimeRange(condition.getTimeRange()) :  
+            TimeRange.allTime();  
+          if (region.getCoprocessorHost() != null) {  
+            processed = region.getCoprocessorHost().preCheckAndDelete(row, family, qualifier, op,  
+                comparator, delete);  
+          }  
+          if (processed == null) {  
+            boolean result = region.checkAndMutate(row, family,  
+              qualifier, op, comparator, timeRange, delete);  
+            if (region.getCoprocessorHost() != null) {  
+              result = region.getCoprocessorHost().postCheckAndDelete(row, family,  
+                qualifier, op, comparator, delete, result);  
+            }  
+            processed = result;  
+          }  
+        } else {  
+          region.delete(delete);  
+          processed = Boolean.TRUE;  
+        }  
+        break;  
+      default:  
+        throw new DoNotRetryIOException("Unsupported mutate type: " + type.name());  
+    }  
+    if (processed != null) {  
+      builder.setProcessed(processed.booleanValue());  
+    }  
+    boolean clientCellBlockSupported = isClientCellBlockSupport(context);  
+    addResult(builder, r, controller, clientCellBlockSupported);  
+    if (clientCellBlockSupported) {  
+      addSize(context, r, null);  
+    }  
+    return builder.build();  
+  } catch (IOException ie) {  
+    regionServer.checkFileSystem();  
+    throw new ServiceException(ie);  
+  } finally {  
+    if (quota != null) {  
+      quota.close();  
+    }  
+    // Update metrics  
+    if (regionServer.metricsRegionServer != null && type != null) {  
+      long after = EnvironmentEdgeManager.currentTime();  
+      switch (type) {  
+      case DELETE:  
+        if (request.hasCondition()) {  
+          regionServer.metricsRegionServer.updateCheckAndDelete(after - before);  
+        } else {  
+          regionServer.metricsRegionServer.updateDelete(  
+              region == null ? null : region.getRegionInfo().getTable(), after - before);  
+        }  
+        break;  
+      case PUT:  
+        if (request.hasCondition()) {  
+          regionServer.metricsRegionServer.updateCheckAndPut(after - before);  
+        } else {  
+          regionServer.metricsRegionServer.updatePut(  
+              region == null ? null : region.getRegionInfo().getTable(),after - before);  
+        }  
+        break;  
+      default:  
+        break;  
+  
+      }  
+    }  
+  }  
+}
 ```

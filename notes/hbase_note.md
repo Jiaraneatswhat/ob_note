@@ -1216,21 +1216,20 @@ private RegionLocations locateRegionInMeta(TableName tableName, byte[] row, bool
     boolean retry, int replicaId) throws IOException {  
   // true
   if (useCache) {  
-    RegionLocations locations = getCachedLocation(tableName, row);  
+    RegionLocations locations = getCachedLocation(tableName, row);
+    // 从缓存中读取到直接返回，否则进行缓存  
     if (locations != null && locations.getRegionLocation(replicaId) != null) {  
       return locations;  
     }  
   }  
-  // build the key of the meta region we should be looking for.  
-  // the extra 9's on the end are necessary to allow "exact" matches  // without knowing the precise region names.  byte[] metaStartKey = RegionInfo.createRegionName(tableName, row, HConstants.NINES, false);  
+  // 通过表名，row_key 和 HConstants.NINES 创建 RegionName，作为meta的startKey
+   byte[] metaStartKey = RegionInfo.createRegionName(tableName, row, HConstants.NINES, false);  
   byte[] metaStopKey =  
     RegionInfo.createRegionName(tableName, HConstants.EMPTY_START_ROW, "", false);  
   Scan s = new Scan().withStartRow(metaStartKey).withStopRow(metaStopKey, true)  
-    .addFamily(HConstants.CATALOG_FAMILY).setReversed(true).setCaching(5)  
-    .setReadType(ReadType.PREAD);  
-  if (this.useMetaReplicas) {  
-    s.setConsistency(Consistency.TIMELINE);  
-  }  
+    .addFamily(HConstants.CATALOG_FAMILY).setReversed(true).setCaching(5) 
+    .setReadType(ReadType.PREAD);
+  //   
   int maxAttempts = (retry ? numTries : 1);  
   for (int tries = 0; ; tries++) {  
     if (tries >= maxAttempts) {  

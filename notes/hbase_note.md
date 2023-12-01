@@ -303,7 +303,9 @@ protected void handleReportForDutyResponse(final RegionServerStartupResponse c)
 
 ```
 # 2. 存储结构
+## 2.1 逻辑结构
 
+![[HbaseLogic.svg]]
 # 3. RegionServer 架构
 
 ![[RegionServer_framework.svg]]

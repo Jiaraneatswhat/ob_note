@@ -1158,7 +1158,8 @@ throws IOException, RuntimeException {
 ```java
 // RegionServerCallable.java
 public void prepare(final boolean reload) throws IOException {  
-
+  // tableNmae是要put数据的表
+  // row是
   try (RegionLocator regionLocator = connection.getRegionLocator(tableName)) {  
     this.location = regionLocator.getRegionLocation(row);  
   }  
@@ -1201,13 +1202,9 @@ public RegionLocations locateRegion(final TableName tableName, final byte[] row,
 
 public RegionLocations locateRegion(final TableName tableName, final byte[] row, boolean useCache,  
     boolean retry, int replicaId) throws IOException {  
-  checkClosed();  
-  if (tableName == null || tableName.getName().length == 0) {  
-    throw new IllegalArgumentException("table name cannot be null or zero length");  
-  }  
   if (tableName.equals(TableName.META_TABLE_NAME)) {  
     return locateMeta(tableName, useCache, replicaId);  
-  } else {  
+  } else { 
     // Region not in the cache - have to go to the meta RS  
     return locateRegionInMeta(tableName, row, useCache, retry, replicaId);  
   }  

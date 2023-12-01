@@ -1508,24 +1508,26 @@ public void cacheLocation(final TableName tableName, final RegionLocations locat
   ConcurrentMap<byte[], RegionLocations> tableLocations = getTableLocations(tableName);  
   RegionLocations oldLocation = tableLocations.putIfAbsent(startKey, locations);  
   boolean isNewCacheEntry = (oldLocation == null);  
-  if (isNewCacheEntry) {  
-    if (LOG.isTraceEnabled()) {  
-      LOG.trace("Cached location: " + locations);  
-    }  
+  if (isNewCacheEntry) {    
     addToCachedServers(locations);  
     return;  
   }  
-  
-  // merge old and new locations and add it to the cache  
-  // Meta record might be stale - some (probably the same) server has closed the region  // with later seqNum and told us about the new location.  RegionLocations mergedLocation = oldLocation.mergeLocations(locations);  
-  boolean replaced = tableLocations.replace(startKey, oldLocation, mergedLocation);  
-  if (replaced && LOG.isTraceEnabled()) {  
-    LOG.trace("Merged cached locations: " + mergedLocation);  
+}
+
+private void addToCachedServers(RegionLocations locations) {  
+  for (HRegionLocation loc : locations.getRegionLocations()) {  
+    if (loc != null) {  
+      // 添加到集合中
+      cachedServers.add(loc.getServerName());  
+    }  
   }  
-  addToCachedServers(locations);  
 }
 ```
-### 4.1.3 HRegion.put()
+### 4.1.3 从 meta 表获取 Region 位置
+```java
+// 
+```
+### 4.1.4 HRegion.put()
 ```java
 public void put(Put put) throws IOException {  
   checkReadOnly();  

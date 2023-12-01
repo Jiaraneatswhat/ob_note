@@ -1142,34 +1142,78 @@ public void put(final Put put) throws IOException {
       this.operationTimeoutMs);  
 }
 
-protected ClientProtos.MutateResponse doMutate(ClientProtos.MutateRequest request)  
-throws org.apache.hbase.thirdparty.com.google.protobuf.ServiceException {  
-  return getStub().mutate(getRpcController(), request);  
+public T callWithRetries(RetryingCallable<T> callable, int callTimeout)  
+throws IOException, RuntimeException {  
+  List<RetriesExhaustedException.ThrowableWithExtraContext> exceptions = new ArrayList<>();  
+  for (int tries = 0;; tries++) {  
+    long expectedSleep;  
+    try {
+	  // 查找meta表位置  
+      callable.prepare(tries != 0);  
+      interceptor.intercept(context.prepare(callable, tries));  
+      return callable.call(getTimeout(callTimeout));  
+    }
+```
+### 4.1.2 定位 meta 表位置
+```java
+// RegionServerCallable.java
+public void prepare(final boolean reload) throws IOException {  
+
+  try (RegionLocator regionLocator = connection.getRegionLocator(tableName)) {  
+    this.location = regionLocator.getRegionLocation(row);  
+  }  
 }
-/*
- * 客户端的RPC请求通过ClientServiceCallable的doMutate方法提交
- * 服务端IPC实现类为RSRpcServices，通过mutate方法接收
- */
-public MutateResponse mutate(final RpcController rpcc,  
-    final MutateRequest request) throws ServiceException {    
-  MutationType type = null;  
-  HRegion region = null;  
-  try {  
-    type = mutation.getMutateType();  
-	// 反序列化为PUT对象
-    switch (type) {  
-      case PUT:  
-        Put put = ProtobufUtil.toPut(mutation, cellScanner);  
-        if (request.hasCondition()) {
-        } else {
-          // HRegion的put  
-          region.put(put);  
-          processed = Boolean.TRUE;  
-        }  
-	     break;  
-	    }
-   }
+```
+#### 4.1.2.1 getRegionLocator()
+```java
+public RegionLocator getRegionLocator(TableName tableName) throws IOException {  
+  return new HRegionLocator(tableName, this);  
 }
+
+// private final ClusterConnection connection
+public HRegionLocator(TableName tableName, ClusterConnection connection) {  
+  this.connection = connection;  
+  this.tableName = tableName;  
+}
+```
+#### 4.1.2.2 getRegionLocation()
+```java
+public HRegionLocation getRegionLocation(final byte [] row)  
+throws IOException {  
+  return connection.getRegionLocation(tableName, row, false);  
+}
+
+public HRegionLocation getRegionLocation(final TableName tableName, final byte[] row,  
+    boolean reload) throws IOException {  
+  return reload ? relocateRegion(tableName, row) : locateRegion(tableName, row);  
+}
+
+public HRegionLocation locateRegion(final TableName tableName, final byte[] row)  
+    throws IOException {  
+  RegionLocations locations = locateRegion(tableName, row, true, true);  
+  return locations == null ? null : locations.getRegionLocation();  
+}
+
+public RegionLocations locateRegion(final TableName tableName, final byte[] row, boolean useCache,  
+    boolean retry) throws IOException {  
+  return locateRegion(tableName, row, useCache, retry, RegionReplicaUtil.DEFAULT_REPLICA_ID);  
+}
+
+public RegionLocations locateRegion(final TableName tableName, final byte[] row, boolean useCache,  
+    boolean retry, int replicaId) throws IOException {  
+  checkClosed();  
+  if (tableName == null || tableName.getName().length == 0) {  
+    throw new IllegalArgumentException("table name cannot be null or zero length");  
+  }  
+  if (tableName.equals(TableName.META_TABLE_NAME)) {  
+    return locateMeta(tableName, useCache, replicaId);  
+  } else {  
+    // Region not in the cache - have to go to the meta RS  
+    return locateRegionInMeta(tableName, row, useCache, retry, replicaId);  
+  }  
+}
+
+
 ```
 ### 4.1.2 HRegion.put()
 ```java

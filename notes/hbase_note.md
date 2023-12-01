@@ -1119,3 +1119,26 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
     	List<HStoreFile> hStoreFiles = loadStoreFiles();
 }
 ```
+# 4. 写流程
+## 4.1 客户端发起 put 请求
+### 4.1.1 put()
+```java
+// HTable
+public void put(final Put put) throws IOException {  
+  // 检查写入的column是否存在，cell大小是否超过最大配置
+  validatePut(put);  
+  ClientServiceCallable<Void> callable =  
+      new ClientServiceCallable<Void>(this.connection, getName(), put.getRow(), this.rpcControllerFactory.newController(), put.getPriority()) {  
+    @Override  
+    protected Void rpcCall() throws Exception {  
+      MutateRequest request =            RequestConverter.buildMutateRequest(getLocation().getRegionInfo().getRegionName(), put);  
+      doMutate(request);  
+      return null;  
+    }  
+  };  
+  rpcCallerFactory.<Void> newCaller(this.writeRpcTimeoutMs).callWithRetries(callable,  
+      this.operationTimeoutMs);  
+}
+
+
+```

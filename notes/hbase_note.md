@@ -1251,15 +1251,7 @@ private RegionLocations locateRegionInMeta(TableName tableName, byte[] row, bool
           tableNotFound = false;  
           // convert the row result into the HRegionLocation we need!  
           RegionLocations locations = MetaTableAccessor.getRegionLocations(regionInfoRow);  
-          RegionInfo regionInfo = locations.getRegionLocation(replicaId).getRegion();  
-          if (regionInfo == null) {  
-            throw new IOException("RegionInfo null or empty in " + TableName.META_TABLE_NAME +  
-              ", row=" + regionInfoRow);  
-          }  
-          // See HBASE-20182. It is possible that we locate to a split parent even after the  
-          // children are online, so here we need to skip this region and go to the next one.          if (regionInfo.isSplitParent()) {  
-            continue;  
-          }  
+          RegionInfo regionInfo = locations.getRegionLocation(replicaId).getRegion();    
           ServerName serverName = locations.getRegionLocation(replicaId).getServerName();  
           // Instantiate the location  
           cacheLocation(tableName, locations);  
@@ -1312,25 +1304,191 @@ public Result next() throws IOException {
 }
 
 protected Result nextWithSyncCache() throws IOException {  
-  Result result = cache.poll();  
-  if (result != null) {  
-    return result;  
-  }  
-  // If there is nothing left in the cache and the scanner is closed,  
-  // return a no-op  if (this.closed) {  
-    return null;  
-  }  
-  
   loadCache();  
-  
-  // try again to load from cache  
-  result = cache.poll();  
-  
-  // if we exhausted this scanner before calling close, write out the scan metrics  
-  if (result == null) {  
-    writeScanMetrics();  
-  }  
   return result;  
+}
+
+protected void loadCache() throws IOException {  
+  long remainingResultSize = maxScannerResultSize;  
+  for (;;) {  
+    Result[] values;  
+    try {      
+      // ScannerCallableWithReplicas实现了callable接口，调用其call方法
+      values = call(callable, caller, scannerTimeout, true);  
+      }  
+      retryAfterOutOfOrderException.setValue(true);  
+    }
+    long currentTime = System.currentTimeMillis();  
+    if (this.scanMetrics != null) {  
+      this.scanMetrics.sumOfMillisSecBetweenNexts.addAndGet(currentTime - lastNext);  
+    }  
+    lastNext = currentTime;  
+    // Groom the array of Results that we received back from the server before adding that  
+    // Results to the scanner's cache. If partial results are not allowed to be seen by the    // caller, all book keeping will be performed within this method.    int numberOfCompleteRowsBefore = scanResultCache.numberOfCompleteRows();  
+    Result[] resultsToAddToCache =  
+        scanResultCache.addAndGet(values, callable.isHeartbeatMessage());  
+    int numberOfCompleteRows =  
+        scanResultCache.numberOfCompleteRows() - numberOfCompleteRowsBefore;  
+    for (Result rs : resultsToAddToCache) {  
+      cache.add(rs);  
+      long estimatedHeapSizeOfResult = calcEstimatedSize(rs);  
+      countdown--;  
+      remainingResultSize -= estimatedHeapSizeOfResult;  
+      addEstimatedSize(estimatedHeapSizeOfResult);  
+      this.lastResult = rs;  
+    }  
+  
+    if (scan.getLimit() > 0) {  
+      int newLimit = scan.getLimit() - numberOfCompleteRows;  
+      assert newLimit >= 0;  
+      scan.setLimit(newLimit);  
+    }  
+    if (scan.getLimit() == 0 || scanExhausted(values)) {  
+      closeScanner();  
+      closed = true;  
+      break;  
+    }  
+    boolean regionExhausted = regionExhausted(values);  
+    if (callable.isHeartbeatMessage()) {  
+      if (!cache.isEmpty()) {  
+        // Caller of this method just wants a Result. If we see a heartbeat message, it means  
+        // processing of the scan is taking a long time server side. Rather than continue to        // loop until a limit (e.g. size or caching) is reached, break out early to avoid causing        // unnecesary delays to the caller        LOG.trace("Heartbeat message received and cache contains Results. " +  
+          "Breaking out of scan loop");  
+        // we know that the region has not been exhausted yet so just break without calling  
+        // closeScannerIfExhausted        break;  
+      }  
+    }  
+    if (cache.isEmpty() && !closed && scan.isNeedCursorResult()) {  
+      if (callable.isHeartbeatMessage() && callable.getCursor() != null) {  
+        // Use cursor row key from server  
+        cache.add(Result.createCursorResult(callable.getCursor()));  
+        break;  
+      }  
+      if (values.length > 0) {  
+        // It is size limit exceed and we need return the last Result's row.  
+        // When user setBatch and the scanner is reopened, the server may return Results that        // user has seen and the last Result can not be seen because the number is not enough.        // So the row keys of results may not be same, we must use the last one.        cache.add(Result.createCursorResult(new Cursor(values[values.length - 1].getRow())));  
+        break;  
+      }  
+    }  
+    if (countdown <= 0) {  
+      // we have enough result.  
+      closeScannerIfExhausted(regionExhausted);  
+      break;  
+    }  
+    if (remainingResultSize <= 0) {  
+      if (!cache.isEmpty()) {  
+        closeScannerIfExhausted(regionExhausted);  
+        break;  
+      } else {  
+        // we have reached the max result size but we still can not find anything to return to the  
+        // user. Reset the maxResultSize and try again.        remainingResultSize = maxScannerResultSize;  
+      }  
+    }  
+    // we are done with the current region  
+    if (regionExhausted) {  
+      if (!moveToNextRegion()) {  
+        closed = true;  
+        break;  
+      }  
+    }  
+  }  
+}
+```
+#### 4.1.2.6 call()
+```java
+// 父类ClientScanner的call
+private Result[] call(ScannerCallableWithReplicas callable, RpcRetryingCaller<Result[]> caller,  
+    int scannerTimeout, boolean updateCurrentRegion) throws IOException { 
+  Result[] rrs = caller.callWithoutRetries(callable, scannerTimeout);  
+  return rrs;  
+}
+
+public T callWithoutRetries(RetryingCallable<T> callable, int callTimeout)  
+throws IOException, RuntimeException {  
+   try {  
+    callable.prepare(false);  
+    return callable.call(callTimeout);  
+  }
+}
+// 第二次进入4.1.2.2中的locateMeta方法时，此时表名为meta，会执行locateMeta方法
+
+private RegionLocations locateMeta(final TableName tableName,  
+    boolean useCache, int replicaId) throws IOException {  
+  // only one thread should do the lookup.  
+  synchronized (metaRegionLock) {  
+    // Look up from zookeeper  
+    locations = get(this.registry.getMetaRegionLocation());  
+    if (locations != null) {  
+      cacheLocation(tableName, locations);  
+    }  
+  }  
+  return locations;  
+}
+```
+#### 4.1.2.7 zk 的作用
+```java
+/*
+ * HBase在zk创建节点信息对应的类是ZNodePaths，启动Master或RegionServer节点时会创建ZKWatcher对象，初始化ZNodePaths
+*/
+public ZNodePaths(Configuration conf) { baseZNode = conf.get(ZOOKEEPER_ZNODE_PARENT, DEFAULT_ZOOKEEPER_ZNODE_PARENT); ImmutableMap.Builder<Integer, String> builder = ImmutableMap.builder(); metaZNodePrefix = conf.get("zookeeper.znode.metaserver", META_ZNODE_PREFIX); String defaultMetaReplicaZNode = ZNodePaths.joinZNode(baseZNode, metaZNodePrefix); builder.put(DEFAULT_REPLICA_ID, defaultMetaReplicaZNode); int numMetaReplicas = conf.getInt(META_REPLICAS_NUM, DEFAULT_META_REPLICA_NUM); IntStream.range(1, numMetaReplicas).forEachOrdered(i -> builder.put(i, defaultMetaReplicaZNode + "-" + i)); // metaServerZNode(元数据服务器地址)-/hbase/meta-region-server metaReplicaZNodes = builder.build(); // rsZNode-/hbase/rs rsZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.rs", "rs")); // drainingZNode-/hbase/draining(临时节点) drainingZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.draining.rs", "draining")); // masterAddressZNode(HMsater地址)-/hbase/master masterAddressZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.master", "master")); // backupMasterAddressesZNode(备用HMaster地址)-/hbase/backup-masters-0 backupMasterAddressesZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.backup.masters", "backup-masters")); // clusterStateZNode(集群状态)-/hbase/running clusterStateZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.state", "running")); // tableZNode(数据表信息)-/hbase/table tableZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.tableEnableDisable", "table")); // clusterIdZNode(集群ID)-/hbase/hbaseid clusterIdZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.clusterId", "hbaseid")); // splitLogZNode-/hbase/splitWAL splitLogZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.splitlog", SPLIT_LOGDIR_NAME)); // balancerZNode-/hbase/balancer balancerZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.balancer", "balancer")); // regionNormalizerZNode-/hbase/normalizer regionNormalizerZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.regionNormalizer", "normalizer")); // switchZNode-/hbase/switch switchZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.switch", "switch")); // tableLockZNode-/hbase/table-lock tableLockZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.tableLock", "table-lock")); // namespaceZNode(命名空间)-/hbase/namespace namespaceZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.namespace", "namespace")); masterMaintZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.masterMaintenance", "master-maintenance")); // replicationZNode-/hbase/replication replicationZNode = joinZNode(baseZNode, conf.get("zookeeper.znode.replication", "replication")); peersZNode = joinZNode(replicationZNode, conf.get("zookeeper.znode.replication.peers", "peers")); queuesZNode = joinZNode(replicationZNode, conf.get("zookeeper.znode.replication.rs", "rs")); hfileRefsZNode = joinZNode(replicationZNode, conf.get("zookeeper.znode.replication.hfile.refs", "hfile-refs")); }
+
+```
+#### 4.1.2.8 从 zk 上查找
+```java
+// ZKAsyncRegistry.java
+public CompletableFuture<RegionLocations> getMetaRegionLocation() {  
+  CompletableFuture<RegionLocations> future = new CompletableFuture<>();  
+  HRegionLocation[] locs = new HRegionLocation[znodePaths.metaReplicaZNodes.size()];  
+  MutableInt remaining = new MutableInt(locs.length);  
+  znodePaths.metaReplicaZNodes.forEach((replicaId, path) -> {  
+    if (replicaId == DEFAULT_REPLICA_ID) {  
+      addListener(getAndConvert(path, ZKAsyncRegistry::getMetaProto), (proto, error) -> {  
+        if (error != null) {  
+          future.completeExceptionally(error);  
+          return;  
+        }  
+        if (proto == null) {  
+          future.completeExceptionally(new IOException("Meta znode is null"));  
+          return;  
+        }  
+        Pair<RegionState.State, ServerName> stateAndServerName = getStateAndServerName(proto);  
+        if (stateAndServerName.getFirst() != RegionState.State.OPEN) {  
+          future.completeExceptionally(  
+            new IOException("Meta region is in state " + stateAndServerName.getFirst()));  
+          return;  
+        }  
+        locs[DEFAULT_REPLICA_ID] = new HRegionLocation(  
+          getRegionInfoForDefaultReplica(FIRST_META_REGIONINFO), stateAndServerName.getSecond());  
+        tryComplete(remaining, locs, future);  
+      });  
+    } else {  
+      addListener(getAndConvert(path, ZKAsyncRegistry::getMetaProto), (proto, error) -> {  
+        if (future.isDone()) {  
+          return;  
+        }  
+        if (error != null) {  
+          LOG.warn("Failed to fetch " + path, error);  
+          locs[replicaId] = null;  
+        } else if (proto == null) {  
+          LOG.warn("Meta znode for replica " + replicaId + " is null");  
+          locs[replicaId] = null;  
+        } else {  
+          Pair<RegionState.State, ServerName> stateAndServerName = getStateAndServerName(proto);  
+          if (stateAndServerName.getFirst() != RegionState.State.OPEN) {  
+            LOG.warn("Meta region for replica " + replicaId + " is in state " +  
+              stateAndServerName.getFirst());  
+            locs[replicaId] = null;  
+          } else {  
+            locs[replicaId] =  
+              new HRegionLocation(getRegionInfoForReplica(FIRST_META_REGIONINFO, replicaId),  
+                stateAndServerName.getSecond());  
+          }  
+        }  
+        tryComplete(remaining, locs, future);  
+      });  
+    }  
+  });  
+  return future;  
 }
 ```
 ### 4.1.3 HRegion.put()

@@ -1757,35 +1757,21 @@ public List<Pair<NonceKey, WALEdit>> buildWALEdits(
 ```java
 private WriteEntry doWALAppend(WALEdit walEdit, Durability durability, List<UUID> clusterIds,  
     long now, long nonceGroup, long nonce, long origLogSeqNum) throws IOException {  
-  Preconditions.checkArgument(walEdit != null && !walEdit.isEmpty(),  
-      "WALEdit is null or empty!");  
-  Preconditions.checkArgument(!walEdit.isReplay() || origLogSeqNum != SequenceId.NO_SEQUENCE_ID,  
-      "Invalid replay sequence Id for replay WALEdit!");  
-  // Using default cluster id, as this can only happen in the originating cluster.  
-  // A slave cluster receives the final value (not the delta) as a Put. We use HLogKey  // here instead of WALKeyImpl directly to support legacy coprocessors.  WALKeyImpl walKey = walEdit.isReplay()?  
-      new WALKeyImpl(this.getRegionInfo().getEncodedNameAsBytes(),  
-        this.htableDescriptor.getTableName(), SequenceId.NO_SEQUENCE_ID, now, clusterIds,  
-          nonceGroup, nonce, mvcc) :  
-      new WALKeyImpl(this.getRegionInfo().getEncodedNameAsBytes(),  
-          this.htableDescriptor.getTableName(), SequenceId.NO_SEQUENCE_ID, now, clusterIds,  
-          nonceGroup, nonce, mvcc, this.getReplicationScope());  
-  if (walEdit.isReplay()) {  
-    walKey.setOrigLogSeqNum(origLogSeqNum);  
-  }  
+	// WAL由WALKey和WALValue组成 
+  WALKeyImpl walKey = walEdit.isReplay()?  // 是否通过replay产生的Edit
+      new WALKeyImpl(...);  
   WriteEntry writeEntry = null;  
   try {  
+    // append到HLog
     long txid = this.wal.append(this.getRegionInfo(), walKey, walEdit, true);  
     // Call sync on our edit.  
     if (txid != 0) {  
       sync(txid, durability);  
     }  
     writeEntry = walKey.getWriteEntry();  
-  } catch (IOException ioe) {  
-    if (walKey != null && walKey.getWriteEntry() != null) {  
-      mvcc.complete(walKey.getWriteEntry());  
-    }  
-    throw ioe;  
-  }  
+  } 
   return writeEntry;  
 }
+
+
 ```

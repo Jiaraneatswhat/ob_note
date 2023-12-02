@@ -1837,5 +1837,61 @@ public void append(Entry entry) throws IOException {
   length.set(output.getPos());  
 }
 
+// 通过CellCodec将WALEntry写入Hadoop中
+public void write(Cell cell) throws IOException {  
+  checkFlushed();  
+  // Row  
+  write(cell.getRowArray(), cell.getRowOffset(), cell.getRowLength());  
+  // Column family  
+  write(cell.getFamilyArray(), cell.getFamilyOffset(), cell.getFamilyLength());  
+  // Qualifier  
+  write(cell.getQualifierArray(), cell.getQualifierOffset(), cell.getQualifierLength());  
+  // Version  
+  this.out.write(Bytes.toBytes(cell.getTimestamp()));  
+  // Type  
+  this.out.write(cell.getTypeByte());  
+  // Value  
+  write(cell.getValueArray(), cell.getValueOffset(), cell.getValueLength());  
+  // MvccVersion  
+  this.out.write(Bytes.toBytes(cell.getSequenceId()));  
+}
+```
+### 4.1.7 AsyncFSWAL 的 sync
+```java
+// 通过append方法写入到文件后，通过sync方法将操作同步到磁盘
+// 4.1.5.3
+/*
+ * HLog持久化等级：
+ *     SKIP_WAL：只写缓存，不写HLog
+ *     ASYNC_WAL, SYNC_WAL：异(同)步写HLog
+ *     FSYNC_WAL：同步将数据写入日志文件并强制落盘
+*/
+
+private void sync(long txid, Durability durability) throws IOException {  
+  if (this.getRegionInfo().isMetaRegion()) {  
+    this.wal.sync(txid);  
+  } else {  
+    switch(durability) {  
+    case USE_DEFAULT:  
+      // do what table defaults to  
+      if (shouldSyncWAL()) {  
+        this.wal.sync(txid);  
+      }  
+      break;  
+    case SKIP_WAL:  
+      // nothing do to  
+      break;  
+    case ASYNC_WAL:  
+      // nothing do to  
+      break;  
+    case SYNC_WAL:  
+    case FSYNC_WAL:  
+      // sync the WAL edit (SYNC and FSYNC treated the same for now)  
+      this.wal.sync(txid);  
+      break; 
+    }  
+  }  
+}
+
 
 ```

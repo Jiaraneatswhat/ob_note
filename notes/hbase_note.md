@@ -1524,16 +1524,64 @@ private void addToCachedServers(RegionLocations locations) {
   }  
 }
 ```
-### 4.1.4 HRegion.put()
+### 4.1.4 ClientServiceCallable.doMutate()
 ```java
+protected ClientProtos.MutateResponse doMutate(ClientProtos.MutateRequest request)  
+throws org.apache.hbase.thirdparty.com.google.protobuf.ServiceException {  
+  return getStub().mutate(getRpcController(), request);  
+}
+
+// 服务端Ipc实现类是RSRpcServices
+public MutateResponse mutate(final RpcController rpcc,  
+    final MutateRequest request) throws ServiceException {
+    type = mutation.getMutateType();
+    try {
+	    // 将请求反序列化为PUT对象
+		case PUT:  
+			Put put = ProtobufUtil.toPut(mutation, cellScanner);  
+		     // 有协处理器
+		    if (request.hasCondition()) {...}  
+		} else {  
+		    // 调用HReigon的put方法
+		    region.put(put);  
+		    processed = Boolean.TRUE;  
+		  }  
+		  break;
+	    
 public void put(Put put) throws IOException {  
+
   checkReadOnly();  
- 
+  // 检查memstore空间
+  checkResources();
   startRegionOperation(Operation.PUT);  
   try {  
     doBatchMutate(put);  
-  } finally {  
-    closeRegionOperation(Operation.PUT);  
+  }  
+}
+
+void checkResources() throws RegionTooBusyException {  
+  // If catalog region, do not impose resource constraints or block updates.  
+  if (this.getRegionInfo().isMetaRegion()) return;  
+  
+  MemStoreSize mss = this.memStoreSizing.getMemStoreSize();  
+  if (mss.getHeapSize() + mss.getOffHeapSize() > this.blockingMemStoreSize) {  
+	// 超过memstore大小时flush
+	/*
+	 * 将FlushRequest添加到队列中，MemStoreFlusher通过FlushHandler进行flush，最后调用HRegion中的flushCache方法
+	*/
+    requestFlush();  
+  }  
+}
+```
+### 4.1.4 doBatchMutate()
+```java
+private void doBatchMutate(Mutation mutation) throws IOException {  
+  // Currently this is only called for puts and deletes, so no nonces.  
+  OperationStatus[] batchMutate = this.batchMutate(new Mutation[]{mutation});  
+  if (batchMutate[0].getOperationStatusCode().equals(OperationStatusCode.SANITY_CHECK_FAILURE)) {  
+    throw new FailedSanityCheckException(batchMutate[0].getExceptionMsg());  
+  } else if (batchMutate[0].getOperationStatusCode().equals(OperationStatusCode.BAD_FAMILY)) {  
+    throw new NoSuchColumnFamilyException(batchMutate[0].getExceptionMsg());  
   }  
 }
 ```

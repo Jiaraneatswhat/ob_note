@@ -1639,14 +1639,10 @@ private void doMiniBatchMutate(BatchOperation<?> batchOp) throws IOException {
     List<Pair<NonceKey, WALEdit>> walEdits = batchOp.buildWALEdits(miniBatchOp);  
   
     // STEP 4. Append the WALEdits to WAL and sync.  
+    // 遍历WALEdits，执行append
     for(Iterator<Pair<NonceKey, WALEdit>> it = walEdits.iterator(); it.hasNext();) {  
-      Pair<NonceKey, WALEdit> nonceKeyWALEditPair = it.next();  
-      walEdit = nonceKeyWALEditPair.getSecond();  
-      NonceKey nonceKey = nonceKeyWALEditPair.getFirst();  
-  
       if (walEdit != null && !walEdit.isEmpty()) {  
-        writeEntry = doWALAppend(walEdit, batchOp.durability, batchOp.getClusterIds(), now,  
-            nonceKey.getNonceGroup(), nonceKey.getNonce(), batchOp.getOrigLogSeqNum());  
+        writeEntry = doWALAppend(walEdit, batchOp.durability, batchOp.getClusterIds(), now, nonceKey.getNonceGroup(), nonceKey.getNonce(), batchOp.getOrigLogSeqNum());  
       }  
   
       // Complete mvcc for all but last writeEntry (for replay case)  
@@ -1657,10 +1653,12 @@ private void doMiniBatchMutate(BatchOperation<?> batchOp) throws IOException {
     }  
   
     // STEP 5. Write back to memStore  
-    // NOTE: writeEntry can be null here    writeEntry = batchOp.writeMiniBatchOperationsToMemStore(miniBatchOp, writeEntry);  
+    // NOTE: writeEntry can be null here    
+    writeEntry = batchOp.writeMiniBatchOperationsToMemStore(miniBatchOp, writeEntry);  
   
     // STEP 6. Complete MiniBatchOperations: If required calls postBatchMutate() CP hook and  
-    // complete mvcc for last writeEntry    batchOp.completeMiniBatchOperations(miniBatchOp, writeEntry);  
+    // complete mvcc for last writeEntry    
+    batchOp.completeMiniBatchOperations(miniBatchOp, writeEntry);  
     writeEntry = null;  
     success = true;  
   } finally {  
@@ -1711,5 +1709,83 @@ public MiniBatchOperationInProgress<Mutation> lockRowsAndBuildMiniBatch(
 protected MiniBatchOperationInProgress<Mutation> createMiniBatch(final int lastIndexExclusive,  
     final int readyToWriteCount) {  
   return new MiniBatchOperationInProgress<>(getMutationsForCoprocs(), retCodeDetails, walEditsFromCoprocessors, nextIndexToProcess, lastIndexExclusive, readyToWriteCount);  
+}
+```
+#### 4.1.5.2 创建 WALEdits
+```java
+public List<Pair<NonceKey, WALEdit>> buildWALEdits(  
+    final MiniBatchOperationInProgress<Mutation> miniBatchOp) throws IOException {  
+  List<Pair<NonceKey, WALEdit>> walEdits = new ArrayList<>();  
+  // 调用 Visitor 的 visit 方法
+  visitBatchOperations(true, nextIndexToProcess + miniBatchOp.size(), new Visitor() {  
+    private Pair<NonceKey, WALEdit> curWALEditForNonce;  
+    @Override  
+    public boolean visit(int index) throws IOException {  
+      Mutation m = getMutation(index);  
+      
+  
+      // the batch may contain multiple nonce keys (replay case). If so, write WALEdit for each.  
+      // Given how nonce keys are originally written, these should be contiguous.      // They don't have to be, it will still work, just write more WALEdits than needed.      long nonceGroup = getNonceGroup(index);  
+      long nonce = getNonce(index);  
+      if (curWALEditForNonce == null ||  
+          curWALEditForNonce.getFirst().getNonceGroup() != nonceGroup ||  
+          curWALEditForNonce.getFirst().getNonce() != nonce) {  
+        // 创建WALEdit对象添加到集合中
+        curWALEditForNonce = new Pair<>(new NonceKey(nonceGroup, nonce),  
+            new WALEdit(miniBatchOp.getCellCount(), isInReplay()));  
+        walEdits.add(curWALEditForNonce);  
+      }  
+      WALEdit walEdit = curWALEditForNonce.getSecond();  
+     
+      // Add WAL edits from CPs.  
+      // 添加来自协处理器的WALEdits
+      WALEdit fromCP = walEditsFromCoprocessors[index];  
+      if (fromCP != null) {  
+        for (Cell cell : fromCP.getCells()) {  
+          walEdit.add(cell);  
+        }  
+      }  
+      walEdit.add(familyCellMaps[index]);  
+  
+      return true;  
+    }  
+  });  
+  return walEdits;  
+}
+```
+#### 4.1.5.3 写入 WAL: doWALAppend()
+```java
+private WriteEntry doWALAppend(WALEdit walEdit, Durability durability, List<UUID> clusterIds,  
+    long now, long nonceGroup, long nonce, long origLogSeqNum) throws IOException {  
+  Preconditions.checkArgument(walEdit != null && !walEdit.isEmpty(),  
+      "WALEdit is null or empty!");  
+  Preconditions.checkArgument(!walEdit.isReplay() || origLogSeqNum != SequenceId.NO_SEQUENCE_ID,  
+      "Invalid replay sequence Id for replay WALEdit!");  
+  // Using default cluster id, as this can only happen in the originating cluster.  
+  // A slave cluster receives the final value (not the delta) as a Put. We use HLogKey  // here instead of WALKeyImpl directly to support legacy coprocessors.  WALKeyImpl walKey = walEdit.isReplay()?  
+      new WALKeyImpl(this.getRegionInfo().getEncodedNameAsBytes(),  
+        this.htableDescriptor.getTableName(), SequenceId.NO_SEQUENCE_ID, now, clusterIds,  
+          nonceGroup, nonce, mvcc) :  
+      new WALKeyImpl(this.getRegionInfo().getEncodedNameAsBytes(),  
+          this.htableDescriptor.getTableName(), SequenceId.NO_SEQUENCE_ID, now, clusterIds,  
+          nonceGroup, nonce, mvcc, this.getReplicationScope());  
+  if (walEdit.isReplay()) {  
+    walKey.setOrigLogSeqNum(origLogSeqNum);  
+  }  
+  WriteEntry writeEntry = null;  
+  try {  
+    long txid = this.wal.append(this.getRegionInfo(), walKey, walEdit, true);  
+    // Call sync on our edit.  
+    if (txid != 0) {  
+      sync(txid, durability);  
+    }  
+    writeEntry = walKey.getWriteEntry();  
+  } catch (IOException ioe) {  
+    if (walKey != null && walKey.getWriteEntry() != null) {  
+      mvcc.complete(walKey.getWriteEntry());  
+    }  
+    throw ioe;  
+  }  
+  return writeEntry;  
 }
 ```

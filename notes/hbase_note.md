@@ -1133,6 +1133,7 @@ public void put(final Put put) throws IOException {
     protected Void rpcCall() throws Exception {  
       MutateRequest request =            RequestConverter.buildMutateRequest(getLocation().getRegionInfo().getRegionName(), put);  
       // 使用protobuf协议序列化，提交RPC请求
+      // Mutation是Put, Delete等对象的父类
       doMutate(request);  
       return null;  
     }  

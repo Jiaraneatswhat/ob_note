@@ -1893,5 +1893,92 @@ private void sync(long txid, Durability durability) throws IOException {
   }  
 }
 
+public void sync(long txid) throws IOException {  
+  try (TraceScope scope = TraceUtil.createTrace("AsyncFSWAL.sync")) {  
+    // here we do not use ring buffer sequence as txid  
+    SyncFuture future;  
+    try {  
+      // 获取Future对象
+      future = getSyncFuture(txid);  
+      RingBufferTruck truck = waitingConsumePayloads.get(sequence); 
+      // 将future对象load至truck中 
+      truck.load(future);  
+    } finally {  
+      waitingConsumePayloads.publish(sequence);  
+    }  
+    blockOnSync(future);  
+  }  
+}
+
+// Handler进行处理
+public void onEvent(final RingBufferTruck truck, final long sequence, boolean endOfBatch)    
+  try {  
+    if (truck.type() == RingBufferTruck.Type.SYNC) {
+	  // 将Future对象添加到SyncFuture中  
+      this.syncFutures[this.syncFuturesCount.getAndIncrement()] = truck.unloadSync();  
+      if (this.syncFuturesCount.get() == this.syncFutures.length) {  
+        endOfBatch = true;  
+      }
+   }
+}
+
+// 创建RingBufferEventHandler对象时，会创建SyncRunner和SyncFuture 
+// SyncRunner的run方法会去SyncFuture的阻塞队列中取Future对象
+public void run() {  
+  long currentSequence;  
+  while (!isInterrupted()) {  
+    int syncCount = 0;  
+    try {  
+      while (true) {  
+        takeSyncFuture = null;  
+		// 获取到Future
+        takeSyncFuture = this.syncFutures.take();  
+      try {   
+        writer.sync();    
+      }
+  }  
+}
+
+public void sync() throws IOException {  
+  FSDataOutputStream fsdos = this.output;  
+  if (fsdos == null) {  
+    return; // Presume closed  
+  }  
+  // 刷写到磁盘
+  fsdos.flush();  
+  fsdos.hflush();  
+}
+```
+### 4.1.8 写入 MemStore
+```java
+public WriteEntry writeMiniBatchOperationsToMemStore(  
+    final MiniBatchOperationInProgress<Mutation> miniBatchOp, @Nullable WriteEntry writeEntry)  
+    throws IOException {   
+  super.writeMiniBatchOperationsToMemStore(miniBatchOp, writeEntry.getWriteNumber());  
+  return writeEntry;  
+}
+
+protected void writeMiniBatchOperationsToMemStore(  
+    final MiniBatchOperationInProgress<Mutation> miniBatchOp, final long writeNumber)  
+    throws IOException {  
+  MemStoreSizing memStoreAccounting = new NonThreadSafeMemStoreSizing();  
+  visitBatchOperations(true, miniBatchOp.getLastIndexExclusive(), (int index) -> {  
+    applyFamilyMapToMemStore(familyCellMaps[index], memStoreAccounting);  
+    return true;  
+  });  
+  // update memStore size  
+  region.incMemStoreSize(memStoreAccounting.getDataSize(), memStoreAccounting.getHeapSize(),  
+    memStoreAccounting.getOffHeapSize(), memStoreAccounting.getCellsCount());  
+}
+
+protected void applyFamilyMapToMemStore(Map<byte[], List<Cell>> familyMap,  
+    MemStoreSizing memstoreAccounting) throws IOException {  
+  for (Map.Entry<byte[], List<Cell>> e : familyMap.entrySet()) {  
+    byte[] family = e.getKey();  
+    List<Cell> cells = e.getValue();  
+    region.applyToMemStore(region.getStore(family), cells, false, memstoreAccounting);  
+  }  
+}
+
 
 ```

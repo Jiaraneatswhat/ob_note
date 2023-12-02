@@ -1577,11 +1577,138 @@ void checkResources() throws RegionTooBusyException {
 ```java
 private void doBatchMutate(Mutation mutation) throws IOException {  
   // Currently this is only called for puts and deletes, so no nonces.  
-  OperationStatus[] batchMutate = this.batchMutate(new Mutation[]{mutation});  
-  if (batchMutate[0].getOperationStatusCode().equals(OperationStatusCode.SANITY_CHECK_FAILURE)) {  
-    throw new FailedSanityCheckException(batchMutate[0].getExceptionMsg());  
-  } else if (batchMutate[0].getOperationStatusCode().equals(OperationStatusCode.BAD_FAMILY)) {  
-    throw new NoSuchColumnFamilyException(batchMutate[0].getExceptionMsg());  
+  OperationStatus[] batchMutate = this.batchMutate(new Mutation[]{mutation});   
+}
+
+public OperationStatus[] batchMutate(Mutation[] mutations) throws IOException {  
+  return batchMutate(mutations, HConstants.NO_NONCE, HConstants.NO_NONCE);  
+}
+
+public OperationStatus[] batchMutate(Mutation[] mutations, long nonceGroup, long nonce)  
+    throws IOException {  
+  return batchMutate(mutations, false, nonceGroup, nonce);  
+}
+
+public OperationStatus[] batchMutate(Mutation[] mutations, boolean atomic, long nonceGroup,  
+    long nonce) throws IOException {  
+  // As it stands, this is used for 3 things  
+  //  * batchMutate with single mutation - put/delete, separate or from checkAndMutate.  
+  //  * coprocessor calls (see ex. BulkDeleteEndpoint).  
+  // So nonces are not really ever used by HBase. They could be by coprocs, and checkAnd...  
+  return batchMutate(new MutationBatchOperation(this, mutations, atomic, nonceGroup, nonce));  
+}
+
+OperationStatus[] batchMutate(BatchOperation<?> batchOp) throws IOException {  
+  boolean initialized = false;  
+  batchOp.startRegionOperation();  
+  try {  
+    while (!batchOp.isDone()) {  
+      doMiniBatchMutate(batchOp);  
+      requestFlushIfNeeded();  
+    }  
+  }
+  return batchOp.retCodeDetails;  
+}
+```
+### 4.1.5 doMiniBatchMutate()
+```java
+private void doMiniBatchMutate(BatchOperation<?> batchOp) throws IOException {  
+  boolean success = false;  
+  WALEdit walEdit = null;  
+  WriteEntry writeEntry = null;  
+  boolean locked = false;  
+  // We try to set up a batch in the range [batchOp.nextIndexToProcess,lastIndexExclusive)  
+  MiniBatchOperationInProgress<Mutation> miniBatchOp = null;  
+  /** Keep track of the locks we hold so we can release them in finally clause */  
+  List<RowLock> acquiredRowLocks = Lists.newArrayListWithCapacity(batchOp.size());  
+  try {  
+    // STEP 1. Try to acquire as many locks as we can and build mini-batch of operations with  
+    // locked rows    
+    miniBatchOp = batchOp.lockRowsAndBuildMiniBatch(acquiredRowLocks);  
+    }  
+  
+    lock(this.updatesLock.readLock(), miniBatchOp.getReadyToWriteCount());  
+    locked = true;  
+  
+    // STEP 2. 更新操作的时间戳为最新
+    long now = EnvironmentEdgeManager.currentTime();  
+    batchOp.prepareMiniBatchOperations(miniBatchOp, now, acquiredRowLocks);  
+  
+    // STEP 3. Build WAL edit  
+    List<Pair<NonceKey, WALEdit>> walEdits = batchOp.buildWALEdits(miniBatchOp);  
+  
+    // STEP 4. Append the WALEdits to WAL and sync.  
+    for(Iterator<Pair<NonceKey, WALEdit>> it = walEdits.iterator(); it.hasNext();) {  
+      Pair<NonceKey, WALEdit> nonceKeyWALEditPair = it.next();  
+      walEdit = nonceKeyWALEditPair.getSecond();  
+      NonceKey nonceKey = nonceKeyWALEditPair.getFirst();  
+  
+      if (walEdit != null && !walEdit.isEmpty()) {  
+        writeEntry = doWALAppend(walEdit, batchOp.durability, batchOp.getClusterIds(), now,  
+            nonceKey.getNonceGroup(), nonceKey.getNonce(), batchOp.getOrigLogSeqNum());  
+      }  
+  
+      // Complete mvcc for all but last writeEntry (for replay case)  
+      if (it.hasNext() && writeEntry != null) {  
+        mvcc.complete(writeEntry);  
+        writeEntry = null;  
+      }  
+    }  
+  
+    // STEP 5. Write back to memStore  
+    // NOTE: writeEntry can be null here    writeEntry = batchOp.writeMiniBatchOperationsToMemStore(miniBatchOp, writeEntry);  
+  
+    // STEP 6. Complete MiniBatchOperations: If required calls postBatchMutate() CP hook and  
+    // complete mvcc for last writeEntry    batchOp.completeMiniBatchOperations(miniBatchOp, writeEntry);  
+    writeEntry = null;  
+    success = true;  
+  } finally {  
+    // Call complete rather than completeAndWait because we probably had error if walKey != null  
+    if (writeEntry != null) mvcc.complete(writeEntry);  
+  
+    if (locked) {  
+      this.updatesLock.readLock().unlock();  
+    }  
+    releaseRowLocks(acquiredRowLocks);  
+  
+    final int finalLastIndexExclusive =  
+        miniBatchOp != null ? miniBatchOp.getLastIndexExclusive() : batchOp.size();  
+    final boolean finalSuccess = success;  
+    batchOp.visitBatchOperations(true, finalLastIndexExclusive, (int i) -> {  
+      batchOp.retCodeDetails[i] =  
+          finalSuccess ? OperationStatus.SUCCESS : OperationStatus.FAILURE;  
+      return true;  
+    });  
+  
+    batchOp.doPostOpCleanupForMiniBatch(miniBatchOp, walEdit, finalSuccess);  
+  
+    batchOp.nextIndexToProcess = finalLastIndexExclusive;  
   }  
+}
+```
+#### 4.1.5.1 lockRowsAndBuildMiniBatch()
+```java
+// 对BatchOp加锁，返回MiniBatch
+public MiniBatchOperationInProgress<Mutation> lockRowsAndBuildMiniBatch(  
+    List<RowLock> acquiredRowLocks) throws IOException {  
+  int readyToWriteCount = 0;  
+  int lastIndexExclusive = 0;  
+  RowLock prevRowLock = null;  
+   
+    Mutation mutation = getMutation(lastIndexExclusive);  
+    // If we haven't got any rows in our batch, we should block to get the next one.  
+    RowLock rowLock = null;  
+    try {  
+      // if atomic then get exclusive lock, else shared lock  
+      // 返回一个RowLockImpl
+      rowLock = region.getRowLockInternal(mutation.getRow(), !isAtomic(), prevRowLock);  
+    }  
+  }  
+  return createMiniBatch(lastIndexExclusive, readyToWriteCount);  
+}
+
+protected MiniBatchOperationInProgress<Mutation> createMiniBatch(final int lastIndexExclusive,  
+    final int readyToWriteCount) {  
+  return new MiniBatchOperationInProgress<>(getMutationsForCoprocs(), retCodeDetails, walEditsFromCoprocessors, nextIndexToProcess, lastIndexExclusive, readyToWriteCount);  
 }
 ```

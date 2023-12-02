@@ -1787,7 +1787,70 @@ protected final long stampSequenceIdAndPublishToRingBuffer(RegionInfo hri, WALKe
   }  
   return txid;  
 }
+```
+#### 4.1.5.4 创建 Disruptor
+```java
+// FSHLog的属性
+public FSHLog(final FileSystem fs, final Path rootDir, final String logDir,  
+    final String archiveDir, final Configuration conf, final List<WALActionsListener> listeners,  
+    final boolean failIfWALExists, final String prefix, final String suffix) throws IOException {  
 
+  // rollWriter sets this.hdfs_out if it can.  
+  rollWriter();  
+  // 创建一个disruptor的对象
+  this.disruptor = new Disruptor<>(RingBufferTruck::new,  
+      getPreallocatedEventCount(), Threads.getNamedThreadFactory(hostingThreadName + ".append"),  
+      ProducerType.MULTI, new BlockingWaitStrategy());  
+  // Advance the ring buffer sequence so that it starts from 1 instead of 0,  
+  // because SyncFuture.NOT_DONE = 0.  
+  this.disruptor.getRingBuffer().next();  
+ // 创建一个RingBufferEventHandler
+  this.ringBufferEventHandler = new RingBufferEventHandler(  
+      conf.getInt("hbase.regionserver.hlog.syncer.count", 5), maxHandlersCount);  
+  this.disruptor.handleEventsWith(new RingBufferEventHandler[] { this.ringBufferEventHandler });  
+  // 启动disruptor
+  this.disruptor.start();  
+}
 
+public Disruptor(  
+        final EventFactory<T> eventFactory,  
+        final int ringBufferSize,  
+        final ThreadFactory threadFactory,  
+        final ProducerType producerType,  
+        final WaitStrategy waitStrategy)  
+{  
+    this(  
+        RingBuffer.create(producerType, eventFactory, ringBufferSize, waitStrategy),  
+        new BasicExecutor(threadFactory));  
+}
 
+private Disruptor(final RingBuffer<T> ringBuffer, final Executor executor)  
+{  
+    this.ringBuffer = ringBuffer;  
+    this.executor = executor;  
+}
+
+public static <E> RingBuffer<E> create(  
+    ProducerType producerType,  
+    EventFactory<E> factory,  
+    int bufferSize,  
+    WaitStrategy waitStrategy)  
+{  
+	// 传入的是MULTI
+    switch (producerType)  
+    {   
+        case MULTI:  
+            return createMultiProducer(factory, bufferSize, waitStrategy);   
+    }  
+}
+
+public static <E> RingBuffer<E> createMultiProducer(  
+    EventFactory<E> factory,  
+    int bufferSize,  
+    WaitStrategy waitStrategy)  
+{  
+    MultiProducerSequencer sequencer = new MultiProducerSequencer(bufferSize, waitStrategy);  
+  
+    return new RingBuffer<E>(factory, sequencer);  
+}
 ```

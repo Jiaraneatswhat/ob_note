@@ -1773,5 +1773,21 @@ private WriteEntry doWALAppend(WALEdit walEdit, Durability durability, List<UUID
   return writeEntry;  
 }
 
+// WAL的实现类AbstractFSWAL有两个子类FSHLog和AsyncFSWAL
+// 都回调用父类的stampSequenceIdAndPublishToRingBuffer方法
+protected final long stampSequenceIdAndPublishToRingBuffer(RegionInfo hri, WALKeyImpl key,  
+    WALEdit edits, boolean inMemstore, RingBuffer<RingBufferTruck> ringBuffer)  
+    throws IOException {   
+  long txid = txidHolder.longValue();  
+    FSWALEntry entry = new FSWALEntry(txid, key, edits, hri, inMemstore);  
+    entry.stampRegionSequenceId(we);  
+    ringBuffer.get(txid).load(entry);  
+  } finally {  
+    ringBuffer.publish(txid);  
+  }  
+  return txid;  
+}
+
+
 
 ```

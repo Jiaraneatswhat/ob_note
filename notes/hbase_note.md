@@ -1787,10 +1787,55 @@ protected final long stampSequenceIdAndPublishToRingBuffer(RegionInfo hri, WALKe
   }  
   return txid;  
 }
-
+```
+### 4.1.6 FSHLog 的 append
+```java
 // 将entry对象load进入DisruptorTruck中
 void load(FSWALEntry entry) {  
   this.entry = entry;  
   this.type = Type.APPEND;  
 }
+
+// FSHLog中的RingBufferEventHandler会通过onEvent方法进行处理:
+public void onEvent(final RingBufferTruck truck, final long sequence, boolean endOfBatch)  
+    throws Exception {  
+  
+  try {  
+    else if (truck.type() == RingBufferTruck.Type.APPEND) {  
+      // 从truck中unload一个entry
+      FSWALEntry entry = truck.unloadAppend();     
+      try {  
+        append(entry);  
+		} 
+	}
+}
+
+void append(final FSWALEntry entry) throws Exception {  
+  try {  
+    FSHLog.this.append(writer, entry);  
+	  }   
+}
+
+protected final boolean append(W writer, FSWALEntry entry) throws IOException {  
+  doAppend(writer, entry);  
+  return true;  
+}
+
+protected void doAppend(Writer writer, FSWALEntry entry) throws IOException {  
+  writer.append(entry);  
+}
+
+// ProtobufLogWriter.java
+public void append(Entry entry) throws IOException {  
+  entry.setCompressionContext(compressionContext);  
+  entry.getKey().getBuilder(compressor).  
+      setFollowingKvCount(entry.getEdit().size()).build().writeDelimitedTo(output);  
+  for (Cell cell : entry.getEdit().getCells()) {  
+    // cellEncoder must assume little about the stream, since we write PB and cells in turn.  
+    cellEncoder.write(cell);  
+  }  
+  length.set(output.getPos());  
+}
+
+
 ```

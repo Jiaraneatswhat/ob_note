@@ -1476,7 +1476,8 @@ try {
 - `master`：当前 `ative master` 节点
 - `namespace`：做表空间的逻辑隔离
 - `rs`：集群中所有运行的 `RegionServer`，`Master` 节点也会监听此节点信息
-#### 4.1.2.8 从 zk 上查找
+### 4.1.3 扫描 meta 表，获取数据要写到哪个 RS
+#### 4.1.3.1 从 zk 上查找
 ```java
 // ZKAsyncRegistry.java
 public CompletableFuture<RegionLocations> getMetaRegionLocation() {  
@@ -1497,7 +1498,7 @@ public CompletableFuture<RegionLocations> getMetaRegionLocation() {
   return future;  
 }
 ```
-#### 4.1.2.9 cacheLocation()
+#### 4.1.3.2 cacheLocation()
 ```java
 public void cacheLocation(final TableName tableName, final RegionLocations location) {  
   metaCache.cacheLocation(tableName, location);  
@@ -1522,10 +1523,6 @@ private void addToCachedServers(RegionLocations locations) {
     }  
   }  
 }
-```
-### 4.1.3 从 meta 表获取 Region 位置
-```java
-// 
 ```
 ### 4.1.4 HRegion.put()
 ```java

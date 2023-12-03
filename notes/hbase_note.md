@@ -2059,3 +2059,92 @@ public void requestFlush(HRegion r, boolean forceFlushAllStores, FlushLifeCycleT
   }  
 }
 ```
+### 5.1.2 HRegionServer 创建 MemStoreFlusher
+```java
+// handleReportForDutyResponse()方法调用startServices()：
+protected void handleReportForDutyResponse(final RegionServerStartupResponse c)  
+throws IOException {
+	try{
+		if (getConfiguration().getBoolean("hbase.regionserver.workers", true)) {  
+		  startServices();  
+		}
+	}
+}
+
+private void startServices() throws IOException {  
+  if (!isStopped() && !isAborted()) {  
+    initializeThreads();  
+  }
+}
+
+private void initializeThreads() throws IOException {  
+  // Cache flushing thread.  
+  this.cacheFlusher = new MemStoreFlusher(conf, this);  
+  
+  // Compaction thread  
+  this.compactSplitThread = new CompactSplit(this);  
+  
+  // Background thread to check for compactions; needed if region has not gotten updates  
+  // in a while. It will take care of not checking too frequently on store-by-store basis.  
+  this.compactionChecker = new CompactionChecker(this, this.threadWakeFrequency, this);  
+  this.periodicFlusher = new PeriodicMemStoreFlusher(this.threadWakeFrequency, this);  
+}
+
+public MemStoreFlusher(final Configuration conf,  
+    final HRegionServer server) {  
+  // 创建FlushHandler
+  this.flushHandlers = new FlushHandler[handlerCount];
+  this.cacheFlusher.start(uncaughtExceptionHandler);  
+}
+
+// FlushHandler的run()方法
+public void run() {  
+  while (!server.isStopped()) {  
+    FlushQueueEntry fqe = null;  
+    try {  
+      wakeupPending.set(false);
+	  // 从队列中取出一个fqe
+      fqe = flushQueue.poll(threadWakeFrequency, TimeUnit.MILLISECONDS);  
+      if (fqe == null || fqe == WAKEUPFLUSH_INSTANCE) {
+	    // 判断全局memstore的大小   
+        FlushType type = isAboveLowWaterMark();  
+        if (type != FlushType.NORMAL) {  
+          LOG.debug("Flush thread woke up because memory above low water="  
+              + TraditionalBinaryPrefix.long2String(  
+                server.getRegionServerAccounting().getGlobalMemStoreLimitLowMark(), "", 1));  
+          // For offheap memstore, even if the lower water mark was breached due to heap overhead  
+          // we still select the regions based on the region's memstore data size.          // TODO : If we want to decide based on heap over head it can be done without tracking          // it per region.          
+          if (!flushOneForGlobalPressure()) {       
+            Thread.sleep(1000);  
+            wakeUpIfBlocking();  
+          }  
+          // Enqueue another one of these tokens so we'll wake up again  
+          wakeupFlushThread();  
+        }  
+        continue;  
+      }  
+      FlushRegionEntry fre = (FlushRegionEntry) fqe;  
+      if (!flushRegion(fre)) {  
+        break;  
+      }  
+    } catch (InterruptedException ex) {  
+      continue;  
+    } catch (ConcurrentModificationException ex) {  
+      continue;  
+    } catch (Exception ex) {  
+      LOG.error("Cache flusher failed for entry " + fqe, ex);  
+      if (!server.checkFileSystem()) {  
+        break;  
+      }  
+    }  
+  }  
+  synchronized (regionsInQueue) {  
+    regionsInQueue.clear();  
+    flushQueue.clear();  
+  }  
+  
+  // Signal anyone waiting, so they see the close flag  
+  wakeUpIfBlocking();  
+  LOG.info(getName() + " exiting");  
+}
+```

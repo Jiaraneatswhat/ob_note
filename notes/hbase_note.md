@@ -2209,4 +2209,7 @@ protected FlushResultImpl internalFlushcache(WAL wal, long myseqid,
 ## 5.3 RegionServer 级别
 - 当一个 `Region Server` 中所有 `Memstore` 的大小总和达到了上限（`hbase.regionserver.global.memstore.upperLimit ＊ hbase_heapsize，默认 40%的 JVM 内存使用量`），会触发部分 `Memstore` 刷新
 - flush 顺序是按照 Memstore 由大到小执行，直至总体内存使用量低于阈值（`hbase.regionserver.global.memstore.lowerLimit ＊ hbase_heapsize，默认 38%的 JVM 内存使用量`）
+![[RegionServerFlush.svg]]
 
+
+## 

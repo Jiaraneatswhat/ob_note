@@ -2212,4 +2212,33 @@ protected FlushResultImpl internalFlushcache(WAL wal, long myseqid,
 ![[RegionServerFlush.svg]]
 
 
-## 
+## 5.4 定时 flush
+```java
+// 创建HRegion对象时，初始化flushCheckInterval
+// DEFAULT_CACHE_FLUSH_INTERVAL = 3600000;
+this.flushCheckInterval = conf.getInt(MEMSTORE_PERIODIC_FLUSH_INTERVAL,  
+    DEFAULT_CACHE_FLUSH_INTERVAL);
+    
+// HRegionServer中的内部类
+// initializeThreads中会创建PeriodicMemStoreFlusher对象
+static class PeriodicMemStoreFlusher extends ScheduledChore {  
+  final HRegionServer server;  
+
+  @Override  
+  protected void chore() {  
+    final StringBuilder whyFlush = new StringBuilder();  
+    for (HRegion r : this.server.onlineRegions.values()) {  
+      if (r == null) continue; 
+      // 判断需不需要flush 
+      if (r.shouldFlush(whyFlush)) {  
+        FlushRequester requester = server.getFlushRequester();  
+        if (requester != null) {     
+          requester.requestDelayedFlush(r, randomDelay, false);  
+        }  
+      }  
+    }  
+  }  
+}
+
+
+```

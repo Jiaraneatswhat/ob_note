@@ -2027,8 +2027,8 @@ protected void internalAdd(Cell cell, boolean mslabUsed, MemStoreSizing memstore
 }
 ```
 # 5. MemStore 的 flush
-## 5.1 flush 时机
-### 5.1.1 MemStore 级别
+## 5.1 MemStore 级别
+### 5.1.1 checkResources()
 ```java
 // 4.4 doMutate()
 void checkResources() throws RegionTooBusyException {   
@@ -2132,7 +2132,7 @@ private FlushType isAboveLowWaterMark() {
   return server.getRegionServerAccounting().isAboveLowWaterMark();  
 }
 
-// 不是NORMAL的情况下刷写整个Region
+// 不是NORMAL的情况下，计算大小后flush Region，否则直接flushRegion
 public FlushType isAboveLowWaterMark() {  
   // for onheap memstore we check if the global memstore size and the  
   // global heap overhead is greater than the global memstore lower mark limit  if (memType == MemoryType.HEAP) {  
@@ -2194,15 +2194,15 @@ private FlushResultImpl internalFlushcache(Collection<HStore> storesToFlush, Mon
 protected FlushResultImpl internalFlushcache(WAL wal, long myseqid,  
     Collection<HStore> storesToFlush, MonitoredTask status, boolean writeFlushWalMarker,  
     FlushLifeCycleTracker tracker) throws IOException {  
+  // 创建一个PrepareFlushResult
   PrepareFlushResult result =  
       internalPrepareFlushCache(wal, myseqid, storesToFlush, status, writeFlushWalMarker, tracker);  
   if (result.result == null) {  
+    // 执行flush
     return internalFlushCacheAndCommit(wal, status, result, storesToFlush);  
-  } else {  
-    return result.result; // early exit due to failure from prepare stage  
   }  
-}
-
-
+}   
 ```
-### 5.1.5 
+## 5.2 Region 级别
+- 当一个 `Region` 中所有的 memstore 的大小达到了 `hbase.hregion.memstore.flush.size(默认128M) *  hbase.hregion.memstore.block.multiplier(默认4)` 时，会阻止继续往该 `Region` 写数据，进行所有 memstore 的刷写
+- 在进行 `Region` 级别的操作(`split, merge, compact`)前，都会执行

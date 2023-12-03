@@ -1155,7 +1155,7 @@ throws IOException, RuntimeException {
       return callable.call(getTimeout(callTimeout));  
     }
 ```
-### 4.1.2 定位 meta 表位置
+## 4.2 定位 meta 表位置
 ```java
 // RegionServerCallable.java
 public void prepare(final boolean reload) throws IOException {  
@@ -1166,7 +1166,7 @@ public void prepare(final boolean reload) throws IOException {
   }  
 }
 ```
-#### 4.1.2.1 getRegionLocator()
+### 4.2.1 getRegionLocator()
 ```java
 public RegionLocator getRegionLocator(TableName tableName) throws IOException {  
   return new HRegionLocator(tableName, this);  
@@ -1178,7 +1178,7 @@ public HRegionLocator(TableName tableName, ClusterConnection connection) {
   this.tableName = tableName;  
 }
 ```
-#### 4.1.2.2 getRegionLocation()
+### 4.2.2 getRegionLocation()
 ```java
 public HRegionLocation getRegionLocation(final byte [] row)  
 throws IOException {  
@@ -1211,7 +1211,7 @@ public RegionLocations locateRegion(final TableName tableName, final byte[] row,
   }  
 }
 ```
-#### 4.1.2.3 locateRegionInMeta()
+### 4.2.3 locateRegionInMeta()
 ```java
 private RegionLocations locateRegionInMeta(TableName tableName, byte[] row, boolean useCache,  
     boolean retry, int replicaId) throws IOException {  
@@ -1263,7 +1263,7 @@ private RegionLocations locateRegionInMeta(TableName tableName, byte[] row, bool
   }  
 }
 ```
-#### 4.1.2.4 getCachedLocation()
+### 4.2.4 getCachedLocation()
 ```java
 // 在 cache 中寻找 TableName 和 row 的位置
 RegionLocations getCachedLocation(final TableName tableName,  
@@ -1298,7 +1298,7 @@ private ConcurrentNavigableMap<byte[], RegionLocations> getTableLocations(
     () -> new CopyOnWriteArrayMap<>(Bytes.BYTES_COMPARATOR));  
 }
 ```
-#### 4.1.2.5 循环遍历 ReversedClientScanner
+### 4.2.5 循环遍历 ReversedClientScanner
 ```java
 public Result next() throws IOException {  
   return nextWithSyncCache();  
@@ -1395,7 +1395,7 @@ protected void loadCache() throws IOException {
   }  
 }
 ```
-#### 4.1.2.6 call()
+### 4.2.6 call()
 ```java
 // 父类ClientScanner的call
 private Result[] call(ScannerCallableWithReplicas callable, RpcRetryingCaller<Result[]> caller,  
@@ -1427,8 +1427,8 @@ private RegionLocations locateMeta(final TableName tableName,
   return locations;  
 }
 ```
-#### 4.1.2.7 zk 的作用
-##### 4.1.2.7.1 ZNodePaths
+### 4.2.7 zk 的作用
+#### 4.2.7.1 ZNodePaths
 ```java
 /*
  * HBase在zk创建节点信息对应的类是ZNodePaths，启动Master或RegionServer节点时会创建ZKWatcher对象，初始化ZNodePaths
@@ -1469,7 +1469,7 @@ try {
 	ZKUtil.createAndFailSilent(this, znodePaths.masterMaintZNode); 
 }
 ```
-##### 4.1.2.7.2 节点信息
+#### 4.2.7.2 节点信息
 - `meta-region-server`
 	- 存储 `HBase` 集群 `hbase:meta` 元数据表所在的 `RegionServer` 访问地址，客户端读写数据首先会从此节点读取 `hbase:meta` 元数据的访问地址
 - `backup-masters`：HA 相关
@@ -1477,8 +1477,8 @@ try {
 - `master`：当前 `ative master` 节点
 - `namespace`：做表空间的逻辑隔离
 - `rs`：集群中所有运行的 `RegionServer`，`Master` 节点也会监听此节点信息
-### 4.1.3 扫描 meta 表，获取数据要写到哪个 RS
-#### 4.1.3.1 从 zk 上查找
+## 4.3 扫描 meta 表，获取数据要写到哪个 RS
+### 4.3.1 从 zk 上查找
 ```java
 // ZKAsyncRegistry.java
 public CompletableFuture<RegionLocations> getMetaRegionLocation() {  
@@ -1499,7 +1499,7 @@ public CompletableFuture<RegionLocations> getMetaRegionLocation() {
   return future;  
 }
 ```
-#### 4.1.3.2 cacheLocation()
+### 4.3.2 cacheLocation()
 ```java
 public void cacheLocation(final TableName tableName, final RegionLocations location) {  
   metaCache.cacheLocation(tableName, location);  
@@ -1525,7 +1525,7 @@ private void addToCachedServers(RegionLocations locations) {
   }  
 }
 ```
-### 4.1.4 ClientServiceCallable.doMutate()
+## 4.4 ClientServiceCallable.doMutate()
 ```java
 protected ClientProtos.MutateResponse doMutate(ClientProtos.MutateRequest request)  
 throws org.apache.hbase.thirdparty.com.google.protobuf.ServiceException {  
@@ -1574,7 +1574,7 @@ void checkResources() throws RegionTooBusyException {
   }  
 }
 ```
-### 4.1.4 doBatchMutate()
+### 4.4.1 doBatchMutate()
 ```java
 private void doBatchMutate(Mutation mutation) throws IOException {  
   // Currently this is only called for puts and deletes, so no nonces.  
@@ -1611,7 +1611,7 @@ OperationStatus[] batchMutate(BatchOperation<?> batchOp) throws IOException {
   return batchOp.retCodeDetails;  
 }
 ```
-### 4.1.5 doMiniBatchMutate()
+### 4.4.2 doMiniBatchMutate()
 ```java
 private void doMiniBatchMutate(BatchOperation<?> batchOp) throws IOException {  
   boolean success = false;  
@@ -1685,7 +1685,7 @@ private void doMiniBatchMutate(BatchOperation<?> batchOp) throws IOException {
   }  
 }
 ```
-#### 4.1.5.1 lockRowsAndBuildMiniBatch()
+#### 4.4.2.1 lockRowsAndBuildMiniBatch()
 ```java
 // 对BatchOp加锁，返回MiniBatch
 public MiniBatchOperationInProgress<Mutation> lockRowsAndBuildMiniBatch(  
@@ -1711,7 +1711,7 @@ protected MiniBatchOperationInProgress<Mutation> createMiniBatch(final int lastI
   return new MiniBatchOperationInProgress<>(getMutationsForCoprocs(), retCodeDetails, walEditsFromCoprocessors, nextIndexToProcess, lastIndexExclusive, readyToWriteCount);  
 }
 ```
-#### 4.1.5.2 创建 WALEdits
+#### 4.4.2.2 创建 WALEdits
 ```java
 public List<Pair<NonceKey, WALEdit>> buildWALEdits(  
     final MiniBatchOperationInProgress<Mutation> miniBatchOp) throws IOException {  
@@ -1753,7 +1753,7 @@ public List<Pair<NonceKey, WALEdit>> buildWALEdits(
   return walEdits;  
 }
 ```
-#### 4.1.5.3 写入 WAL: doWALAppend()
+#### 4.4.2.3 写入 WAL: doWALAppend()
 ```java
 private WriteEntry doWALAppend(WALEdit walEdit, Durability durability, List<UUID> clusterIds,  
     long now, long nonceGroup, long nonce, long origLogSeqNum) throws IOException {  
@@ -1788,7 +1788,7 @@ protected final long stampSequenceIdAndPublishToRingBuffer(RegionInfo hri, WALKe
   return txid;  
 }
 ```
-### 4.1.6 FSHLog 的 append
+### 4.4.3 FSHLog 的 append
 ```java
 // 将entry对象load进入DisruptorTruck中
 void load(FSWALEntry entry) {  
@@ -1856,7 +1856,7 @@ public void write(Cell cell) throws IOException {
   this.out.write(Bytes.toBytes(cell.getSequenceId()));  
 }
 ```
-### 4.1.7 AsyncFSWAL 的 sync
+### 4.4.4 AsyncFSWAL 的 sync
 ```java
 // 通过append方法写入到文件后，通过sync方法将操作同步到磁盘
 // 4.1.5.3
@@ -1949,7 +1949,7 @@ public void sync() throws IOException {
   fsdos.hflush();  
 }
 ```
-### 4.1.8 写入 MemStore
+### 4.4.5 写入 MemStore
 ```java
 public WriteEntry writeMiniBatchOperationsToMemStore(  
     final MiniBatchOperationInProgress<Mutation> miniBatchOp, @Nullable WriteEntry writeEntry)  
@@ -2028,4 +2028,34 @@ protected void internalAdd(Cell cell, boolean mslabUsed, MemStoreSizing memstore
 ```
 # 5. MemStore 的 flush
 ## 5.1 flush 时机
-### 5.1.1 
+### 5.1.1 MemStore 级别
+```java
+// 4.4 doMutate()
+void checkResources() throws RegionTooBusyException {   
+// 检查MemStore大小是否超过 hbase.hregion.memstore.flush.size 128M
+    requestFlush();  
+}
+
+private void requestFlush() {  
+  requestFlush0(FlushLifeCycleTracker.DUMMY);  
+}
+
+private void requestFlush0(FlushLifeCycleTracker tracker) {  
+  if (shouldFlush) {  
+    // getFlushRequester()返回HRegionServer中的MemStoreFlusher
+    this.rsServices.getFlushRequester().requestFlush(this, false, tracker);   
+  }  
+}
+
+public void requestFlush(HRegion r, boolean forceFlushAllStores, FlushLifeCycleTracker tracker) {  
+  r.incrementFlushesQueuedCount();  
+  synchronized (regionsInQueue) {  
+    if (!regionsInQueue.containsKey(r)) { 
+      // 封装成 FlushRegionEntry 后加入阻塞队列中
+      FlushRegionEntry fqe = new FlushRegionEntry(r, forceFlushAllStores, tracker);  
+      this.regionsInQueue.put(r, fqe);  
+      this.flushQueue.add(fqe);  
+    }  
+  }  
+}
+```

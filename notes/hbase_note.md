@@ -2261,6 +2261,7 @@ public void run() {
         walNeedsRoll.put(wal, Boolean.FALSE);  
         if (regionsToFlush != null) {  
           for (byte[] r : regionsToFlush) {  
+	        // 获取到regionsToFlush后，调用requestFlush
             scheduleFlush(r);  
           }  
         }  
@@ -2287,20 +2288,8 @@ byte[][] findRegionsToForceFlush() throws IOException {
   int logCount = getNumRolledLogFiles();
   // this.maxLogs = conf.getInt("hbase.regionserver.maxlogs",  Math.max(32, calculateMaxLogFiles(conf, logrollsize)));  
   if (logCount > this.maxLogs && logCount > 0) {  
-    Map.Entry<Path, WalProps> firstWALEntry = this.walFile2Props.firstEntry();  
-    regions =    this.sequenceIdAccounting.findLower(firstWALEntry.getValue().encodedName2HighestSequenceId);  
-  }  
-  if (regions != null) {  
-    StringBuilder sb = new StringBuilder();  
-    for (int i = 0; i < regions.length; i++) {  
-      if (i > 0) {  
-        sb.append(", ");  
-      }  
-      sb.append(Bytes.toStringBinary(regions[i]));  
-    }  
-    LOG.info("Too many WALs; count=" + logCount + ", max=" + this.maxLogs +  
-      "; forcing flush of " + regions.length + " regions(s): " + sb.toString());  
-  }  
+	   // 给regions赋值后返回
+   } 
   return regions;  
 }
 ```

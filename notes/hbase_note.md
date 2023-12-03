@@ -306,12 +306,24 @@ protected void handleReportForDutyResponse(final RegionServerStartupResponse c)
 ## 2.1 逻辑结构
 
 ![[HbaseLogic.svg]]
-
 ## 2.2 术语
 - namespace
-	- 类似于 SQL 中的database
-	- HBase 自带两个 namespace，hbase 和 default，hbase 存放的是 HBase 的内置表，default 是用户默认使用的 namespace
-	- 
+	- 类似于 `SQL` 中的 `database`
+	- `HBase` 自带两个 `namespace`，`hbase` 和 `default`，`hbase` 存放的是 `HBase` 的内置表，`default` 是用户默认使用的 `namespace`
+- table
+- row：每行数据由一个 `RowKey` 和多个 `Column` 组成
+- rowkey：`rowkey` 是行的唯一标识，读写都需要通过 `rowkey` 来指定
+- column family：别名 `store`，太多的列族会降低性能
+- cell
+	- 一个列的一个版本
+	- 由 `rowkey, column Family：column Qualifier, time Stamp` 唯一确定的单元
+	- `cell` 中的数据全部是字节码形式存储
+- region
+	- 一张表若干连续的行形成的区域
+	- `Region` 中行的排序按照 `rowkey` 字典排序
+	- `Region`不能跨`RegionSever`，且当数据量大的时候，`HBase`会拆分`Region`
+
+## 2.3 HFlie 结构
 
 
 # 3. RegionServer 架构

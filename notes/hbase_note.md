@@ -1121,6 +1121,8 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
 ```
 # 4. 写流程
 ## 4.1 客户端发起 put 请求
+
+![[write1.svg]]
 ### 4.1.1 HTable.put()
 ```java
 // HTable
@@ -1754,6 +1756,13 @@ public List<Pair<NonceKey, WALEdit>> buildWALEdits(
 }
 ```
 #### 4.4.2.3 写入 WAL: doWALAppend()
+- HLog 的写入分为三个阶段
+	- 将数据写入本地缓存
+	- 将本地缓存写入文件系统
+	- 执行 sync 操作同步到磁盘
+
+
+
 ```java
 private WriteEntry doWALAppend(WALEdit walEdit, Durability durability, List<UUID> clusterIds,  
     long now, long nonceGroup, long nonce, long origLogSeqNum) throws IOException {  

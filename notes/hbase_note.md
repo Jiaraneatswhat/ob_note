@@ -2108,12 +2108,7 @@ public void run() {
       if (fqe == null || fqe == WAKEUPFLUSH_INSTANCE) {
 	    // 判断全局memstore的大小   
         FlushType type = isAboveLowWaterMark();  
-        if (type != FlushType.NORMAL) {  
-          LOG.debug("Flush thread woke up because memory above low water="  
-              + TraditionalBinaryPrefix.long2String(  
-                server.getRegionServerAccounting().getGlobalMemStoreLimitLowMark(), "", 1));  
-          // For offheap memstore, even if the lower water mark was breached due to heap overhead  
-          // we still select the regions based on the region's memstore data size.          // TODO : If we want to decide based on heap over head it can be done without tracking          // it per region.          
+        if (type != FlushType.NORMAL) {           
           if (!flushOneForGlobalPressure()) {       
             Thread.sleep(1000);  
             wakeUpIfBlocking();  
@@ -2127,24 +2122,87 @@ public void run() {
       if (!flushRegion(fre)) {  
         break;  
       }  
-    } catch (InterruptedException ex) {  
-      continue;  
-    } catch (ConcurrentModificationException ex) {  
-      continue;  
-    } catch (Exception ex) {  
-      LOG.error("Cache flusher failed for entry " + fqe, ex);  
-      if (!server.checkFileSystem()) {  
-        break;  
-      }  
-    }  
+    } 
   }  
-  synchronized (regionsInQueue) {  
-    regionsInQueue.clear();  
-    flushQueue.clear();  
-  }  
-  
-  // Signal anyone waiting, so they see the close flag  
-  wakeUpIfBlocking();  
-  LOG.info(getName() + " exiting");  
 }
 ```
+### 5.1.3 isAboveLowWaterMark()
+```java
+private FlushType isAboveLowWaterMark() {  
+  return server.getRegionServerAccounting().isAboveLowWaterMark();  
+}
+
+// 不是NORMAL的情况下刷写整个Region
+public FlushType isAboveLowWaterMark() {  
+  // for onheap memstore we check if the global memstore size and the  
+  // global heap overhead is greater than the global memstore lower mark limit  if (memType == MemoryType.HEAP) {  
+    if (getGlobalMemStoreHeapSize() >= globalMemStoreLimitLowMark) {  
+      return FlushType.ABOVE_ONHEAP_LOWER_MARK;  
+    }  
+  } else {  
+    if (getGlobalMemStoreOffHeapSize() >= globalMemStoreLimitLowMark) {  
+      // Indicates that the offheap memstore's size is greater than the global memstore  
+      // lower limit      return FlushType.ABOVE_OFFHEAP_LOWER_MARK;  
+    } else if (getGlobalMemStoreHeapSize() >= globalOnHeapMemstoreLimitLowMark) {  
+      // Indicates that the offheap memstore's heap overhead is greater than the global memstore  
+      // onheap lower limit      return FlushType.ABOVE_ONHEAP_LOWER_MARK;  
+    }  
+  }  
+  return FlushType.NORMAL;  
+}
+```
+### 5.1.4 flushOneForGlobalPressure()
+```java
+private boolean flushOneForGlobalPressure() {
+	// 计算出bestFlushableRegion，bestAnyRegion，bestRegionReplica以及对应的size
+	flushedOne = flushRegion(regionToFlush, true, false, FlushLifeCycleTracker.DUMMY);
+}
+
+private boolean flushRegion(HRegion region, boolean emergencyFlush, boolean forceFlushAllStores,  
+    FlushLifeCycleTracker tracker) {   
+  try {  
+    notifyFlushRequest(region, emergencyFlush);  
+    FlushResult flushResult = region.flushcache(forceFlushAllStores, false, tracker);  
+    boolean shouldCompact = flushResult.isCompactionNeeded();  
+    // We just want to check the size  
+    boolean shouldSplit = region.checkSplit() != null;  
+    if (shouldSplit) {  
+      this.server.compactSplitThread.requestSplit(region);  
+    } else if (shouldCompact) {  
+      server.compactSplitThread.requestSystemCompaction(region, Thread.currentThread().getName());  
+    }   
+  return true;  
+}
+
+public FlushResultImpl flushcache(boolean forceFlushAllStores, boolean writeFlushRequestWalMarker,  
+    FlushLifeCycleTracker tracker) throws IOException {  
+  lock.readLock().lock();  
+    try {  
+      Collection<HStore> specificStoresToFlush =  
+          forceFlushAllStores ? stores.values() : flushPolicy.selectStoresToFlush();  
+      FlushResultImpl fs =  
+          internalFlushcache(specificStoresToFlush, status, writeFlushRequestWalMarker, tracker);  
+    } 
+}
+
+private FlushResultImpl internalFlushcache(Collection<HStore> storesToFlush, MonitoredTask status,  
+    boolean writeFlushWalMarker, FlushLifeCycleTracker tracker) throws IOException {  
+  return internalFlushcache(this.wal, HConstants.NO_SEQNUM, storesToFlush, status,  
+    writeFlushWalMarker, tracker);  
+}
+
+protected FlushResultImpl internalFlushcache(WAL wal, long myseqid,  
+    Collection<HStore> storesToFlush, MonitoredTask status, boolean writeFlushWalMarker,  
+    FlushLifeCycleTracker tracker) throws IOException {  
+  PrepareFlushResult result =  
+      internalPrepareFlushCache(wal, myseqid, storesToFlush, status, writeFlushWalMarker, tracker);  
+  if (result.result == null) {  
+    return internalFlushCacheAndCommit(wal, status, result, storesToFlush);  
+  } else {  
+    return result.result; // early exit due to failure from prepare stage  
+  }  
+}
+
+
+```
+### 5.1.5 

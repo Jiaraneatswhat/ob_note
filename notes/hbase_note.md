@@ -2026,3 +2026,6 @@ protected void internalAdd(Cell cell, boolean mslabUsed, MemStoreSizing memstore
   updateMetaInfo(cell, succ, mslabUsed, memstoreSizing);  
 }
 ```
+# 5. MemStore 的 flush
+## 5.1 flush 时机
+### 5.1.1 

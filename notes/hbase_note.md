@@ -306,6 +306,14 @@ protected void handleReportForDutyResponse(final RegionServerStartupResponse c)
 ## 2.1 逻辑结构
 
 ![[HbaseLogic.svg]]
+
+## 2.2 术语
+- namespace
+	- 类似于 SQL 中的database
+	- HBase 自带两个 namespace，hbase 和 default，hbase 存放的是 HBase 的内置表，default 是用户默认使用的 namespace
+	- 
+
+
 # 3. RegionServer 架构
 
 ![[RegionServer_framework.svg]]
@@ -1761,7 +1769,7 @@ public List<Pair<NonceKey, WALEdit>> buildWALEdits(
 	- 将本地缓存写入文件系统
 	- 执行 sync 操作同步到磁盘
 
-
+![[write2.svg]]
 
 ```java
 private WriteEntry doWALAppend(WALEdit walEdit, Durability durability, List<UUID> clusterIds,  
@@ -2302,3 +2310,4 @@ byte[][] findRegionsToForceFlush() throws IOException {
   return regions;  
 }
 ```
+## 5.6 Flush 写出 HFile

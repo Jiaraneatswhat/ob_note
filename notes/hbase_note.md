@@ -2229,7 +2229,7 @@ static class PeriodicMemStoreFlusher extends ScheduledChore {
     final StringBuilder whyFlush = new StringBuilder();  
     for (HRegion r : this.server.onlineRegions.values()) {  
       if (r == null) continue; 
-      // 判断需不需要flush 
+      // 判断需不需要flush：上次modify的时间距现在有没有超过1h
       if (r.shouldFlush(whyFlush)) {  
         FlushRequester requester = server.getFlushRequester();  
         if (requester != null) {     
@@ -2239,6 +2239,68 @@ static class PeriodicMemStoreFlusher extends ScheduledChore {
     }  
   }  
 }
+```
+## 5.5 HLog 上限
+- `LogRoller` 的 `run()` 方法进行 HLog 的滚动
+```java
+// 1h进行一次roll
+this.rollperiod = this.server.getConfiguration().  
+  getLong("hbase.regionserver.logroll.period", 3600000);
 
+public void run() {  
+  while (running) {  
+    rollLock.lock(); // FindBugs UL_UNRELEASED_LOCK_EXCEPTION_PATH  
+    try {  
+      this.lastrolltime = now;  
+      for (Entry<WAL, Boolean> entry : walNeedsRoll.entrySet()) {  
+        final WAL wal = entry.getKey();  
+        // Force the roll if the logroll.period is elapsed or if a roll was requested.  
+        // The returned value is an array of actual region names.        
+        final byte [][] regionsToFlush = wal.rollWriter(periodic ||  
+            entry.getValue().booleanValue());  
+        walNeedsRoll.put(wal, Boolean.FALSE);  
+        if (regionsToFlush != null) {  
+          for (byte[] r : regionsToFlush) {  
+            scheduleFlush(r);  
+          }  
+        }  
+      }  
+    } 
+  }  
+}
 
+public byte[][] rollWriter(boolean force) throws FailedLogCloseException, IOException {  
+  rollWriterLock.lock();  
+  try {  
+    byte[][] regionsToFlush = null;    
+      if (getNumRolledLogFiles() > 0) {  
+        cleanOldLogs();  
+        regionsToFlush = findRegionsToForceFlush();  
+      }  
+    } 
+    return regionsToFlush;  
+  } 
+}
+
+byte[][] findRegionsToForceFlush() throws IOException {  
+  byte[][] regions = null;  
+  int logCount = getNumRolledLogFiles();
+  // this.maxLogs = conf.getInt("hbase.regionserver.maxlogs",  Math.max(32, calculateMaxLogFiles(conf, logrollsize)));  
+  if (logCount > this.maxLogs && logCount > 0) {  
+    Map.Entry<Path, WalProps> firstWALEntry = this.walFile2Props.firstEntry();  
+    regions =    this.sequenceIdAccounting.findLower(firstWALEntry.getValue().encodedName2HighestSequenceId);  
+  }  
+  if (regions != null) {  
+    StringBuilder sb = new StringBuilder();  
+    for (int i = 0; i < regions.length; i++) {  
+      if (i > 0) {  
+        sb.append(", ");  
+      }  
+      sb.append(Bytes.toStringBinary(regions[i]));  
+    }  
+    LOG.info("Too many WALs; count=" + logCount + ", max=" + this.maxLogs +  
+      "; forcing flush of " + regions.length + " regions(s): " + sb.toString());  
+  }  
+  return regions;  
+}
 ```

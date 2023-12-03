@@ -1980,5 +1980,49 @@ protected void applyFamilyMapToMemStore(Map<byte[], List<Cell>> familyMap,
   }  
 }
 
+private void applyToMemStore(HStore store, List<Cell> cells, boolean delta,  
+    MemStoreSizing memstoreAccounting) throws IOException {  
+  // 传入的delta是false 
+  boolean upsert = delta && store.getColumnFamilyDescriptor().getMaxVersions() == 1;  
+  if (upsert) {  
+  } else {  
+    store.add(cells, memstoreAccounting);  
+  }  
+}
 
+public void add(final Iterable<Cell> cells, MemStoreSizing memstoreSizing) {  
+  lock.readLock().lock();  
+  try {  
+    memstore.add(cells, memstoreSizing);  
+  } 
+}
+
+public void add(Iterable<Cell> cells, MemStoreSizing memstoreSizing) {  
+  for (Cell cell : cells) {  
+    add(cell, memstoreSizing);  
+  }  
+}
+
+public void add(Cell cell, MemStoreSizing memstoreSizing) {  
+  Cell toAdd = maybeCloneWithAllocator(cell, false);  
+  internalAdd(toAdd, mslabUsed, memstoreSizing);  
+}
+
+private void internalAdd(final Cell toAdd, final boolean mslabUsed, MemStoreSizing memstoreSizing) {  
+  // MutableSegment active
+  // active的Segment处理write操作
+  active.add(toAdd, mslabUsed, memstoreSizing);  
+  setOldestEditTimeToNow();  
+  checkActiveSize();  
+}
+
+public void add(Cell cell, boolean mslabUsed, MemStoreSizing memStoreSizing) {  
+  internalAdd(cell, mslabUsed, memStoreSizing);  
+}
+
+protected void internalAdd(Cell cell, boolean mslabUsed, MemStoreSizing memstoreSizing) {  
+  boolean succ = getCellSet().add(cell);  
+  // 更新metaInfo
+  updateMetaInfo(cell, succ, mslabUsed, memstoreSizing);  
+}
 ```

@@ -322,10 +322,9 @@ protected void handleReportForDutyResponse(final RegionServerStartupResponse c)
 	- 一张表若干连续的行形成的区域
 	- `Region` 中行的排序按照 `rowkey` 字典排序
 	- `Region`不能跨`RegionSever`，且当数据量大的时候，`HBase`会拆分`Region`
-
 ## 2.3 HFlie 结构
 
-
+![[HFile.svg]]
 # 3. RegionServer 架构
 
 ![[RegionServer_framework.svg]]

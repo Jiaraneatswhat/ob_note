@@ -291,38 +291,23 @@ public class Node {
 ```java
 Sender newSender(LogContext logContext, KafkaClient kafkaClient, ProducerMetadata metadata) {
     	// 客户端在阻塞之前将在单个连接上发送的未确认请求的最大数量
+    	// 默认值5
         int maxInflightRequests = producerConfig.getInt(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION);
     	// 客户端等待请求响应的最长时间，默认30ms
         int requestTimeoutMs = producerConfig.getInt(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG);
     	// 发送消息的通道类型
         ChannelBuilder channelBuilder = ClientUtils.createChannelBuilder(producerConfig, time, logContext);
-    	// 生产者监控指标对象创建
-        ProducerMetrics metricsRegistry = new ProducerMetrics(this.metrics);
-        Sensor throttleTimeSensor = Sender.throttleTimeSensor(metricsRegistry.senderMetrics);
     	// 创建NetworkClient对象用于异步请求/响应网络i/o，用于实现面向用户的生产者和消费者客户端
         KafkaClient client = kafkaClient != null ? kafkaClient : new NetworkClient(
             // nioSelector接口，用于执行非阻塞多连接网络I/O
             // CONNECTIONS_MAX_IDLE_MS_CONFIG默认9 * 60 * 1000
-          new Selector(producerConfig.getLong(ProducerConfig.CONNECTIONS_MAX_IDLE_MS_CONFIG),
-                        this.metrics, time, "producer", channelBuilder, logContext),
-                metadata,
-                clientId,
-                maxInflightRequests,
-            	// reconnect.backoff.ms 在尝试重新连接到给定主机之前等待的基本时间量
-                producerConfig.getLong(ProducerConfig.RECONNECT_BACKOFF_MS_CONFIG),
-            	// reconnect.backoff.max.ms 重新连接到反复连接失败的代理时等待的最长时间(ms)
-                producerConfig.getLong(ProducerConfig.RECONNECT_BACKOFF_MAX_MS_CONFIG),
-                producerConfig.getInt(ProducerConfig.SEND_BUFFER_CONFIG),
-                producerConfig.getInt(ProducerConfig.RECEIVE_BUFFER_CONFIG),
-                requestTimeoutMs,
-                producerConfig.getLong(ProducerConfig.SOCKET_CONNECTION_SETUP_TIMEOUT_MS_CONFIG),
-                producerConfig.getLong(ProducerConfig.SOCKET_CONNECTION_SETUP_TIMEOUT_MAX_MS_CONFIG),
-                time,
-                true,
-                apiVersions,
-                throttleTimeSensor,
-                logContext);
-		// 配置acks
+          new Selector(producerConfig.getLong(ProducerConfig.CONNECTIONS_MAX_IDLE_MS_CONFIG), this.metrics, time, "producer", channelBuilder, logContext),
+     metadata, clientId, maxInflightRequests,
+// reconnect.backoff.ms 在尝试重新连接到给定主机之前等待的基本时间量         	  
+producerConfig.getLong(ProducerConfig.RECONNECT_BACKOFF_MS_CONFIG),
+// reconnect.backoff.max.ms 重新连接到反复连接失败的代理时等待的最长时间(ms)
+);
+		// 配置acks，默认all
         short acks = Short.parseShort(producerConfig.getString(ProducerConfig.ACKS_CONFIG));
     	// 返回Sender对象
         return new Sender(logContext,
@@ -331,68 +316,10 @@ Sender newSender(LogContext logContext, KafkaClient kafkaClient, ProducerMetadat
                 this.accumulator,
                 maxInflightRequests == 1,
                 // 请求的最大大小（以字节为单位）
-                producerConfig.getInt(ProducerConfig.MAX_REQUEST_SIZE_CONFIG),
-                acks, // 默认为all
-                producerConfig.getInt(ProducerConfig.RETRIES_CONFIG),
-                metricsRegistry.senderMetrics,
-                time,
-                requestTimeoutMs,
-                producerConfig.getLong(ProducerConfig.RETRY_BACKOFF_MS_CONFIG),
-                this.transactionManager,
-                apiVersions);
+ producerConfig.getInt(ProducerConfig.MAX_REQUEST_SIZE_CONFIG)...)
 }
 
-public Selector(int maxReceiveSize,
-            long connectionMaxIdleMs,
-            int failedAuthenticationDelayMs,
-            Metrics metrics,
-            Time time,
-            String metricGrpPrefix,
-            Map<String, String> metricTags,
-            boolean metricsPerConnection,
-            boolean recordTimePerConnection,
-            ChannelBuilder channelBuilder,
-            MemoryPool memoryPool,
-            LogContext logContext) {
-        try {
-            // 创建nioSelector对象
-            this.nioSelector = java.nio.channels.Selector.open();
-        } catch (IOException e) {
-            throw new KafkaException(e);
-        }
-    	// 单次网络最大接收字节数量 
-        this.maxReceiveSize = maxReceiveSize;
-    	// 连接最大空闲时间 connections.max.idle.ms
-        this.time = time;
-        ...
-}
-
-public NetworkClient(MetadataUpdater metadataUpdater,
-                     Metadata metadata,
-                     Selectable selector,
-                     String clientId,
-                     int maxInFlightRequestsPerConnection,
-                     long reconnectBackoffMs,
-                     long reconnectBackoffMax,
-                     int socketSendBuffer,
-                     int socketReceiveBuffer,
-                     int defaultRequestTimeoutMs,
-                     long connectionSetupTimeoutMs,
-                     long connectionSetupTimeoutMaxMs,
-                     Time time,
-                     boolean discoverBrokerVersions,
-                     ApiVersions apiVersions,
-                     Sensor throttleTimeSensor,
-                     LogContext logContext,
-                     HostResolver hostResolver) {
-   //用于更新和检索集群元数据的工具类 创建
-    if (metadataUpdater == null) {
-        if (metadata == null)
-            throw new IllegalArgumentException("`metadata` must not be null");
-        this.metadataUpdater = new DefaultMetadataUpdater(metadata);
-    } else {
-        this.metadataUpdater = metadataUpdater;
-    }
+public NetworkClient(...) {
   //IO 选择器
     this.selector = selector;
   //客户端id
@@ -426,5 +353,192 @@ public NetworkClient(MetadataUpdater metadataUpdater,
     this.log = logContext.logger(NetworkClient.class);
   //当前状态
     this.state = new AtomicReference<>(State.ACTIVE);
+}
+```
+#### 1.2.3.5 run()
+```java
+@Override
+    public void run() {
+        log.debug("Starting Kafka producer I/O thread.");
+        while (running) {
+            try {
+                runOnce();
+	            }
+            }
+        }
+}
+
+// 每执行一次就会去RecordAccumulator中拉取消息
+void runOnce() {
+    if (transactionManager != null) {
+        try {
+            transactionManager.maybeResolveSequences();
+
+            // do not continue sending if the transaction manager is in a failed state
+            if (transactionManager.hasFatalError()) {...}
+			// 判断有是否正在进行的请求
+            if (maybeSendAndPollTransactionalRequest()) {
+                return;
+            }
+        }
+    }
+    long pollTimeout = sendProducerData(currentTimeMs);
+    client.poll(pollTimeout, currentTimeMs);
+}
+// sender线程启动后，阻塞在底层Selector的select方法
+```
+## 1.3 发送
+### 1.3.1 send()
+```java
+public Future<RecordMetadata> send(ProducerRecord<K, V> record) {
+        return send(record, null);
+}
+
+public Future<RecordMetadata> send(ProducerRecord<K, V> record, Callback callback) {
+        ProducerRecord<K, V> interceptedRecord = this.interceptors.onSend(record);
+        return doSend(interceptedRecord, callback);
+}
+
+private Future<RecordMetadata> doSend(ProducerRecord<K, V> record, Callback callback) {
+            try {
+                // 获取metadata
+                // maxBlockTimeMs最大等待时间，未获取到元数据前main线程会阻塞在这里
+                clusterAndWaitTime = waitOnMetadata(record.topic(), record.partition(), nowMs, maxBlockTimeMs);
+            } 
+    		// 最大等待时间 - 拉去元数据花费时间
+            long remainingWaitMs = Math.max(0, maxBlockTimeMs - clusterAndWaitTime.waitedOnMetadataMs);
+    		//从clusterAndWaitTime中获取Cluster对象
+            Cluster cluster = clusterAndWaitTime.cluster;
+            byte[] serializedKey;
+            // 序列化k, v
+			// 计算分区
+            int partition = partition(record, serializedKey, serializedValue, cluster);
+    		int serializedSize = AbstractRecords.estimateSizeInBytesUpperBound(apiVersions.maxUsableProduceMagic(), compressionType, serializedKey, serializedValue, headers);
+    // 判断消息大小有没有超过maxRequestSize和totalMemorySize        
+    ensureValidRecordSize(serializedSize);
+            // 将消息发送到RecordAccumulator
+	RecordAccumulator.RecordAppendResult result = accumulator.append(record.topic(), partition, timestamp, serializedKey,
+                    serializedValue, headers, appendCallbacks, remainingWaitMs, abortOnNewBatch, nowMs, cluster);
+            // 处理事务
+            if (transactionManager != null) {
+transactionManager.maybeAddPartition(appendCallbacks.topicPartition());
+            }
+			// batch满了或是新batch，唤醒sender
+            if (result.batchIsFull || result.newBatchCreated) {
+                log.trace("Waking up the sender since topic {} partition {} is either full or getting a new batch", record.topic(), appendCallbacks.getPartition());
+                this.sender.wakeup();
+            }
+            return result.future;
+        }
+}	
+```
+### 1.3.2 waitOnMetadata()
+```java
+private ClusterAndWaitTime waitOnMetadata(String topic, Integer partition, long nowMs, long maxWaitMs) throws InterruptedException {
+    	// 从缓存中获取Cluster对象
+        Cluster cluster = metadata.fetch();
+        metadata.add(topic, nowMs);
+        do {
+            metadata.add(topic, nowMs + elapsed);
+            int version = metadata.requestUpdateForTopic(topic);
+            // 申请元数据的请求要放在inflightRequests中通过sender去发送，这里需要唤醒sender线程，Sender再去唤醒NetworkClient线程调用poll方法获取元数据
+            sender.wakeup();
+            try {
+                // main线程阻塞在此方法中等待sender线程
+                //time.waitObject()
+                metadata.awaitUpdate(version, remainingWaitMs);
+            }
+        return new ClusterAndWaitTime(cluster, elapsed);
+}
+```
+### 1.3.3 poll()
+```java
+public List<ClientResponse> poll(long timeout, long now) {
+        ensureActive();
+		// empty
+        if (!abortedSends.isEmpty()) {...}
+		// 封装请求
+        long metadataTimeout = metadataUpdater.maybeUpdate(now);
+        try {
+            // 调用selector的poll方法，进行IO操作
+            this.selector.poll(Utils.min(timeout, metadataTimeout, defaultRequestTimeoutMs));
+        } catch (IOException e) {
+            log.error("Unexpected error during I/O", e);
+        }
+
+        // process completed actions
+        long updatedNow = this.time.milliseconds();
+        List<ClientResponse> responses = new ArrayList<>();
+    	// 处理返回的响应
+        handleCompletedSends(responses, updatedNow);
+        handleCompletedReceives(responses, updatedNow);
+        handleDisconnections(responses, updatedNow);
+        handleConnections();
+        handleInitiateApiVersionRequests(updatedNow);
+        handleTimedOutConnections(responses, updatedNow);
+        handleTimedOutRequests(responses, updatedNow);
+        completeResponses(responses);
+
+        return responses;
+}
+
+public long maybeUpdate(long now) {
+            // should we update our metadata?
+    		// 获取下一次更新的时间，needUpdate=true时返回0，立即更新
+            long timeToNextMetadataUpdate = metadata.timeToNextUpdate(now);
+            long waitForMetadataFetch = hasFetchInProgress() ? defaultRequestTimeoutMs : 0;
+
+            long metadataTimeout = Math.max(timeToNextMetadataUpdate, waitForMetadataFetch);
+    		// 大于0说明暂时不用更新
+            if (metadataTimeout > 0) {
+                return metadataTimeout;
+            }
+
+            // Beware that the behavior of this method and the computation of timeouts for poll() are
+            // highly dependent on the behavior of leastLoadedNode.
+    		// 最小负载节点
+            Node node = leastLoadedNode(now);
+            if (node == null) {
+                log.debug("Give up sending metadata request since no node is available");
+                return reconnectBackoffMs;
+            }
+
+            return maybeUpdate(now, node);
+        }
+
+private long maybeUpdate(long now, Node node) {
+            String nodeConnectionId = node.idString();
+
+            if (canSendRequest(nodeConnectionId, now)) {
+                Metadata.MetadataRequestAndVersion requestAndVersion = metadata.newMetadataRequestAndVersion(now);
+                // 创建MetadataRequest
+                MetadataRequest.Builder metadataRequest = requestAndVersion.requestBuilder;
+                log.debug("Sending metadata request {} to node {}", metadataRequest, node);
+                // 发送请求
+                sendInternalMetadataRequest(metadataRequest, nodeConnectionId, now);
+                inProgress = new InProgressData(requestAndVersion.requestVersion, requestAndVersion.isPartialUpdate);
+                return defaultRequestTimeoutMs;
+            }
+
+            // If there's any connection establishment underway, wait until it completes. This prevents
+            // the client from unnecessarily connecting to additional nodes while a previous connection
+            // attempt has not been completed.
+            if (isAnyNodeConnecting()) {
+                // Strictly the timeout we should return here is "connect timeout", but as we don't
+                // have such application level configuration, using reconnect backoff instead.
+                return reconnectBackoffMs;
+            }
+
+            if (connectionStates.canConnect(nodeConnectionId, now)) {
+                // We don't have a connection to this node right now, make one
+                log.debug("Initialize connection to node {} for sending metadata request", node);
+                initiateConnect(node, now);
+                return reconnectBackoffMs;
+            }
+
+            // connected, but can't send more OR connecting
+            // In either case, we just need to wait for a network event to let us know the selected
+            // connection might be usable again.
+            return Long.MAX_VALUE;
 }
 ```

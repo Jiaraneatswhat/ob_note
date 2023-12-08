@@ -808,26 +808,14 @@ private void appendWithOffset(long offset, boolean isControlRecord, long timesta
 }
 
 // 最后通过appendDefaultRecord或是appendLegacyRecord进行最终处理
-private void appendDefaultRecord(long offset, long timestamp, ByteBuffer key, ByteBuffer value,
-                                     Header[] headers) throws IOException {
-        ensureOpenForRecordAppend();
-        int offsetDelta = (int) (offset - baseOffset);
-        long timestampDelta = timestamp - baseTimestamp;
+private void appendDefaultRecord(long offset, long timestamp, ByteBuffer key, ByteBuffer value, Header[] headers) throws IOException {
         int sizeInBytes = DefaultRecord.writeTo(appendStream, offsetDelta, timestampDelta, key, value, headers);
         recordWritten(offset, timestamp, sizeInBytes);
 }
 
-public static int writeTo(DataOutputStream out,
-                              int offsetDelta,
-                              long timestampDelta,
-                              ByteBuffer key,
-                              ByteBuffer value,
-                              Header[] headers) throws IOException {
+public static int writeTo(...) throws IOException {
     	// 消息总大小
         int sizeInBytes = sizeOfBodyInBytes(offsetDelta, timestampDelta, key, value, headers);
-        ByteUtils.writeVarint(sizeInBytes, out);
-
-        byte attributes = 0; // there are no used record attributes at the moment
         out.write(attributes);
 
         ByteUtils.writeVarlong(timestampDelta, out);
@@ -852,8 +840,6 @@ public static int writeTo(DataOutputStream out,
         if (headers == null)
             throw new IllegalArgumentException("Headers cannot be null");
 
-        ByteUtils.writeVarint(headers.length, out);
-
         for (Header header : headers) {
             String headerKey = header.key();
             if (headerKey == null)
@@ -875,3 +861,5 @@ public static int writeTo(DataOutputStream out,
         return ByteUtils.sizeOfVarint(sizeInBytes) + sizeInBytes;
 }
 ```
+### 1.3.7 向 Broker 发送数据
+

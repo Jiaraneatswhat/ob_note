@@ -455,8 +455,7 @@ private ClusterAndWaitTime waitOnMetadata(String topic, Integer partition, long 
 ```java
 public List<ClientResponse> poll(long timeout, long now) {
         ensureActive();
-		// empty
-        if (!abortedSends.isEmpty()) {...}
+
 		// 封装请求
         long metadataTimeout = metadataUpdater.maybeUpdate(now);
         try {
@@ -478,7 +477,6 @@ public List<ClientResponse> poll(long timeout, long now) {
         handleTimedOutConnections(responses, updatedNow);
         handleTimedOutRequests(responses, updatedNow);
         completeResponses(responses);
-
         return responses;
 }
 
@@ -493,52 +491,111 @@ public long maybeUpdate(long now) {
             if (metadataTimeout > 0) {
                 return metadataTimeout;
             }
-
-            // Beware that the behavior of this method and the computation of timeouts for poll() are
-            // highly dependent on the behavior of leastLoadedNode.
     		// 最小负载节点
             Node node = leastLoadedNode(now);
             if (node == null) {
                 log.debug("Give up sending metadata request since no node is available");
                 return reconnectBackoffMs;
             }
-
             return maybeUpdate(now, node);
         }
 
 private long maybeUpdate(long now, Node node) {
-            String nodeConnectionId = node.idString();
+	if (canSendRequest(nodeConnectionId, now)) {
+		Metadata.MetadataRequestAndVersion requestAndVersion = metadata.newMetadataRequestAndVersion(now);
+		// 创建MetadataRequest
+		MetadataRequest.Builder metadataRequest = requestAndVersion.requestBuilder;
+		// 发送请求
+		sendInternalMetadataRequest(metadataRequest, nodeConnectionId, now);
+		return defaultRequestTimeoutMs;
+	}
+}
 
-            if (canSendRequest(nodeConnectionId, now)) {
-                Metadata.MetadataRequestAndVersion requestAndVersion = metadata.newMetadataRequestAndVersion(now);
-                // 创建MetadataRequest
-                MetadataRequest.Builder metadataRequest = requestAndVersion.requestBuilder;
-                log.debug("Sending metadata request {} to node {}", metadataRequest, node);
-                // 发送请求
-                sendInternalMetadataRequest(metadataRequest, nodeConnectionId, now);
-                inProgress = new InProgressData(requestAndVersion.requestVersion, requestAndVersion.isPartialUpdate);
-                return defaultRequestTimeoutMs;
-            }
+void sendInternalMetadataRequest(MetadataRequest.Builder builder, String nodeConnectionId, long now) {
+        ClientRequest clientRequest = newClientRequest(nodeConnectionId, builder, now, true);
+        doSend(clientRequest, true, now);
+}
 
-            // If there's any connection establishment underway, wait until it completes. This prevents
-            // the client from unnecessarily connecting to additional nodes while a previous connection
-            // attempt has not been completed.
-            if (isAnyNodeConnecting()) {
-                // Strictly the timeout we should return here is "connect timeout", but as we don't
-                // have such application level configuration, using reconnect backoff instead.
-                return reconnectBackoffMs;
-            }
+private void doSend(ClientRequest clientRequest, boolean isInternalRequest, long now) {
+     doSend(clientRequest, isInternalRequest, now, builder.build(version));
+    }
+}
 
-            if (connectionStates.canConnect(nodeConnectionId, now)) {
-                // We don't have a connection to this node right now, make one
-                log.debug("Initialize connection to node {} for sending metadata request", node);
-                initiateConnect(node, now);
-                return reconnectBackoffMs;
-            }
-
-            // connected, but can't send more OR connecting
-            // In either case, we just need to wait for a network event to let us know the selected
-            // connection might be usable again.
-            return Long.MAX_VALUE;
+private void doSend(ClientRequest clientRequest, boolean isInternalRequest, long now, AbstractRequest request) {
+        String destination = clientRequest.destination();
+        RequestHeader header = clientRequest.makeHeader(request.version());
+        Send send = request.toSend(header);
+        InFlightRequest inFlightRequest = new InFlightRequest(
+                clientRequest,
+                header,
+                isInternalRequest,
+                request,
+                send,
+                now);
+    	// 将元数据请求放在inFlightRequests中
+        this.inFlightRequests.add(inFlightRequest);
+        selector.send(new NetworkSend(clientRequest.destination(), send));
 }
 ```
+### 1.3.4 handleCompletedReceives()
+```java
+private void handleCompletedReceives(List<ClientResponse> responses, long now) {
+	// 请求元数据的响应
+	if (req.isInternalRequest && response instanceof MetadataResponse)
+		metadataUpdater.handleSuccessfulResponse(req.header, now, (MetadataResponse) response);
+    }
+}
+
+public void handleSuccessfulResponse(RequestHeader requestHeader, long now, MetadataResponse response) {
+
+	if (response.brokers().isEmpty()) {}
+	else {
+		// 获得到含有元数据的响应
+		this.metadata.update(inProgress.requestVersion, response, inProgress.isPartialUpdate, now);
+        }
+}
+```
+### 1.3.5 partition()
+```java
+// 默认没有分区器
+private int partition(ProducerRecord<K, V> record, byte[] serializedKey, byte[] serializedValue, Cluster cluster) {
+        if (record.partition() != null)
+            return record.partition();
+
+        if (partitioner != null) {
+            // 给定partitioner的话通过指定的分区器来分区
+            int customPartition = partitioner.partition(
+                record.topic(), record.key(), serializedKey, record.value(), serializedValue, cluster);
+            return customPartition;
+        }
+
+        if (serializedKey != null && !partitionerIgnoreKeys) {
+            // hash the keyBytes to choose a partition
+            // 用内置分区器分区，底层使用murmur2 hash算法
+            return BuiltInPartitioner.partitionForKey(serializedKey, cluster.partitionsForTopic(record.topic()).size());
+        } else {
+            return RecordMetadata.UNKNOWN_PARTITION;
+        }
+}
+```
+### 1.3.6 数据发送到 RecordAccumulator
+#### 1.3.6.1 RecordAccumulator 的缓冲池
+##### 1.3.6.1.1 缓冲池属性
+```java
+static final String WAIT_TIME_SENSOR_NAME = "bufferpool-wait-time";
+private final long totalMemory;// 整个BufferPool总内存大小 默认32M
+private final int poolableSize;// 当前BufferPool管理的单个ByteBuffer大小，通过RecordAccumulator传入batchSize，大小为16k 
+private final ReentrantLock lock;
+private final Deque<ByteBuffer> free; //ByteBuffer队列缓存固定大小的ByteBuffer对象
+private final Deque<Condition> waiters;// 申请不到足够空间而阻塞的线程对应的 Condition 对象
+private long nonPooledAvailableMemory; // 非池化可用的内存即 totalMemory 减去 free 列表中的全部 ByteBuffer 的大小
+private final Metrics metrics;
+private final Time time;
+private final Sensor waitTime;
+private boolean closed;
+```
+##### 1.3.6.1.2 allocate()
+- **申请的大小为 16kb 且 free 缓存池有缓存可用**
+
+![[bufferpool_allocate1.svg]]
+- 从 <font color='red'>free</font> 缓存池的队首拿出一个<font color='red'>16kb</font>的 ByteBuffer 来直接使用，等到 ByteBuffer 用完之后，通过 clear()方法放入 free 缓存池的尾部，随后唤醒下一个等待分配内存的线程

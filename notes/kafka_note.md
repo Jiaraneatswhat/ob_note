@@ -595,7 +595,283 @@ private final Sensor waitTime;
 private boolean closed;
 ```
 ##### 1.3.6.1.2 allocate()
-- **申请的大小为 16kb 且 free 缓存池有缓存可用**
+
+- **1. 申请的大小为 16kb 且 free 缓存池有缓存可用**
 
 ![[bufferpool_allocate1.svg]]
-- 从 <font color='red'>free</font> 缓存池的队首拿出一个<font color='red'>16kb</font>的 ByteBuffer 来直接使用，等到 ByteBuffer 用完之后，通过 clear()方法放入 free 缓存池的尾部，随后唤醒下一个等待分配内存的线程
+- 从 <font color='red'>free</font> 缓存池的队首拿出一个 <font color='red'>16kb</font> 的 <font color='red'>ByteBuffer</font> 来直接使用，等到 <font color='red'>ByteBuffer</font> 用完之后，通过 <font color='red'>clear()</font> 方法放入 <font color='red'>free</font> 缓存池的尾部，随后唤醒下一个等待分配内存的线程
+
+- **2. 申请的大小为 16kb 且 free 缓存池无缓存可用**
+
+![[bufferpool_allocate2.svg]]
+
+- 此时 free 缓存池无可用内存，从<b>可用内存中获取16kb 内存来分配</b>，用完将<font color='red'>ByteBuffer</font> 添加到 free 缓存池的队尾中，并调用 clear()方法清空数据
+
+- **3. 申请的大小非16kb 且 free 缓存池无可用的内存**
+
+![[bufferpool_allocate3.svg]]
+
+- 从<b>非池化可用内存中获取一部分内存来分配</b>，用完后将申请到的内存空间释放到非池化可用内存中，后序 GC 会进行处理
+
+- **4. 申请非 16k 且 free 缓存池有可用内存，但非池化可用内存不够**
+
+![[bufferpool_allocate4.svg]]
+
+- free 缓存池有可用内存，但<b>申请的是非16kb</b>，先尝试从**free 缓存池中将 ByteBuffer 释放到非池化可用内存中，直到满足申请内存大小(size)，然后从可用内存中获取对应内存大小来分配，用完后将申请到的空间释放到非池化可用内存中，由 GC 进行后续处理**
+
+```java
+public ByteBuffer allocate(int size, long maxTimeToBlockMs) throws InterruptedException {
+        if (size > this.totalMemory)
+            throw new IllegalArgumentException(
+            "Attempt to allocate " + size + " bytes, but there is a hard limit of " + this.totalMemory + " on memory allocations.");
+        ByteBuffer buffer = null;
+        this.lock.lock(); //重入锁加锁
+        if (this.closed) {
+            this.lock.unlock();
+            throw new KafkaException("Producer closed while allocating memory");
+        }
+        try {
+            // check if we have a free buffer of the right size pooled
+            //需要分配内存的大小等于poolableSize，且队列不为空，则从free队列取出一个ByteBuffer(case1)
+            if (size == poolableSize && !this.free.isEmpty())
+                return this.free.pollFirst();
+            //free队列的大小
+            int freeListSize = freeSize() * this.poolableSize;
+            //有足够的内存为size分配，则通过freeUp来分配给availableMemory
+            if (this.nonPooledAvailableMemory + freeListSize >= size) {
+                freeUp(size);
+                this.nonPooledAvailableMemory -= size;
+            } else {
+                // 当前BufferPool不够提供申请内存大小，则需要阻塞当前线程
+                int accumulated = 0;
+                Condition moreMemory = this.lock.newCondition();
+                try {
+                    long remainingTimeToBlockNs = TimeUnit.MILLISECONDS.toNanos(maxTimeToBlockMs);
+                    // 把自己添加到等待队列中末尾，保持公平性，先来的先获取内存，防止饥饿
+                    this.waiters.addLast(moreMemory);
+                    // 循环等待到分配成功或超时
+                    while (accumulated < size) {
+                        long startWaitNs = time.nanoseconds();
+                        long timeNs;
+                        boolean waitingTimeElapsed;
+                        try {
+                            waitingTimeElapsed = !moreMemory.await(remainingTimeToBlockNs, TimeUnit.NANOSECONDS); // 超时返回false
+                        } 
+                            //申请的大小为16k，free池有空闲的ByteBuffer
+                        if (accumulated == 0 && size == this.poolableSize && !this.free.isEmpty()) {
+                            // just grab a buffer from the free list
+                            buffer = this.free.pollFirst();
+                            accumulated = size;
+                        } else {
+                            // 释放空间给非池化可用内存，并继续等待空闲空间，如果分配多了只取size大小的空间
+                            freeUp(size - accumulated);
+                            int got = (int) Math.min(size - accumulated, this.nonPooledAvailableMemory);
+                            // 释放非池化可用内存大小
+                            this.nonPooledAvailableMemory -= got;
+                            // 计算累计分配了多少空间
+                            accumulated += got;
+                        }
+                    }
+                    // Don't reclaim memory on throwable since nothing was thrown
+                    accumulated = 0;
+                } finally {
+                    // When this loop was not able to successfully terminate don't loose available memory
+                    this.nonPooledAvailableMemory += accumulated;
+                    this.waiters.remove(moreMemory);
+                }
+            }
+        } finally {
+            // signal any additional waiters if there is more memory left
+            // over for them
+            try {
+                if (!(this.nonPooledAvailableMemory == 0 && this.free.isEmpty()) && !this.waiters.isEmpty())
+                    // 可用内存或free队列还有空闲，唤醒等待队列的第一个线程
+                    this.waiters.peekFirst().signal();
+            } finally {
+                // Another finally... otherwise find bugs complains
+                lock.unlock();
+            }
+        }
+        if (buffer == null)
+            // 没有正好的buffer，从缓冲区外(JVM Heap)中直接分配内存
+            return safeAllocateByteBuffer(size);
+        else
+            // 直接复用free缓存池的ByteBuffer
+            return buffer;
+    }
+```
+##### 1.3.6.1.3 freeUp()
+```java
+// free向nonPooledAvailableMemory提供一部分内存
+private void freeUp(int size) {
+        while (!this.free.isEmpty() && this.nonPooledAvailableMemory < size)
+            this.nonPooledAvailableMemory += this.free.pollLast().capacity(); }
+```
+##### 1.3.6.1.4 deallocate()
+```java
+public void deallocate(ByteBuffer buffer, int size) {
+        lock.lock();
+        try {
+            if (size == this.poolableSize && size == buffer.capacity()) {
+                buffer.clear();
+                this.free.add(buffer);
+            } else {
+                this.nonPooledAvailableMemory += size;
+            }
+            Condition moreMem = this.waiters.peekFirst();
+            if (moreMem != null)
+                moreMem.signal();
+        } finally {
+            lock.unlock();
+        }
+    }
+```
+#### 1.3.6.2 append()
+```java
+// 调用 ProducerBatch.tryAppend() 方法将消息追加到底层 MemoryRecordsBuilder
+public RecordAppendResult append(...) throws InterruptedException {
+        TopicInfo topicInfo = topicInfoMap.computeIfAbsent(topic, k -> new TopicInfo(logContext, k, batchSize));
+		// 累加数值
+        appendsInProgress.incrementAndGet();
+        ByteBuffer buffer = null;
+        if (headers == null) headers = Record.EMPTY_HEADERS;
+        try {
+            // Loop to retry in case we encounter partitioner's race conditions.
+            while (true) {
+                //检查是否有正在进行的批次
+                Deque<ProducerBatch> dq = topicInfo.batches.computeIfAbsent(effectivePartition, k -> new ArrayDeque<>());
+                synchronized (dq) {
+                    // 尝试添加
+                    RecordAppendResult appendResult = tryAppend(timestamp, key, value, headers, callbacks, dq, nowMs);
+                    if (appendResult != null) {
+                        // If queue has incomplete batches we disable switch (see comments in updatePartitionInfo).
+                        boolean enableSwitch = allBatchesFull(dq);
+                        topicInfo.builtInPartitioner.updatePartitionInfo(partitionInfo, appendResult.appendedBytes, cluster, enableSwitch);
+                        return appendResult;
+                    }
+                }
+				// 分配新的batch
+                if (buffer == null) {
+                    byte maxUsableMagic = apiVersions.maxUsableProduceMagic();
+                    int size = Math.max(this.batchSize, AbstractRecords.estimateSizeInBytesUpperBound(maxUsableMagic, compression, key, value, headers));
+                    buffer = free.allocate(size, maxTimeToBlock);
+                    nowMs = time.milliseconds();
+                }
+            }
+        } finally {
+            // 释放内存
+            free.deallocate(buffer);
+            appendsInProgress.decrementAndGet();
+        }
+}
+```
+#### 1.3.6.3 tryAppend()
+```java
+// Append the record to the current record set and return the relative offset within that record set
+private RecordAppendResult tryAppend(long timestamp, byte[] key, byte[] value, Header[] headers, Callback callback, Deque<ProducerBatch> deque, long nowMs) {
+        ProducerBatch last = deque.peekLast();
+        if (last != null) {
+            int initialBytes = last.estimatedSizeInBytes();
+            FutureRecordMetadata future = last.tryAppend(timestamp, key, value, headers, callback, nowMs);
+            if (future == null) {...} 
+            else {
+                int appendedBytes = last.estimatedSizeInBytes() - initialBytes;
+                return new RecordAppendResult(future, deque.size() > 1 || last.isFull(), false, false, appendedBytes);
+            }
+        }
+        return null;
+}
+
+public FutureRecordMetadata tryAppend(long timestamp, byte[] key, byte[] value, Header[] headers, Callback callback, long now) {
+        if (!recordsBuilder.hasRoomFor(timestamp, key, value, headers)) {
+            return null;
+        } else {
+            this.recordsBuilder.append(timestamp, key, value, headers);
+            return future;
+        }
+}
+
+// MemoryRecordsBuilder
+public void append(SimpleRecord record) {
+        appendWithOffset(nextSequentialOffset(), record);
+}
+
+private void appendWithOffset(long offset, boolean isControlRecord, long timestamp, ByteBuffer key,ByteBuffer value, Header[] headers) {
+        try {
+
+            if (magic > RecordBatch.MAGIC_VALUE_V1) {
+                appendDefaultRecord(offset, timestamp, key, value, headers);
+            } else {
+                appendLegacyRecord(offset, timestamp, key, value, magic);
+            }
+        }
+}
+
+// 最后通过appendDefaultRecord或是appendLegacyRecord进行最终处理
+private void appendDefaultRecord(long offset, long timestamp, ByteBuffer key, ByteBuffer value,
+                                     Header[] headers) throws IOException {
+        ensureOpenForRecordAppend();
+        int offsetDelta = (int) (offset - baseOffset);
+        long timestampDelta = timestamp - baseTimestamp;
+        int sizeInBytes = DefaultRecord.writeTo(appendStream, offsetDelta, timestampDelta, key, value, headers);
+        recordWritten(offset, timestamp, sizeInBytes);
+}
+
+public static int writeTo(DataOutputStream out,
+                              int offsetDelta,
+                              long timestampDelta,
+                              ByteBuffer key,
+                              ByteBuffer value,
+                              Header[] headers) throws IOException {
+    	// 消息总大小
+        int sizeInBytes = sizeOfBodyInBytes(offsetDelta, timestampDelta, key, value, headers);
+        ByteUtils.writeVarint(sizeInBytes, out);
+
+        byte attributes = 0; // there are no used record attributes at the moment
+        out.write(attributes);
+
+        ByteUtils.writeVarlong(timestampDelta, out);
+        ByteUtils.writeVarint(offsetDelta, out);
+		// 写入K, V以及header
+        if (key == null) {
+            ByteUtils.writeVarint(-1, out);
+        } else {
+            int keySize = key.remaining();
+            ByteUtils.writeVarint(keySize, out);
+            Utils.writeTo(out, key, keySize);
+        }
+
+        if (value == null) {
+            ByteUtils.writeVarint(-1, out);
+        } else {
+            int valueSize = value.remaining();
+            ByteUtils.writeVarint(valueSize, out);
+            Utils.writeTo(out, value, valueSize);
+        }
+
+        if (headers == null)
+            throw new IllegalArgumentException("Headers cannot be null");
+
+        ByteUtils.writeVarint(headers.length, out);
+
+        for (Header header : headers) {
+            String headerKey = header.key();
+            if (headerKey == null)
+                throw new IllegalArgumentException("Invalid null header key found in headers");
+
+            byte[] utf8Bytes = Utils.utf8(headerKey);
+            ByteUtils.writeVarint(utf8Bytes.length, out);
+            out.write(utf8Bytes);
+
+            byte[] headerValue = header.value();
+            if (headerValue == null) {
+                ByteUtils.writeVarint(-1, out);
+            } else {
+                ByteUtils.writeVarint(headerValue.length, out);
+                out.write(headerValue);
+            }
+        }
+
+        return ByteUtils.sizeOfVarint(sizeInBytes) + sizeInBytes;
+}
+```

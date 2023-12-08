@@ -862,4 +862,169 @@ public static int writeTo(...) throws IOException {
 }
 ```
 ### 1.3.7 向 Broker 发送数据
+#### 1.3.7.1 sendProducerData()
+```java
+// batch满或时间到后唤醒Sender
+private long sendProducerData(long now) {
+    Cluster cluster = metadata.fetch();
+    // 计算需要向哪些节点发送请求
+    RecordAccumulator.ReadyCheckResult result = this.accumulator.ready(cluster, now);
+    if (!result.unknownLeaderTopics.isEmpty()) {
+        // 存在不知道leader的分区，更新metadata
+        for (String topic : result.unknownLeaderTopics)
+            this.metadata.add(topic, now);
+        this.metadata.requestUpdate();
+    }
+    // remove any nodes we aren't ready to send to
+    Iterator<Node> iter = result.readyNodes.iterator();
+    long notReadyTimeout = Long.MAX_VALUE;
+    while (iter.hasNext()) {
+        Node node = iter.next();
+        // 检查目标节点是否准备好接收请求，如果未准备好但目标节点允许创建连接，则创建到目标节点的连接
+        if (!this.client.ready(node, now)) {...} 
+        else {
+            // Update both readyTimeMs and drainTimeMs, this would "reset" the node latency.
+            this.accumulator.updateNodeLatencyStats(node.id(), now, true);
+        }
+    }
+        // 获取每个节点待发送消息集合，其中key是目标leader副本所在节点
+        Map<Integer, List<ProducerBatch>> batches = this.accumulator.drain(cluster, result.readyNodes, this.maxRequestSize, now);
+        addToInflightBatches(batches);
+        if (guaranteeMessageOrder) {
+            // 如果需要保证消息的强顺序性，则缓存对应 topic 分区对象，防止同一时间往同一个 topic 分区发送多条处于未完成状态的消息
+            // Mute all the partitions drained
+            for (List<ProducerBatch> batchList : batches.values()) {
+                for (ProducerBatch batch : batchList)
+                    this.accumulator.mutePartition(batch.topicPartition);
+            }
+        }
+    	// 处理本地过期的消息，返回 TimeoutException，并释放空间
+        accumulator.resetNextBatchExpiryTime();
+        List<ProducerBatch> expiredInflightBatches = getExpiredInflightBatches(now);
+        List<ProducerBatch> expiredBatches = this.accumulator.expiredBatches(now);
+        expiredBatches.addAll(expiredInflightBatches);
 
+        // 发送请求到服务端，并处理服务端响应
+        sendProduceRequests(batches, now);
+        return pollTimeout;
+    }
+```
+#### 1.3.7.2 ready()
+```java
+// RecordAccumulator.java
+// Get a list of nodes whose partitions are ready to be sent
+public ReadyCheckResult ready(Cluster cluster, long nowMs) {
+        Set<Node> readyNodes = new HashSet<>(); // 记录接受请求的节点
+        long nextReadyCheckDelayMs = Long.MAX_VALUE; // 记录下次执行 ready 判断的时间间隔
+        Set<String> unknownLeaderTopics = new HashSet<>();  // 记录找不到 leader 副本的分区对应的 topic 集合
+        for (Map.Entry<String, TopicInfo> topicInfoEntry : this.topicInfoMap.entrySet()) {
+            final String topic = topicInfoEntry.getKey();
+            // 遍历topic获取队列大小
+            nextReadyCheckDelayMs = partitionReady(cluster, nowMs, topic, topicInfoEntry.getValue(), nextReadyCheckDelayMs, readyNodes, unknownLeaderTopics);
+        }
+        return new ReadyCheckResult(readyNodes, nextReadyCheckDelayMs, unknownLeaderTopics);
+
+private long partitionReady(Cluster cluster, long nowMs, String topic,
+                                TopicInfo topicInfo,
+                                long nextReadyCheckDelayMs, Set<Node> readyNodes, Set<String> unknownLeaderTopics) {
+
+        // 判断是否有线程在等待BufferPool分配空间
+        boolean exhausted = this.free.queued() > 0;
+    	// 遍历Topic的分区及其 RecordBatch 队列，对每个分区的 leader 副本所在的节点执行判定
+        for (Map.Entry<Integer, Deque<ProducerBatch>> entry : batches.entrySet()) {
+            // 创建topicpartition
+            TopicPartition part = new TopicPartition(topic, entry.getKey());
+            // leader所在节点
+            Node leader = cluster.leaderFor(part);
+            synchronized (deque) {
+                // Deques are often empty in this path, esp with large partition counts,
+                // so we exit early if we can.
+                ProducerBatch batch = deque.peekFirst();
+                if (batch == null) {
+                    continue;
+                }
+            }
+
+            if (leader == null) {
+            	// 添加到没有leader的topic里 
+                unknownLeaderTopics.add(part.topic());
+            } else {
+				// leader不为null
+                nextReadyCheckDelayMs = batchReady(nowMs, exhausted, part, leader, waitedTimeMs, backingOff,
+                    full, nextReadyCheckDelayMs, readyNodes);
+            }
+        }
+        return nextReadyCheckDelayMs;
+    }
+}
+
+private long batchReady(long nowMs, boolean exhausted, TopicPartition part, Node leader, long waitedTimeMs, boolean backingOff, boolean full,
+     long nextReadyCheckDelayMs, Set<Node> readyNodes) {
+        if (!readyNodes.contains(leader) && !isMuted(part)) {
+            long timeToWaitMs = backingOff ? retryBackoffMs : lingerMs;
+            boolean expired = waitedTimeMs >= timeToWaitMs;
+            boolean transactionCompleting = transactionManager != null && transactionManager.isCompleting(); 
+            // 标记当前节点是否可以接收请求，如果满足其中一个则认为需要往目标节点投递消息：
+            boolean sendable = full // 1.队列中有多个RecordBatch，或第一个RecordBatch已满
+                    || expired // 2.当前等待重试的时间过长
+                    || exhausted // 3.有其他线程在等待BufferPool分配空间，本地消息缓存已满
+                    || closed // 4.producer已经关闭
+                    || flushInProgress() // 5.有线程正在等待flush操作完成
+                    || transactionCompleting;
+            // 允许发送消息，且为首次发送，或者重试等待时间已经较长，则记录目标leader副本所在节点
+            if (sendable && !backingOff) {
+                readyNodes.add(leader);
+            } else {
+                long timeLeftMs = Math.max(timeToWaitMs - waitedTimeMs, 0);
+                nextReadyCheckDelayMs = Math.min(timeLeftMs, nextReadyCheckDelayMs);
+            }
+        }
+        return nextReadyCheckDelayMs;
+    }
+```
+#### 1.3.7.3 drain()
+```java
+// 回到sendProducerData中
+//  create produce requests
+public Map<Integer, List<ProducerBatch>> drain(Cluster cluster, Set<Node> nodes, int maxSize, long now) {
+
+        Map<Integer, List<ProducerBatch>> batches = new HashMap<>();
+        for (Node node : nodes) {
+            // 循环处理已经准备好的结点
+            List<ProducerBatch> ready = drainBatchesForOneNode(cluster, node, maxSize, now);
+            batches.put(node.id(), ready);
+        }
+        return batches;
+}
+
+private List<ProducerBatch> drainBatchesForOneNode(Cluster cluster, Node node, int maxSize, long now) {
+        int size = 0;
+    	// 获取当前节点上的分区信息
+        List<PartitionInfo> parts = cluster.partitionsForNode(node.id());
+    	// 记录待发往当前节点的 RecordBatch 集合
+        List<ProducerBatch> ready = new ArrayList<>();
+        int drainIndex = getDrainIndex(node.idString());
+    	// drainIndex 用于记录上次发送停止的位置，本次继续从当前位置开始发送
+        int start = drainIndex = drainIndex % parts.size();
+            synchronized (deque) {
+                // invariant: !isMuted(tp,now) && deque != null
+            	// 获取当前分区对应的 RecordBatch 集合
+                ProducerBatch first = deque.peekFirst();
+
+            	// 仅发送第一次发送，或重试等待时间较长的消息
+                if (size + first.estimatedSizeInBytes() > maxSize && !ready.isEmpty()) {
+                    break;
+                } else {
+                    if (shouldStopDrainBatchesForPartition(first, tp))
+                        break;
+                }
+				// 每次仅获取第一个 RecordBatch，并放入 read 列表中，这样给每个分区一个机会，保证公平，防止饥饿
+                batch = deque.pollFirst();
+            batch.close();
+            size += batch.records().sizeInBytes();
+            ready.add(batch);
+            batch.drained(now);
+        } while (start != drainIndex);
+        return ready;
+}
+```

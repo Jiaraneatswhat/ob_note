@@ -1028,3 +1028,175 @@ private List<ProducerBatch> drainBatchesForOneNode(Cluster cluster, Node node, i
         return ready;
 }
 ```
+#### 1.3.7.4 addToInflightBatches()
+```java
+// 将上面得到的batches添加到inflightBatches中
+public void addToInflightBatches(Map<Integer, List<ProducerBatch>> batches) {
+        for (List<ProducerBatch> batchList : batches.values()) {
+            addToInflightBatches(batchList);
+        }
+}
+
+private void addToInflightBatches(List<ProducerBatch> batches) {
+        for (ProducerBatch batch : batches) {
+            List<ProducerBatch> inflightBatchList = inFlightBatches.get(batch.topicPartition);
+            inflightBatchList.add(batch);
+        }
+}
+```
+#### 1.3.7.5 sendProduceRequests()
+```java
+private void sendProduceRequests(Map<Integer, List<ProducerBatch>> collated, long now) {
+        // 遍历ProducerBatch
+        for (Map.Entry<Integer, List<ProducerBatch>> entry : collated.entrySet())
+            sendProduceRequest(now, entry.getKey(), acks, requestTimeoutMs, entry.getValue());
+}
+
+private void sendProduceRequest(long now, int destination, short acks, int timeout, List<ProducerBatch> batches) {
+    	// 遍历 RecordBatch 集合，整理成 produceRecordsByPartition 和 recordsByPartition 
+        for (ProducerBatch batch : batches) {
+            TopicPartition tp = batch.topicPartition;
+            // batch中的records是MemoryRecords，底层是ByteBuffer
+            MemoryRecords records = batch.records();
+            
+            // 让每个batch的数据都有分区
+            ProduceRequestData.TopicProduceData tpData = tpd.find(tp.topic());
+            if (tpData == null) {
+                tpData = new ProduceRequestData.TopicProduceData().setName(tp.topic());
+                tpd.add(tpData);
+            }
+            tpData.partitionData().add(new ProduceRequestData.PartitionProduceData()
+                    .setIndex(tp.partition())
+                    .setRecords(records));
+            recordsByPartition.put(tp, batch);
+        }
+
+        String transactionalId = null;
+        if (transactionManager != null && transactionManager.isTransactional()) {
+            transactionalId = transactionManager.transactionalId();
+        }
+		// 创建 ProduceRequest 请求构造器
+        ProduceRequest.Builder requestBuilder = ProduceRequest.forMagic(minUsedMagic,
+                new ProduceRequestData()
+                        .setAcks(acks)
+                        .setTimeoutMs(timeout)
+                        .setTransactionalId(transactionalId)
+                        .setTopicData(tpd));
+        RequestCompletionHandler callback = response -> handleProduceResponse(response, recordsByPartition, time.milliseconds());
+
+        String nodeId = Integer.toString(destination);
+    	// 创建 ClientRequest 请求对象，如果 acks 不等于 0 则表示期望获取服务端响应
+        ClientRequest clientRequest = client.newClientRequest(nodeId, requestBuilder, now, acks != 0,
+                requestTimeoutMs, callback
+         // 将请求加入到网络 I/O 通道（KafkaChannel）中。同时将该对象缓存到 InFlightRequests 中 
+        // 创建Sender时传进来的创建的network对象             
+        client.send(clientRequest, now);
+        log.trace("Sent produce request to {}: {}", nodeId, requestBuilder);
+}	
+```
+## 1.4 Broker 进行响应
+### 1.4.1 KafkaApis.handle()
+```scala
+// Broker通过KafkaApis类来处理请求
+  override def handle(request: RequestChannel.Request): Unit = {
+    try {
+      request.header.apiKey match {
+        // 处理生产者的请求
+        case ApiKeys.PRODUCE => handleProduceRequest(request)
+        case ApiKeys.FETCH => handleFetchRequest(request)
+        case ApiKeys.METADATA => handleTopicMetadataRequest(request)
+        case ApiKeys.UPDATE_METADATA => handleUpdateMetadataRequest(request)
+        case ApiKeys.INIT_PRODUCER_ID => handleInitProducerIdRequest(request)
+        ...
+}
+```
+### 1.4.2 handleProduceRequest()
+```scala
+def handleProduceRequest(request: RequestChannel.Request): Unit = {
+	val produceRequest = request.body[ProduceRequest]
+	 val produceRecords = produceRequest.partitionRecordsOrFail.asScala
+	 // 回调函数
+    def sendResponseCallback(responseStatus: Map[TopicPartition, PartitionResponse]): Unit = {
+      // ack = 0时默认发送成功
+      if (produceRequest.acks == 0) {
+        // no operation needed if producer request.required.acks = 0; however, if there is any error in handling
+        // the request, since no response is expected by the producer, the server will close socket server so that
+        // the producer client will know that some error has happened and will refresh its metadata
+      } else {
+        // ack不为0的情况下发送响应
+        sendResponse(request, Some(new ProduceResponse(mergedResponseStatus.asJava, maxThrottleTimeMs)), None)
+      }
+	// 处理完响应后通过replicaManager写入record
+      // call the replica manager to append messages to the replicas
+      replicaManager.appendRecords(...)
+}
+```
+#### 1.4.2.1 sendResponse()
+```scala
+private def sendResponse(request: RequestChannel.Request,
+                           responseOpt: Option[AbstractResponse],
+                           onComplete: Option[Send => Unit]): Unit = {
+	// 创建response
+    val response = responseOpt match {
+      case Some(response) =>
+        val responseSend = request.context.buildResponse(response)
+        val responseString =
+          if (RequestChannel.isRequestLoggingEnabled) Some(response.toString(request.context.apiVersion))
+          else None
+        new RequestChannel.SendResponse(request, responseSend, responseString, onComplete)
+      case None =>
+        new RequestChannel.NoOpResponse(request)
+    }
+	// 通过requestChannel发送响应
+    requestChannel.sendResponse(response)
+}
+```
+#### 1.4.2.2 appendRecords()
+```scala
+// KafkaServer.scala
+// KafkaServer在启动时会启动ReplicaManager
+def startup(): Unit = {
+    try {
+      info("starting")
+
+      val canStartup = isStartingUp.compareAndSet(false, true)
+      if (canStartup) {
+        brokerState.newState(Starting)
+        // 创建replicaManager
+        replicaManager = createReplicaManager(isShuttingDown)
+        replicaManager.startup()
+}
+
+// Append messages to leader replicas of the partition
+// 向partition的leader写入数据
+def appendRecords(...): Unit = {
+    // ack有效(ack=0, -1, 1时)
+    if (isValidRequiredAcks(requiredAcks)) {
+      val sTime = time.milliseconds
+      // 向本地日志写入数据
+      val localProduceResults = appendToLocalLog(internalTopicsAllowed = internalTopicsAllowed,
+        origin, entriesPerPartition, requiredAcks)
+	  // ack为-1时，isr的follower都写入成功后才会返回最终结果
+      if (delayedProduceRequestRequired(requiredAcks, entriesPerPartition, localProduceResults)) {
+        // create delayed produce operation
+        val produceMetadata = ProduceMetadata(requiredAcks, produceStatus)
+        // 创建DelayedProduce对象等待isr其他副本的处理结果
+        val delayedProduce = new DelayedProduce(timeout, produceMetadata, this, responseCallback, delayedProduceLock)
+      } else {
+        // 不是-1时可以直接返回append结果
+        // we can respond immediately
+        val produceResponseStatus = produceStatus.map { case (k, status) => k -> status.responseStatus }
+        responseCallback(produceResponseStatus)
+      }
+    } else {
+      // ack无效，报错
+      // If required.acks is outside accepted range, something is wrong with the client
+      // Just return an error and don't handle the request at all
+      val responseStatus = entriesPerPartition.map { case (topicPartition, _) =>
+        topicPartition -> new PartitionResponse(Errors.INVALID_REQUIRED_ACKS,
+          LogAppendInfo.UnknownLogAppendInfo.firstOffset.getOrElse(-1), RecordBatch.NO_TIMESTAMP, LogAppendInfo.UnknownLogAppendInfo.logStartOffset)
+      }
+      responseCallback(responseStatus)
+    }
+}        
+```

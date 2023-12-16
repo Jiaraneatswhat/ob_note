@@ -1200,3 +1200,284 @@ def appendRecords(...): Unit = {
     }
 }        
 ```
+#### 1.4.2.3 appendToLocalLog()
+```java
+private def appendToLocalLog(internalTopicsAllowed: Boolean,
+                               origin: AppendOrigin,
+                               entriesPerPartition: Map[TopicPartition, MemoryRecords],
+                               requiredAcks: Short): Map[TopicPartition, LogAppendResult] = {
+    val traceEnabled = isTraceEnabled
+    def processFailedRecord(topicPartition: TopicPartition, t: Throwable) = {
+      val logStartOffset = getPartition(topicPartition) match {
+        case HostedPartition.Online(partition) => partition.logStartOffset
+        case HostedPartition.None | HostedPartition.Offline => -1L
+      }
+	...
+      // reject appending to internal topics if it is not allowed
+      // 是否为内置topic
+      if (Topic.isInternal(topicPartition.topic) && !internalTopicsAllowed) {
+        (topicPartition, LogAppendResult(
+          LogAppendInfo.UnknownLogAppendInfo,
+          Some(new InvalidTopicException(s"Cannot append to internal topic ${topicPartition.topic}"))))
+      } else {
+        try {
+          val partition = getPartitionOrException(topicPartition)
+          // 向leader添加record
+          val info = partition.appendRecordsToLeader(records, origin, requiredAcks)
+          val numAppendedMessages = info.numMessages
+
+          // update stats for successfully appended bytes and messages as bytesInRate and messageInRate
+         ...
+}
+       
+// Partition.scala
+// makeLeader方法中创建了Log对象leaderLog
+def appendRecordsToLeader(records: MemoryRecords, origin: AppendOrigin, requiredAcks: Int): LogAppendInfo = {
+    val (info, leaderHWIncremented) = inReadLock(leaderIsrUpdateLock) {
+      leaderLogIfLocal match {
+        case Some(leaderLog) =>
+          val minIsr = leaderLog.config.minInSyncReplicas
+          val inSyncSize = isrState.isr.size
+
+          // Avoid writing to leader if there are not enough insync replicas to make it safe   
+          // isr未达到minisr且ack为-1，抛异常
+          if (inSyncSize < minIsr && requiredAcks == -1) {
+            throw new NotEnoughReplicasException(s"The size of the current ISR ${isrState.isr} " +
+              s"is insufficient to satisfy the min.isr requirement of $minIsr for partition $topicPartition")
+          }
+		  // 调用Log的appendAsLeader方法写入record
+          val info = leaderLog.appendAsLeader(records, leaderEpoch = this.leaderEpoch, origin,
+            interBrokerProtocolVersion)
+
+          // we may need to increment high watermark since ISR could be down to 1
+          (info, maybeIncrementLeaderHW(leaderLog))
+
+        case None =>
+          throw new NotLeaderOrFollowerException("Leader not local for partition %s on broker %d"
+            .format(topicPartition, localBrokerId))
+      }
+    }
+
+    info.copy(leaderHwChange = if (leaderHWIncremented) LeaderHwChange.Increased else LeaderHwChange.Same)
+}
+```
+# 2. Broker
+- 基本组件
+
+![[broker_framework.svg]]
+
+- `SocketServer`：监听`9092`端口的 `socket` 读写请求
+	- 首先开启一个 `Acceptor` 线程，新的 `Socket` 连接成功建立时会将对应的 `SocketChannel` 以轮询方式转发给 N 个 `Processor` 线程中的某一个，由其处理接下来 `SocketChannel` 的请求
+	- 将请求放置在 `RequestChannel` 中的请求队列；当 `Processor` 线程监听到 `SocketChannel` 请求的响应时，会将响应从 `RequestChannel` 中的响应队列中取出来并发给客户端
+- `KafkaRequesThandlePool`：从 `Socketserver` 获取客户端请求然后调用 `KafkaApis` 实现业务逻辑处理，将响应结果返回给 `RequestChannel`,再给客户端
+- `KafkaApis`：`kafka` 的业务逻辑实现层, 各种 `Request` 的实现类，通过 `match-case` 匹配请求类型调用实现逻辑
+- `KafkaController`：`kafka` 的集群管理模块。通过在 `zk` 上注册节点实现监听
+- `OffsetManager`：`offset` 管理模块。对偏移量的保存和读取，offset 保存在 `zk` 或 `Kafka` 中，由参数 `offsets.storage=zookeeper/kafka` 决定
+- `TopicConfigManager`：`topic` 的配置信息管理模块，副本数等
+- `KafkaScheduler`：kafka 的后台定时任务调度的资源池
+	- 主要为 `LogManager`, `ReplicaManager` , `OffsetManager` 提供资源调度
+- `ReplicaManager`：副本管理
+	- 包括有关副本的 `Leader` 和 `ISR` 的状态变化、副本的删除、副本的监测等
+- `KafkaHealthCheck`：集群健康检查
+- 日志管理模块。脏数据，过期数据删除等，负责提供 `Broker` 上 `Topic` 的分区数据读取和写入功能
+## 2.1 启动
+### 2.1.1 Kafka.scala
+```scala
+// kafka-server-start.sh最后会通过kafka-run-class.sh运行Kafka包下的Kafka类
+// exec $base_dir/kafka-run-class.sh $EXTRA_ARGS kafka.Kafka "$@"
+def main(args: Array[String]): Unit = {
+    try {
+      val serverProps = getPropsFromArgs(args)
+      // 获取一个KafkaServerStartable对象
+      val kafkaServerStartable = KafkaServerStartable.fromProps(serverProps)
+
+      // attach shutdown handler to catch terminating signals as well as normal termination
+      Exit.addShutdownHook("kafka-shutdown-hook", kafkaServerStartable.shutdown())
+		
+      // 启动
+      kafkaServerStartable.startup()
+      kafkaServerStartable.awaitShutdown()
+    }
+}
+
+object KafkaServerStartable {
+  def fromProps(serverProps: Properties): KafkaServerStartable = {
+    fromProps(serverProps, None)
+  }
+
+  def fromProps(serverProps: Properties, threadNamePrefix: Option[String]): KafkaServerStartable = {
+    val reporters = KafkaMetricsReporter.startReporters(new VerifiableProperties(serverProps))
+    // 创建KafkaServerStartable对象
+    new KafkaServerStartable(KafkaConfig.fromProps(serverProps, false), reporters, threadNamePrefix)
+  }
+}
+```
+### 2.1.2 KafkaServerStartable.scala
+```scala
+class KafkaServerStartable(val staticServerConfig: KafkaConfig, reporters: Seq[KafkaMetricsReporter], threadNamePrefix: Option[String] = None) extends Logging {
+  // 创建一个KafkaServer对象
+  private val server = new KafkaServer(staticServerConfig, kafkaMetricsReporters = reporters, threadNamePrefix = threadNamePrefix)
+
+  def this(serverConfig: KafkaConfig) = this(serverConfig, Seq.empty)
+
+  def startup(): Unit = {
+    // 启动server
+    try server.startup()
+  }
+}
+```
+### 2.1.3 启动 KafkaServer
+```scala
+  def startup(): Unit = {
+    try {
+      info("starting")
+      
+      if (canStartup) {
+        brokerState.newState(Starting)
+
+        /* setup zookeeper */
+        // 连接zk，创建根节点
+        initZkClient(time)
+
+        /* Get or create cluster_id */
+        // 从ZK获取或创建集群id，规则：UUID的mostSigBits、leastSigBits组合转base64
+        _clusterId = getOrGenerateClusterId(zkClient)
+        info(s"Cluster ID = $clusterId")
+
+        /* load metadata */
+        // 获取brokerId及log存储路径，brokerId通过zk生成或者server.properties配置broker.id
+        val (preloadedBrokerMetadataCheckpoint, initialOfflineDirs) = getBrokerMetadataAndOfflineDirs
+
+        /* generate brokerId */
+        config.brokerId = getOrGenerateBrokerId(preloadedBrokerMetadataCheckpoint)
+        logContext = new LogContext(s"[KafkaServer id=${config.brokerId}] ")
+        this.logIdent = logContext.logPrefix
+
+        /* start scheduler */
+        // 初始化定时任务调度器
+        kafkaScheduler = new KafkaScheduler(config.backgroundThreads)
+        kafkaScheduler.startup()
+
+        /* create and configure metrics */
+        ...
+
+        /* start log manager */
+        // 启动LogManager
+        logManager = LogManager(config, initialOfflineDirs, zkClient, brokerState, kafkaScheduler, time, brokerTopicStats, logDirFailureChannel)
+        logManager.startup()
+
+        metadataCache = new MetadataCache(config.brokerId)
+		// 启动socket监听9092等待客户端请求
+        // Create and start the socket server acceptor threads so that the bound port is known.
+        // Delay starting processors until the end of the initialization sequence to ensure
+        // that credentials have been loaded before processing authentications.
+        socketServer = new SocketServer(config, metrics, time, credentialProvider)
+        socketServer.startup(startProcessingRequests = false)
+
+        /* start replica manager */
+        brokerToControllerChannelManager = new BrokerToControllerChannelManagerImpl(metadataCache, time, metrics, config, threadNamePrefix)
+        // 启动副本管理器
+        replicaManager = createReplicaManager(isShuttingDown)
+        replicaManager.startup()
+        brokerToControllerChannelManager.start()
+
+        val brokerInfo = createBrokerInfo
+        // 向zk注册Broker
+        val brokerEpoch = zkClient.registerBroker(brokerInfo)
+
+        // Now that the broker is successfully registered, checkpoint its metadata
+        checkpointBrokerMetadata(BrokerMetadata(config.brokerId, Some(clusterId)))
+
+        /* start token manager */
+        tokenManager = new DelegationTokenManager(config, tokenCache, time , zkClient)
+        tokenManager.startup()
+
+        /* start kafka controller */
+          // 启动controller，只有leader会与zk建立连接
+        kafkaController = new KafkaController(config, zkClient, time, metrics, brokerInfo, brokerEpoch, tokenManager, brokerFeatures, featureCache, threadNamePrefix)
+        kafkaController.startup()
+
+        adminManager = new AdminManager(config, metrics, metadataCache, zkClient)
+		
+        // 创建GroupCoordinator用于和ConsumerCoordinator 交互
+        /* start group coordinator */
+        // Hardcode Time.SYSTEM for now as some Streams tests fail otherwise, it would be good to fix the underlying issue
+        groupCoordinator = GroupCoordinator(config, zkClient, replicaManager, Time.SYSTEM, metrics)
+        groupCoordinator.startup()
+
+        /* start transaction coordinator, with a separate background thread scheduler for transaction expiration and log loading */
+        // Hardcode Time.SYSTEM for now as some Streams tests fail otherwise, it would be good to fix the underlying issue
+        transactionCoordinator = TransactionCoordinator(config, replicaManager, new KafkaScheduler(threads = 1, threadNamePrefix = "transaction-log-manager-"), zkClient, metrics, metadataCache, Time.SYSTEM)
+        transactionCoordinator.startup()
+
+        /* Get the authorizer and initialize it if one is specified.*/
+        authorizer = config.authorizer
+        authorizer.foreach(_.configure(config.originals))
+        val authorizerFutures: Map[Endpoint, CompletableFuture[Void]] = authorizer match {
+          case Some(authZ) =>
+            authZ.start(brokerInfo.broker.toServerInfo(clusterId, config)).asScala.map { case (ep, cs) =>
+              ep -> cs.toCompletableFuture
+            }
+          case None =>
+            brokerInfo.broker.endPoints.map { ep =>
+              ep.toJava -> CompletableFuture.completedFuture[Void](null)
+            }.toMap
+        }
+
+        val fetchManager = new FetchManager(Time.SYSTEM,
+          new FetchSessionCache(config.maxIncrementalFetchSessionCacheSlots,
+            KafkaServer.MIN_INCREMENTAL_FETCH_SESSION_EVICTION_MS))
+
+        /* start processing requests */
+        // 初始化数据类请求的KafkaApis，负责数据类请求逻辑处理
+        dataPlaneRequestProcessor = new KafkaApis(socketServer.dataPlaneRequestChannel, replicaManager, adminManager, groupCoordinator, transactionCoordinator,
+          kafkaController, zkClient, config.brokerId, config, metadataCache, metrics, authorizer, quotaManagers,
+          fetchManager, brokerTopicStats, clusterId, time, tokenManager, brokerFeatures, featureCache)
+		// 初始化数据类请求处理的线程池  
+        dataPlaneRequestHandlerPool = new KafkaRequestHandlerPool(config.brokerId, socketServer.dataPlaneRequestChannel, dataPlaneRequestProcessor, time,
+          config.numIoThreads, s"${SocketServer.DataPlaneMetricPrefix}RequestHandlerAvgIdlePercent", SocketServer.DataPlaneThreadPrefix)
+
+        socketServer.controlPlaneRequestChannelOpt.foreach { controlPlaneRequestChannel =>
+          // 初始化控制类请求的 KafkaApis
+          controlPlaneRequestProcessor = new KafkaApis(controlPlaneRequestChannel, replicaManager, adminManager, groupCoordinator, transactionCoordinator,
+            kafkaController, zkClient, config.brokerId, config, metadataCache, metrics, authorizer, quotaManagers,
+            fetchManager, brokerTopicStats, clusterId, time, tokenManager, brokerFeatures, featureCache)
+	  	  // 初始化控制类请求的线程池
+          controlPlaneRequestHandlerPool = new KafkaRequestHandlerPool(config.brokerId, socketServer.controlPlaneRequestChannelOpt.get, controlPlaneRequestProcessor, time,
+            1, s"${SocketServer.ControlPlaneMetricPrefix}RequestHandlerAvgIdlePercent", SocketServer.ControlPlaneThreadPrefix)
+        }
+
+        Mx4jLoader.maybeLoad()
+
+        /* Add all reconfigurables for config change notification before starting config handlers */
+        config.dynamicConfig.addReconfigurables(this)
+
+        /* start dynamic config manager */
+        dynamicConfigHandlers = Map[String, ConfigHandler](ConfigType.Topic -> new TopicConfigHandler(logManager, config, quotaManagers, kafkaController),
+                                                           ConfigType.Client -> new ClientIdConfigHandler(quotaManagers),
+                                                           ConfigType.User -> new UserConfigHandler(quotaManagers, credentialProvider),
+                                                           ConfigType.Broker -> new BrokerConfigHandler(config, quotaManagers))
+
+        // Create the config manager. start listening to notifications
+        dynamicConfigManager = new DynamicConfigManager(zkClient, dynamicConfigHandlers)
+        dynamicConfigManager.startup()
+
+        socketServer.startProcessingRequests(authorizerFutures)
+		// 更新broker状态
+        brokerState.newState(RunningAsBroker)
+        shutdownLatch = new CountDownLatch(1)
+        startupComplete.set(true)
+        isStartingUp.set(false)
+        AppInfoParser.registerAppInfo(metricsPrefix, config.brokerId.toString, metrics, time.milliseconds())
+        info("started")
+      }
+    }
+    catch {
+      case e: Throwable =>
+        fatal("Fatal error during KafkaServer startup. Prepare to shutdown", e)
+        isStartingUp.set(false)
+        shutdown()
+        throw e
+    }
+}
+```

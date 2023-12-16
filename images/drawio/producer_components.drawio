@@ -1,0 +1,34 @@
+<mxfile host="Electron" modified="2023-10-23T06:20:12.649Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/21.2.8 Chrome/112.0.5615.165 Electron/24.2.0 Safari/537.36" etag="-X6Pl-e6OwuBYsfSUFW8" version="21.2.8" type="device">
+  <diagram name="Page-1" id="4jEeTd7mvgLUH5QwcUFO">
+    <mxGraphModel dx="1651" dy="617" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="537Ia4qeewNL_7YL3Oqh-1" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#121212;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="-120" y="160" width="500" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="537Ia4qeewNL_7YL3Oqh-3" value="&lt;b style=&quot;font-size: 16px;&quot;&gt;Producer&lt;br&gt;Metadata&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#262626;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="-90" y="230" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="537Ia4qeewNL_7YL3Oqh-5" value="&lt;b style=&quot;font-size: 16px;&quot;&gt;Producer&lt;br&gt;Config&lt;br&gt;&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#0b0a0a;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="70" y="230" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="537Ia4qeewNL_7YL3Oqh-6" value="&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;b&gt;Network&lt;br&gt;Client&lt;br&gt;&lt;/b&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#121212;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="230" y="230" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="537Ia4qeewNL_7YL3Oqh-7" value="&lt;b style=&quot;font-size: 16px;&quot;&gt;&lt;span style=&quot;&quot;&gt;Record&lt;br&gt;&lt;/span&gt;Accumulator&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#000000;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="-90" y="330" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="537Ia4qeewNL_7YL3Oqh-8" value="&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;b&gt;Sender&lt;/b&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bac8d3;strokeColor=#0f0f10;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="70" y="330" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="537Ia4qeewNL_7YL3Oqh-9" value="&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;b&gt;Producer&lt;br&gt;Interceptors&lt;/b&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#000000;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="230" y="330" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="537Ia4qeewNL_7YL3Oqh-10" value="&lt;font size=&quot;1&quot; style=&quot;&quot;&gt;&lt;b style=&quot;font-size: 18px;&quot;&gt;Producer&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="80" y="174" width="100" height="40" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

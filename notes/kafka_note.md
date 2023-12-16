@@ -1386,7 +1386,7 @@ class KafkaServerStartable(val staticServerConfig: KafkaConfig, reporters: Seq[K
         val brokerEpoch = zkClient.registerBroker(brokerInfo)
 
         // Now that the broker is successfully registered, checkpoint its metadata
-        checkpointBrokerMetadata(BrokerMetadata(config.brokerId, Some(clusterId)))
+checkpointBrokerMetadata(BrokerMetadata(config.brokerId, Some(clusterId)))
 
         /* start token manager */
         tokenManager = new DelegationTokenManager(config, tokenCache, time , zkClient)
@@ -1401,7 +1401,6 @@ class KafkaServerStartable(val staticServerConfig: KafkaConfig, reporters: Seq[K
 		
         // 创建GroupCoordinator用于和ConsumerCoordinator 交互
         /* start group coordinator */
-        // Hardcode Time.SYSTEM for now as some Streams tests fail otherwise, it would be good to fix the underlying issue
         groupCoordinator = GroupCoordinator(config, zkClient, replicaManager, Time.SYSTEM, metrics)
         groupCoordinator.startup()
 
@@ -1409,24 +1408,6 @@ class KafkaServerStartable(val staticServerConfig: KafkaConfig, reporters: Seq[K
         // Hardcode Time.SYSTEM for now as some Streams tests fail otherwise, it would be good to fix the underlying issue
         transactionCoordinator = TransactionCoordinator(config, replicaManager, new KafkaScheduler(threads = 1, threadNamePrefix = "transaction-log-manager-"), zkClient, metrics, metadataCache, Time.SYSTEM)
         transactionCoordinator.startup()
-
-        /* Get the authorizer and initialize it if one is specified.*/
-        authorizer = config.authorizer
-        authorizer.foreach(_.configure(config.originals))
-        val authorizerFutures: Map[Endpoint, CompletableFuture[Void]] = authorizer match {
-          case Some(authZ) =>
-            authZ.start(brokerInfo.broker.toServerInfo(clusterId, config)).asScala.map { case (ep, cs) =>
-              ep -> cs.toCompletableFuture
-            }
-          case None =>
-            brokerInfo.broker.endPoints.map { ep =>
-              ep.toJava -> CompletableFuture.completedFuture[Void](null)
-            }.toMap
-        }
-
-        val fetchManager = new FetchManager(Time.SYSTEM,
-          new FetchSessionCache(config.maxIncrementalFetchSessionCacheSlots,
-            KafkaServer.MIN_INCREMENTAL_FETCH_SESSION_EVICTION_MS))
 
         /* start processing requests */
         // 初始化数据类请求的KafkaApis，负责数据类请求逻辑处理
@@ -1443,26 +1424,13 @@ class KafkaServerStartable(val staticServerConfig: KafkaConfig, reporters: Seq[K
             kafkaController, zkClient, config.brokerId, config, metadataCache, metrics, authorizer, quotaManagers,
             fetchManager, brokerTopicStats, clusterId, time, tokenManager, brokerFeatures, featureCache)
 	  	  // 初始化控制类请求的线程池
-          controlPlaneRequestHandlerPool = new KafkaRequestHandlerPool(config.brokerId, socketServer.controlPlaneRequestChannelOpt.get, controlPlaneRequestProcessor, time,
-            1, s"${SocketServer.ControlPlaneMetricPrefix}RequestHandlerAvgIdlePercent", SocketServer.ControlPlaneThreadPrefix)
+          controlPlaneRequestHandlerPool = new KafkaRequestHandlerPool(config.brokerId, socketServer.controlPlaneRequestChannelOpt.get, controlPlaneRequestProcessor, time, 1, s"${SocketServer.ControlPlaneMetricPrefix}RequestHandlerAvgIdlePercent", SocketServer.ControlPlaneThreadPrefix)
         }
-
-        Mx4jLoader.maybeLoad()
-
-        /* Add all reconfigurables for config change notification before starting config handlers */
-        config.dynamicConfig.addReconfigurables(this)
-
-        /* start dynamic config manager */
-        dynamicConfigHandlers = Map[String, ConfigHandler](ConfigType.Topic -> new TopicConfigHandler(logManager, config, quotaManagers, kafkaController),
-                                                           ConfigType.Client -> new ClientIdConfigHandler(quotaManagers),
-                                                           ConfigType.User -> new UserConfigHandler(quotaManagers, credentialProvider),
-                                                           ConfigType.Broker -> new BrokerConfigHandler(config, quotaManagers))
-
         // Create the config manager. start listening to notifications
         dynamicConfigManager = new DynamicConfigManager(zkClient, dynamicConfigHandlers)
         dynamicConfigManager.startup()
 
-        socketServer.startProcessingRequests(authorizerFutures)
+    socketServer.startProcessingRequests(authorizerFutures)
 		// 更新broker状态
         brokerState.newState(RunningAsBroker)
         shutdownLatch = new CountDownLatch(1)
@@ -1472,12 +1440,34 @@ class KafkaServerStartable(val staticServerConfig: KafkaConfig, reporters: Seq[K
         info("started")
       }
     }
-    catch {
-      case e: Throwable =>
-        fatal("Fatal error during KafkaServer startup. Prepare to shutdown", e)
-        isStartingUp.set(false)
-        shutdown()
-        throw e
+}
+```
+## 2.2 Controller 选举 Leader
+
+![[controller_select.svg]]
+
+### 2.2.1 initZkClient()
+```scala
+private def initZkClient(time: Time): Unit = {
+    info(s"Connecting to zookeeper on ${config.zkConnect}")
+	
+    // 创建ZkClient
+    def createZkClient(zkConnect: String, isSecure: Boolean) = {
+      KafkaZkClient(zkConnect, isSecure, config.zkSessionTimeoutMs, config.zkConnectionTimeoutMs,
+        config.zkMaxInFlightRequests, time, name = Some("Kafka server"), zkClientConfig = Some(zkClientConfig))
     }
+
+    // make sure chroot path exists
+    // 确保根节点存在
+    chrootOption.foreach { chroot =>
+      val zkConnForChrootCreation = config.zkConnect.substring(0, chrootIndex)
+      val zkClient = createZkClient(zkConnForChrootCreation, secureAclsEnabled)
+      zkClient.makeSurePersistentPathExists(chroot)
+      info(s"Created zookeeper path $chroot")
+      zkClient.close()
+    }
+
+    _zkClient = createZkClient(config.zkConnect, secureAclsEnabled)
+    _zkClient.createTopLevelPaths()
 }
 ```

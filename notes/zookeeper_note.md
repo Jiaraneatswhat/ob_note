@@ -142,17 +142,58 @@ public long loadDataBase() throws IOException {
 ```
 ### 1.3.2 准备选举
 ```java
+// QuorumPeer将状态初始化为LOOKING
+// private ServerState state = ServerState.LOOKING
 public synchronized void startLeaderElection() {  
     try {  
-        if (getPeerState() == ServerState.LOOKING) {  
+        if (getPeerState() == ServerState.LOOKING) {
+	        // 创建Vote对象  
             currentVote = new Vote(myid, getLastLoggedZxid(), getCurrentEpoch());  
         }  
-    } catch (IOException e) {  
-        RuntimeException re = new RuntimeException(e.getMessage());  
-        re.setStackTrace(e.getStackTrace());  
-        throw re;  
-    }  
-  
+    }
+    // 选举算法
+    // 
     this.electionAlg = createElectionAlgorithm(electionType);  
+}
+
+public Vote(long id, long zxid, long peerEpoch) {  
+    this.version = 0x0;  
+    this.id = id;  
+    this.zxid = zxid;  
+    this.electionEpoch = -1;  
+    this.peerEpoch = peerEpoch;  
+    this.state = ServerState.LOOKING;  
+}
+
+protected Election createElectionAlgorithm(int electionAlgorithm) {  
+    Election le = null;  
+  
+    //TODO: use a factory rather than a switch  
+    switch (electionAlgorithm) {  
+    case 1:  
+        throw new UnsupportedOperationException("Election Algorithm 1 is not supported.");  
+    case 2:  
+        throw new UnsupportedOperationException("Election Algorithm 2 is not supported.");  
+    case 3:  
+        QuorumCnxManager qcm = createCnxnManager();  
+        QuorumCnxManager oldQcm = qcmRef.getAndSet(qcm);  
+        if (oldQcm != null) {  
+            LOG.warn("Clobbering already-set QuorumCnxManager (restarting leader election?)");  
+            oldQcm.halt();  
+        }  
+        QuorumCnxManager.Listener listener = qcm.listener;  
+        if (listener != null) {  
+            listener.start();  
+            FastLeaderElection fle = new FastLeaderElection(this, qcm);  
+            fle.start();  
+            le = fle;  
+        } else {  
+            LOG.error("Null listener when initializing cnx manager");  
+        }  
+        break;  
+    default:  
+        assert false;  
+    }  
+    return le;  
 }
 ```

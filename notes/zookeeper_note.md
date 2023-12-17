@@ -107,27 +107,19 @@ private void loadDataBase() {
 
         // load the epochs  
 		long lastProcessedZxid = zkDb.getDataTree().lastProcessedZxid;  
-		// 存在currentEpoch文件时直接获取epoch, 否则通过 Zxid >> 32L得到Epoch
+		// 存在 currentEpoch 文件时直接获取 Epoch, 否则通过 Zxid >> 32L得到 Epoch
         long epochOfZxid = ZxidUtils.getEpochFromZxid(lastProcessedZxid);  
         try {  
             currentEpoch = readLongFromFile(CURRENT_EPOCH_FILENAME);  
-        } catch (FileNotFoundException e) {  
-            // pick a reasonable epoch number  
-            // this should only happen once when moving to a            // new code version            currentEpoch = epochOfZxid;  
-            LOG.info(  
-                "{} not found! Creating with a reasonable default of {}. "  
-                    + "This should only happen when you are upgrading your installation",  
-                CURRENT_EPOCH_FILENAME,  
-                currentEpoch);  
-            writeLongToFile(CURRENT_EPOCH_FILENAME, currentEpoch);  
+        } catch (FileNotFoundException e) { // 写入文件中
         }  
         if (epochOfZxid > currentEpoch) {  
+	        // 现有的 zxid > 当前的epoch
             // acceptedEpoch.tmp file in snapshot directory  
             File currentTmp = new File(getTxnFactory().getSnapDir(),  
-                CURRENT_EPOCH_FILENAME + AtomicFileOutputStream.TMP_EXTENSION);  
-            if (currentTmp.exists()) {  
-                long epochOfTmp = readLongFromFile(currentTmp.getName());  
-                LOG.info("{} found. Setting current epoch to {}.", currentTmp, epochOfTmp);  
+    CURRENT_EPOCH_FILENAME + AtomicFileOutputStream.TMP_EXTENSION);  
+            if (currentTmp.exists()) { 
+		            // 更新epoch  
                 setCurrentEpoch(epochOfTmp);  
             } else {  
                 throw new IOException(  
@@ -136,31 +128,31 @@ private void loadDataBase() {
             }  
         }  
         try {  
-            acceptedEpoch = readLongFromFile(ACCEPTED_EPOCH_FILENAME);  
-        } catch (FileNotFoundException e) {  
-            // pick a reasonable epoch number  
-            // this should only happen once when moving to a            // new code version            acceptedEpoch = epochOfZxid;  
-            LOG.info(  
-                "{} not found! Creating with a reasonable default of {}. "  
-                    + "This should only happen when you are upgrading your installation",  
-                ACCEPTED_EPOCH_FILENAME,  
-                acceptedEpoch);  
-            writeLongToFile(ACCEPTED_EPOCH_FILENAME, acceptedEpoch);  
+            acceptedEpoch = readLongFromFile(ACCEPTED_EPOCH_FILENAME); 
+            // 检查 acceptedEpoch 是否早于 currentEpoch
+            // 通过 acceptedEpoch 和 currentEpoch防止选举进入一个特殊状态
         }  
-        if (acceptedEpoch < currentEpoch) {  
-            throw new IOException("The accepted epoch, "  
-                                  + ZxidUtils.zxidToString(acceptedEpoch)  
-                                  + " is less than the current epoch, "  
-                                  + ZxidUtils.zxidToString(currentEpoch));  
-        }  
-    } catch (IOException ie) {  
-        LOG.error("Unable to load database on disk", ie);  
-        throw new RuntimeException("Unable to run quorum server ", ie);  
-    }  
+    }
 }
 
 public long loadDataBase() throws IOException {  
     long zxid = snapLog.restore(dataTree, sessionsWithTimeouts, commitProposalPlaybackListener);  
     return zxid;  
+}
+```
+### 1.3.2 准备选举
+```java
+public synchronized void startLeaderElection() {  
+    try {  
+        if (getPeerState() == ServerState.LOOKING) {  
+            currentVote = new Vote(myid, getLastLoggedZxid(), getCurrentEpoch());  
+        }  
+    } catch (IOException e) {  
+        RuntimeException re = new RuntimeException(e.getMessage());  
+        re.setStackTrace(e.getStackTrace());  
+        throw re;  
+    }  
+  
+    this.electionAlg = createElectionAlgorithm(electionType);  
 }
 ```

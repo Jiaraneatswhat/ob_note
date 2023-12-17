@@ -25,3 +25,33 @@ start)
     -XX:+HeapDumpOnOutOfMemoryError -XX:OnOutOfMemoryError='kill -9 %p' \
     -cp "$CLASSPATH" $JVMFLAGS $ZOOMAIN "$ZOOCFG" > "$_ZOO_DAEMON_OUT" 2>&1 < /dev/null &
 ```
+## 1.2 QuorumPeerMain.main()
+```java
+public static void main(String[] args) {  
+    QuorumPeerMain main = new QuorumPeerMain();    
+ServiceUtils.requestSystemExit(ExitCode.EXECUTION_FINISHED.getValue()); 
+}
+
+protected void initializeAndRun(String[] args) throws ConfigException, IOException, AdminServerException {  
+    QuorumPeerConfig config = new QuorumPeerConfig();  
+    if (args.length == 1) {  
+        config.parse(args[0]);  
+    }  
+  
+    // Start and schedule the the purge task  
+    DatadirCleanupManager purgeMgr = new DatadirCleanupManager(  
+        config.getDataDir(),  
+        config.getDataLogDir(),  
+        config.getSnapRetainCount(),  
+        config.getPurgeInterval());  
+    purgeMgr.start();  
+  
+    if (args.length == 1 && config.isDistributed()) {  
+        runFromConfig(config);  
+    } else {  
+        LOG.warn("Either no config or no quorum defined in config, running in standalone mode");  
+        // there is only server in the quorum -- run as standalone  
+        ZooKeeperServerMain.main(args);  
+    }  
+}
+```

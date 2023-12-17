@@ -263,16 +263,28 @@ public Vote lookForLeader() throws InterruptedException {
 }
 
 // 第一次默认投自己，并更新当前服务协议的领导者信息的值proposedLeader、proposedZxid、proposedEpoch
-synchronized void updateProposal(long leader, long zxid, long epoch) {  
-    LOG.debug(  
-        "Updating proposal: {} (newleader), 0x{} (newzxid), {} (oldleader), 0x{} (oldzxid)",  
-        leader,  
-        Long.toHexString(zxid),  
-        proposedLeader,  
-        Long.toHexString(proposedZxid));  
-  
+synchronized void updateProposal(long leader, long zxid, long epoch) { 
     proposedLeader = leader;  
     proposedZxid = zxid;  
     proposedEpoch = epoch;  
+}
+
+// 广播自己的投票
+private void sendNotifications() {  
+    for (long sid : self.getCurrentAndNextConfigVoters()) {  
+        QuorumVerifier qv = self.getQuorumVerifier();  
+        // 封装一个ToSend对象放入队列
+        ToSend notmsg = new ToSend(  
+            ToSend.mType.notification,  
+            proposedLeader,  
+            proposedZxid,  
+            logicalclock.get(),  
+            QuorumPeer.ServerState.LOOKING,  
+            sid,  
+            proposedEpoch,  
+            qv.toString().getBytes(UTF_8));   
+  
+        sendqueue.offer(notmsg);  
+    }  
 }
 ```

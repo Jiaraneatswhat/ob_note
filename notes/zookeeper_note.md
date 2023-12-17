@@ -283,19 +283,13 @@ if (!validVoter(response.sid)) {
 	// 包含在可投票的服务器集合中，则根据 Message 解析出投票服务器的投票信息并将其封装为 Notification 
 	if (self.getPeerState() == QuorumPeer.ServerState.LOOKING) {  
 		recvqueue.offer(n);  
+		// 选举的 epoch < 逻辑时钟
 	    if ((ackstate == QuorumPeer.ServerState.LOOKING)  
                             && (n.electionEpoch < logicalclock.get())) {  
+        // 创建新的投票
 		Vote v = getVote();  
 		QuorumVerifier qv = self.getQuorumVerifier();  
-		ToSend notmsg = new ToSend(  
-			ToSend.mType.notification,  
-			v.getId(),  
-			v.getZxid(),  
-			logicalclock.get(),  
-			self.getPeerState(),  
-			response.sid,  
-			v.getPeerEpoch(),  
-			qv.toString().getBytes());  
+		ToSend notmsg = new ToSend(...);  
 		sendqueue.offer(notmsg);  
 		}  
 	} else {  
@@ -415,7 +409,8 @@ while ((self.getPeerState() == ServerState.LOOKING) && (!stop)) {
      Notification n = recvqueue.poll(notTimeout, TimeUnit.MILLISECONDS);  
   
     /*  
-     * Sends more notifications if haven't received enough.     * Otherwise processes new notification.     */    if (n == null) {  
+     * Sends more notifications if haven't received enough.     * Otherwise processes new notification.     */    
+     if (n == null) {  
         if (manager.haveDelivered()) {  
             sendNotifications();  
         } else {  

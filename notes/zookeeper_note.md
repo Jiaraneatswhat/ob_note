@@ -94,7 +94,8 @@ public synchronized void start() {
     }  
     // 准备选举的一些必要操作(初始化一些队列和一些线程)
     startLeaderElection();  
-    startJvmPauseMonitor();  
+    startJvmPauseMonitor(); 
+    // 调用run方法 
     super.start();  
 }
 ```
@@ -181,7 +182,7 @@ protected Election createElectionAlgorithm(int electionAlgorithm) {
         if (listener != null) {  
             listener.start();  
             FastLeaderElection fle = new FastLeaderElection(this, qcm);  
-            // 启动
+            // 启动 WorkerSender 和 WorkerReceiver线程
             fle.start();  
             le = fle;  
         }  
@@ -206,5 +207,132 @@ private void starter(QuorumPeer self, QuorumCnxManager manager) {
     sendqueue = new LinkedBlockingQueue<ToSend>();  
     recvqueue = new LinkedBlockingQueue<Notification>();  
     this.messenger = new Messenger(manager);  
+}
+```
+### 1.3.3 选举逻辑
+```java
+public void run() {   
+  
+    try {  
+        /*  
+         * Main loop         */        
+         while (running) {  
+    
+            switch (getPeerState()) {  
+            case LOOKING:  
+                LOG.info("LOOKING");  
+                    // Create read-only server but don't start it immediately  
+                    final ReadOnlyZooKeeperServer roZk = new ReadOnlyZooKeeperServer(logFactory, this, this.zkDb);  
+  
+                    // Instead of starting roZk immediately, wait some grace  
+                    // period before we decide we're partitioned.                    //                    // Thread is used here because otherwise it would require                    // changes in each of election strategy classes which is                    // unnecessary code coupling.                    
+                    Thread roZkMgr = new Thread() {  
+                        public void run() {  
+                            try {  
+                                // lower-bound grace period to 2 secs  
+                                sleep(Math.max(2000, tickTime));  
+                                if (ServerState.LOOKING.equals(getPeerState())) {  
+                                    roZk.startup();  
+                                }  
+                            } catch (InterruptedException e) {  
+                                LOG.info("Interrupted while attempting to start ReadOnlyZooKeeperServer, not started");  
+                            } catch (Exception e) {  
+                                LOG.error("FAILED to start ReadOnlyZooKeeperServer", e);  
+                            }  
+                        }  
+                    };  
+                    try {  
+                        roZkMgr.start();  
+                        reconfigFlagClear();  
+                        if (shuttingDownLE) {  
+                            shuttingDownLE = false;  
+                            startLeaderElection();  
+                        }  
+                        setCurrentVote(makeLEStrategy().lookForLeader());  
+                    } catch (Exception e) {  
+                        LOG.warn("Unexpected exception", e);  
+                        setPeerState(ServerState.LOOKING);  
+                    } finally {  
+                        // If the thread is in the the grace period, interrupt  
+                        // to come out of waiting.                        roZkMgr.interrupt();  
+                        roZk.shutdown();  
+                    }  
+                } else {  
+                    try {  
+                        reconfigFlagClear();  
+                        if (shuttingDownLE) {  
+                            shuttingDownLE = false;  
+                            startLeaderElection();  
+                        }  
+                        setCurrentVote(makeLEStrategy().lookForLeader());  
+                    } catch (Exception e) {  
+                        LOG.warn("Unexpected exception", e);  
+                        setPeerState(ServerState.LOOKING);  
+                    }  
+                }  
+                break;  
+            case OBSERVING:  
+                try {  
+                    LOG.info("OBSERVING");  
+                    setObserver(makeObserver(logFactory));  
+                    observer.observeLeader();  
+                } catch (Exception e) {  
+                    LOG.warn("Unexpected exception", e);  
+                } finally {  
+                    observer.shutdown();  
+                    setObserver(null);  
+                    updateServerState();  
+  
+                    // Add delay jitter before we switch to LOOKING  
+                    // state to reduce the load of ObserverMaster                    if (isRunning()) {  
+                        Observer.waitForObserverElectionDelay();  
+                    }  
+                }  
+                break;  
+            case FOLLOWING:  
+                try {  
+                    LOG.info("FOLLOWING");  
+                    setFollower(makeFollower(logFactory));  
+                    follower.followLeader();  
+                } catch (Exception e) {  
+                    LOG.warn("Unexpected exception", e);  
+                } finally {  
+                    follower.shutdown();  
+                    setFollower(null);  
+                    updateServerState();  
+                }  
+                break;  
+            case LEADING:  
+                LOG.info("LEADING");  
+                try {  
+                    setLeader(makeLeader(logFactory));  
+                    leader.lead();  
+                    setLeader(null);  
+                } catch (Exception e) {  
+                    LOG.warn("Unexpected exception", e);  
+                } finally {  
+                    if (leader != null) {  
+                        leader.shutdown("Forcing shutdown");  
+                        setLeader(null);  
+                    }  
+                    updateServerState();  
+                }  
+                break;  
+            }  
+        }  
+    } finally {  
+        LOG.warn("QuorumPeer main thread exited");  
+        MBeanRegistry instance = MBeanRegistry.getInstance();  
+        instance.unregister(jmxQuorumBean);  
+        instance.unregister(jmxLocalPeerBean);  
+  
+        for (RemotePeerBean remotePeerBean : jmxRemotePeerBean.values()) {  
+            instance.unregister(remotePeerBean);  
+        }  
+  
+        jmxQuorumBean = null;  
+        jmxLocalPeerBean = null;  
+        jmxRemotePeerBean = null;  
+    }  
 }
 ```

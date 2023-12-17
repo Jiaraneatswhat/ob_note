@@ -39,19 +39,95 @@ protected void initializeAndRun(String[] args) throws ConfigException, IOExcepti
     }  
   
     // Start and schedule the the purge task  
-    DatadirCleanupManager purgeMgr = new DatadirCleanupManager(  
-        config.getDataDir(),  
-        config.getDataLogDir(),  
-        config.getSnapRetainCount(),  
-        config.getPurgeInterval());  
-    purgeMgr.start();  
-  
+
+	// 集群模式
     if (args.length == 1 && config.isDistributed()) {  
         runFromConfig(config);  
-    } else {  
-        LOG.warn("Either no config or no quorum defined in config, running in standalone mode");  
-        // there is only server in the quorum -- run as standalone  
-        ZooKeeperServerMain.main(args);  
+    }  
+}
+
+public void runFromConfig(QuorumPeerConfig config) throws IOException, AdminServerException {   
+  
+    LOG.info("Starting quorum peer, myid=" + config.getServerId());  
+    try {   
+        ServerCnxnFactory cnxnFactory = null;  
+        ServerCnxnFactory secureCnxnFactory = null;  
+  
+        if (config.getClientPortAddress() != null) { 
+	         // 通过反射创建一个ServerCnxnFactory对象
+            cnxnFactory = ServerCnxnFactory.createFactory();  
+            cnxnFactory.configure(config.getClientPortAddress(), config.getMaxClientCnxns(), config.getClientPortListenBacklog(), false);  
+        }  
+  
+        if (config.getSecureClientPortAddress() != null) {  
+            secureCnxnFactory = ServerCnxnFactory.createFactory();  
+            secureCnxnFactory.configure(config.getSecureClientPortAddress(), config.getMaxClientCnxns(), config.getClientPortListenBacklog(), true);  
+        }  
+  
+        quorumPeer = getQuorumPeer();  
+        quorumPeer.setTxnFactory(new FileTxnSnapLog(config.getDataLogDir(), config.getDataDir()));  
+        quorumPeer.enableLocalSessions(config.areLocalSessionsEnabled());  
+        quorumPeer.enableLocalSessionsUpgrading(config.isLocalSessionsUpgradingEnabled());  
+        //quorumPeer.setQuorumPeers(config.getAllMembers());  
+        quorumPeer.setElectionType(config.getElectionAlg());  
+        quorumPeer.setMyid(config.getServerId());  
+        quorumPeer.setTickTime(config.getTickTime());  
+        quorumPeer.setMinSessionTimeout(config.getMinSessionTimeout());  
+        quorumPeer.setMaxSessionTimeout(config.getMaxSessionTimeout());  
+        quorumPeer.setInitLimit(config.getInitLimit());  
+        quorumPeer.setSyncLimit(config.getSyncLimit());  
+        quorumPeer.setConnectToLearnerMasterLimit(config.getConnectToLearnerMasterLimit());  
+        quorumPeer.setObserverMasterPort(config.getObserverMasterPort());  
+        quorumPeer.setConfigFileName(config.getConfigFilename());  
+        quorumPeer.setClientPortListenBacklog(config.getClientPortListenBacklog());  
+        quorumPeer.setZKDatabase(new ZKDatabase(quorumPeer.getTxnFactory()));  
+        quorumPeer.setQuorumVerifier(config.getQuorumVerifier(), false);  
+        if (config.getLastSeenQuorumVerifier() != null) {  
+            quorumPeer.setLastSeenQuorumVerifier(config.getLastSeenQuorumVerifier(), false);  
+        }  
+        quorumPeer.initConfigInZKDatabase();  
+        quorumPeer.setCnxnFactory(cnxnFactory);  
+        quorumPeer.setSecureCnxnFactory(secureCnxnFactory);  
+        quorumPeer.setSslQuorum(config.isSslQuorum());  
+        quorumPeer.setUsePortUnification(config.shouldUsePortUnification());  
+        quorumPeer.setLearnerType(config.getPeerType());  
+        quorumPeer.setSyncEnabled(config.getSyncEnabled());  
+        quorumPeer.setQuorumListenOnAllIPs(config.getQuorumListenOnAllIPs());  
+        if (config.sslQuorumReloadCertFiles) {  
+            quorumPeer.getX509Util().enableCertFileReloading();  
+        }  
+        quorumPeer.setMultiAddressEnabled(config.isMultiAddressEnabled());  
+        quorumPeer.setMultiAddressReachabilityCheckEnabled(config.isMultiAddressReachabilityCheckEnabled());  
+        quorumPeer.setMultiAddressReachabilityCheckTimeoutMs(config.getMultiAddressReachabilityCheckTimeoutMs());  
+  
+        // sets quorum sasl authentication configurations  
+        quorumPeer.setQuorumSaslEnabled(config.quorumEnableSasl);  
+        if (quorumPeer.isQuorumSaslAuthEnabled()) {  
+            quorumPeer.setQuorumServerSaslRequired(config.quorumServerRequireSasl);  
+            quorumPeer.setQuorumLearnerSaslRequired(config.quorumLearnerRequireSasl);  
+            quorumPeer.setQuorumServicePrincipal(config.quorumServicePrincipal);  
+            quorumPeer.setQuorumServerLoginContext(config.quorumServerLoginContext);  
+            quorumPeer.setQuorumLearnerLoginContext(config.quorumLearnerLoginContext);  
+        }  
+        quorumPeer.setQuorumCnxnThreadsSize(config.quorumCnxnThreadsSize);  
+        quorumPeer.initialize();  
+  
+        if (config.jvmPauseMonitorToRun) {  
+            quorumPeer.setJvmPauseMonitor(new JvmPauseMonitor(config));  
+        }  
+  
+        quorumPeer.start();  
+        ZKAuditProvider.addZKStartStopAuditLog();  
+        quorumPeer.join();  
+    } catch (InterruptedException e) {  
+        // warn, but generally this is ok  
+        LOG.warn("Quorum Peer interrupted", e);  
+    } finally {  
+        try {  
+            metricsProvider.stop();  
+        } catch (Throwable error) {  
+            LOG.warn("Error while stopping metrics", error);  
+        }  
     }  
 }
 ```

@@ -177,23 +177,34 @@ protected Election createElectionAlgorithm(int electionAlgorithm) {
     case 3:  
         QuorumCnxManager qcm = createCnxnManager();  
         QuorumCnxManager oldQcm = qcmRef.getAndSet(qcm);  
-        if (oldQcm != null) {  
-            LOG.warn("Clobbering already-set QuorumCnxManager (restarting leader election?)");  
-            oldQcm.halt();  
-        }  
         QuorumCnxManager.Listener listener = qcm.listener;  
         if (listener != null) {  
             listener.start();  
             FastLeaderElection fle = new FastLeaderElection(this, qcm);  
+            // 启动
             fle.start();  
             le = fle;  
-        } else {  
-            LOG.error("Null listener when initializing cnx manager");  
         }  
         break;  
     default:  
         assert false;  
     }  
     return le;  
+}
+
+public FastLeaderElection(QuorumPeer self, QuorumCnxManager manager) { 
+    this.stop = false;  
+    this.manager = manager;  
+    starter(self, manager);  
+}
+
+private void starter(QuorumPeer self, QuorumCnxManager manager) {  
+    this.self = self;  
+    proposedLeader = -1;  
+    proposedZxid = -1;  
+  
+    sendqueue = new LinkedBlockingQueue<ToSend>();  
+    recvqueue = new LinkedBlockingQueue<Notification>();  
+    this.messenger = new Messenger(manager);  
 }
 ```

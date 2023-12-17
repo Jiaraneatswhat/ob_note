@@ -71,7 +71,7 @@ public void runFromConfig(QuorumPeerConfig config) throws IOException, AdminServ
     }
 }
 ```
-## 1.3 QuorumPeer
+## 1.3 QuorumPeer 启动
 ```java
 protected QuorumPeer getQuorumPeer() throws SaslException {  
     return new QuorumPeer();  
@@ -82,15 +82,85 @@ public synchronized void start() {
     if (!getView().containsKey(myid)) {  
         throw new RuntimeException("My id " + myid + " not in the peer list");  
     }  
+    // 从磁盘恢复节点数据到内存
     loadDataBase();  
+    // 启动服务端通信组件工厂
     startServerCnxnFactory();  
     try {  
+	    // 启动 AdminServer
         adminServer.start();  
     } catch (AdminServerException e) {  
         LOG.warn("Problem starting AdminServer", e);  
     }  
+    // 准备选举的一些必要操作(初始化一些队列和一些线程)
     startLeaderElection();  
     startJvmPauseMonitor();  
     super.start();  
+}
+```
+### 1.3.1 冷启动恢复节点数据
+```java
+private void loadDataBase() {  
+    try {  
+	    // 返回zxid
+        zkDb.loadDataBase();  
+
+        // load the epochs  
+		long lastProcessedZxid = zkDb.getDataTree().lastProcessedZxid;  
+		// 存在currentEpoch文件时直接获取epoch, 否则通过 Zxid >> 32L得到Epoch
+        long epochOfZxid = ZxidUtils.getEpochFromZxid(lastProcessedZxid);  
+        try {  
+            currentEpoch = readLongFromFile(CURRENT_EPOCH_FILENAME);  
+        } catch (FileNotFoundException e) {  
+            // pick a reasonable epoch number  
+            // this should only happen once when moving to a            // new code version            currentEpoch = epochOfZxid;  
+            LOG.info(  
+                "{} not found! Creating with a reasonable default of {}. "  
+                    + "This should only happen when you are upgrading your installation",  
+                CURRENT_EPOCH_FILENAME,  
+                currentEpoch);  
+            writeLongToFile(CURRENT_EPOCH_FILENAME, currentEpoch);  
+        }  
+        if (epochOfZxid > currentEpoch) {  
+            // acceptedEpoch.tmp file in snapshot directory  
+            File currentTmp = new File(getTxnFactory().getSnapDir(),  
+                CURRENT_EPOCH_FILENAME + AtomicFileOutputStream.TMP_EXTENSION);  
+            if (currentTmp.exists()) {  
+                long epochOfTmp = readLongFromFile(currentTmp.getName());  
+                LOG.info("{} found. Setting current epoch to {}.", currentTmp, epochOfTmp);  
+                setCurrentEpoch(epochOfTmp);  
+            } else {  
+                throw new IOException(  
+                    "The current epoch, " + ZxidUtils.zxidToString(currentEpoch)  
+                        + ", is older than the last zxid, " + lastProcessedZxid);  
+            }  
+        }  
+        try {  
+            acceptedEpoch = readLongFromFile(ACCEPTED_EPOCH_FILENAME);  
+        } catch (FileNotFoundException e) {  
+            // pick a reasonable epoch number  
+            // this should only happen once when moving to a            // new code version            acceptedEpoch = epochOfZxid;  
+            LOG.info(  
+                "{} not found! Creating with a reasonable default of {}. "  
+                    + "This should only happen when you are upgrading your installation",  
+                ACCEPTED_EPOCH_FILENAME,  
+                acceptedEpoch);  
+            writeLongToFile(ACCEPTED_EPOCH_FILENAME, acceptedEpoch);  
+        }  
+        if (acceptedEpoch < currentEpoch) {  
+            throw new IOException("The accepted epoch, "  
+                                  + ZxidUtils.zxidToString(acceptedEpoch)  
+                                  + " is less than the current epoch, "  
+                                  + ZxidUtils.zxidToString(currentEpoch));  
+        }  
+    } catch (IOException ie) {  
+        LOG.error("Unable to load database on disk", ie);  
+        throw new RuntimeException("Unable to run quorum server ", ie);  
+    }  
+}
+
+public long loadDataBase() throws IOException {  
+    long zxid = snapLog.restore(dataTree, sessionsWithTimeouts, commitProposalPlaybackListener);  
+    return zxid;  
 }
 ```

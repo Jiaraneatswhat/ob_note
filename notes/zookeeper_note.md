@@ -421,32 +421,26 @@ while ((self.getPeerState() == ServerState.LOOKING) && (!stop)) {
         switch (n.state) {  
         case LOOKING:  
             // If notification > current, replace and send messages out  
-            if (n.electionEpoch > logicalclock.get()) {  
+            // 服务器自身的选举轮次落后于该外部投票对应服务器的选举轮次
+            if (n.electionEpoch > logicalclock.get()) { 
+	            // 立即更新自己的选举轮次 
                 logicalclock.set(n.electionEpoch);  
+                // 清空所有已经收到的投票
                 recvset.clear();  
+                // 使用初始化的投票与外部投票做比对，判定是否变更内部投票, 处理完成之后，再将内部投票发送出去
                 if (totalOrderPredicate(n.leader, n.zxid, n.peerEpoch, getInitId(), getInitLastLoggedZxid(), getPeerEpoch())) {  
                     updateProposal(n.leader, n.zxid, n.peerEpoch);  
                 } else {  
                     updateProposal(getInitId(), getInitLastLoggedZxid(), getPeerEpoch());  
                 }  
                 sendNotifications();  
+            // 外部投票的选举轮次小于内部投票, 直接忽略
             } else if (n.electionEpoch < logicalclock.get()) {  
-                    LOG.debug(  
-                        "Notification election epoch is smaller than logicalclock. n.electionEpoch = 0x{}, logicalclock=0x{}",  
-                        Long.toHexString(n.electionEpoch),  
-                        Long.toHexString(logicalclock.get()));  
                 break;  
             } else if (totalOrderPredicate(n.leader, n.zxid, n.peerEpoch, proposedLeader, proposedZxid, proposedEpoch)) {  
                 updateProposal(n.leader, n.zxid, n.peerEpoch);  
                 sendNotifications();  
             }  
-  
-            LOG.debug(  
-                "Adding vote: from={}, proposed leader={}, proposed zxid=0x{}, proposed election epoch=0x{}",  
-                n.sid,  
-                n.leader,  
-                Long.toHexString(n.zxid),  
-                Long.toHexString(n.electionEpoch));  
   
             // don't care about the version if it's in LOOKING state  
             recvset.put(n.sid, new Vote(n.leader, n.zxid, n.electionEpoch, n.peerEpoch));  

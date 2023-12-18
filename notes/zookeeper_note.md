@@ -795,5 +795,12 @@ public class DataTree {
 	private static final String rootZookeeper = "/";
 	// 初始化时创建 /zookeeper 路径节点, 作为管理节点
 	private static final String procZookeeper = Quotas.procZookeeper;
+	// 实现配额管理的父节点 /zookeeper/quota
+	private static final String quotaZookeeper = Quotas.quotaZookeeper;
+	// 监听事件
+	private IWatchManager dataWatches;
+	// 保存 quota 节点的路径树信息
+	// 统计某个节点下的节点数量及数据大小, 在不修改原有节点数据结构的情况下，通过 quota 保存相关信息，将路径信息以单词字典树的形式存放在 PathTrie 中
+	private final PathTrie pTrie = new PathTrie();
 }
 ```

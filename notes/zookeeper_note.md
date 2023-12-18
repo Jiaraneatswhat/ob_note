@@ -1090,9 +1090,7 @@ private void processEvent(Object event) {
 
 
 
-# 4. 节点的操作
-
-# 5. Shell 操作
+# 4. Shell 操作
 ```shell
 # 创建节点 
 # -s 有序节点, -e 临时节点
@@ -1107,3 +1105,5 @@ deleteall path
 ls 查看子节点名称
 get 查看节点存储内容
 ```
+
+- todo: Cli 与 Server 建立连接

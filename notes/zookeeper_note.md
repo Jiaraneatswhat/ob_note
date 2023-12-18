@@ -360,7 +360,9 @@ public Vote lookForLeader() throws InterruptedException {
         Map<Long, Vote> outofelection = new HashMap<Long, Vote>();  
   
         synchronized (this) {  
-            logicalclock.incrementAndGet();  
+	        // 逻辑时钟自增
+            logicalclock.incrementAndGet(); 
+            // 初始化选票 
             updateProposal(getInitId(), getInitLastLoggedZxid(), getPeerEpoch());  
         }  
   
@@ -405,32 +407,19 @@ private void sendNotifications() {
 while ((self.getPeerState() == ServerState.LOOKING) && (!stop)) {  
     // 从 recvqueue取出选票 
      Notification n = recvqueue.poll(notTimeout, TimeUnit.MILLISECONDS);  
-  
-    /*  
-     * Sends more notifications if haven't received enough.     * Otherwise processes new notification.     */    
+	 // 没有获取到选票 
      if (n == null) {  
+	    // 如果 manager 已经发送了所有选票
         if (manager.haveDelivered()) {  
+	        // 向其他服务器发送消息
             sendNotifications();  
         } else {  
+	        // 否则进行连接
             manager.connectAll();  
-        }  
-  
-        /*  
-         * Exponential backoff         */        int tmpTimeOut = notTimeout * 2;  
-        notTimeout = Math.min(tmpTimeOut, maxNotificationInterval);  
-        LOG.info("Notification time out: {}", notTimeout);  
-    } else if (validVoter(n.sid) && validVoter(n.leader)) {  
-        /*  
-         * Only proceed if the vote comes from a replica in the current or next         * voting view for a replica in the current or next voting view.         */        switch (n.state) {  
+        }   
+    } else if (validVoter(n.sid) && validVoter(n.leader)) { 
+        switch (n.state) {  
         case LOOKING:  
-            if (getInitLastLoggedZxid() == -1) {  
-                LOG.debug("Ignoring notification as our zxid is -1");  
-                break;  
-            }  
-            if (n.zxid == -1) {  
-                LOG.debug("Ignoring notification from member with -1 zxid {}", n.sid);  
-                break;  
-            }  
             // If notification > current, replace and send messages out  
             if (n.electionEpoch > logicalclock.get()) {  
                 logicalclock.set(n.electionEpoch);  
@@ -482,49 +471,7 @@ while ((self.getPeerState() == ServerState.LOOKING) && (!stop)) {
                     return endVote;  
                 }  
             }  
-            break;  
-        case OBSERVING:  
-            LOG.debug("Notification from observer: {}", n.sid);  
-            break;  
-        case FOLLOWING:  
-        case LEADING:  
-            /*  
-             * Consider all notifications from the same epoch             * together.             */            if (n.electionEpoch == logicalclock.get()) {  
-                recvset.put(n.sid, new Vote(n.leader, n.zxid, n.electionEpoch, n.peerEpoch, n.state));  
-                voteSet = getVoteTracker(recvset, new Vote(n.version, n.leader, n.zxid, n.electionEpoch, n.peerEpoch, n.state));  
-                if (voteSet.hasAllQuorums() && checkLeader(recvset, n.leader, n.electionEpoch)) {  
-                    setPeerState(n.leader, voteSet);  
-                    Vote endVote = new Vote(n.leader, n.zxid, n.electionEpoch, n.peerEpoch);  
-                    leaveInstance(endVote);  
-                    return endVote;  
-                }  
-            }  
-  
-            /*  
-             * Before joining an established ensemble, verify that             * a majority are following the same leader.             *             * Note that the outofelection map also stores votes from the current leader election.             * See ZOOKEEPER-1732 for more information.             */            outofelection.put(n.sid, new Vote(n.version, n.leader, n.zxid, n.electionEpoch, n.peerEpoch, n.state));  
-            voteSet = getVoteTracker(outofelection, new Vote(n.version, n.leader, n.zxid, n.electionEpoch, n.peerEpoch, n.state));  
-  
-            if (voteSet.hasAllQuorums() && checkLeader(outofelection, n.leader, n.electionEpoch)) {  
-                synchronized (this) {  
-                    logicalclock.set(n.electionEpoch);  
-                    setPeerState(n.leader, voteSet);  
-                }  
-                Vote endVote = new Vote(n.leader, n.zxid, n.electionEpoch, n.peerEpoch);  
-                leaveInstance(endVote);  
-                return endVote;  
-            }  
-            break;  
-        default:  
-            LOG.warn("Notification state unrecognized: {} (n.state), {}(n.sid)", n.state, n.sid);  
-            break;  
-        }  
-    } else {  
-        if (!validVoter(n.leader)) {  
-            LOG.warn("Ignoring notification for non-cluster member sid {} from sid {}", n.leader, n.sid);  
-        }  
-        if (!validVoter(n.sid)) {  
-            LOG.warn("Ignoring notification for sid {} from non-quorum member sid {}", n.leader, n.sid);  
-        }  
-    }  
+            break;  }  
+    }
 }
 ```

@@ -886,8 +886,38 @@ public enum EphemeralType {
 - `exists()` 对应 `ExistsWatchRegistration`，存放在 `dataWatches` 中
 - `getData()` 对应 `DataWatchRegistration`，存放在 `dataWatches` 中
 - `getChildren()` `对应ChildWatchRegistration`
-```java
 
+```java
+public Stat exists(final String path, Watcher watcher) throws KeeperException, InterruptedException {  
+  
+    WatchRegistration wcb = null;  
+    if (watcher != null) {  
+	    // 传入watcher，创建对应的ExistsWatchRegistration
+        wcb = new ExistsWatchRegistration(watcher, clientPath);  
+    }  
+
+	// request 对象
+    ExistsRequest request = new ExistsRequest();  
+    // 客户端会根据此值来判断请求是否需要添加到监听表中
+    request.setWatch(watcher != null);  
+    SetDataResponse response = new SetDataResponse();  
+    // 使用ClientCnxn对象发送 Packet
+    // ClientCnxn 类主要负责维护客户端与服务端的网络连接和信息交互
+    cnxn.queuePacket(h, new ReplyHeader(), request, response, cb, clientPath, serverPath, ctx, wcb);
+    return response.getStat().getCzxid() == -1 ? null : response.getStat();  
+}
+
+public Packet queuePacket(...) {  
+    Packet packet = null;  
+    // 创建packet 
+    packet = new Packet(h, r, request, response, watchRegistration);  
+    packet.watchDeregistration = watchDeregistration;  
+
+	// cnxn 中定义了一个sendThread
+	// packetAdded 唤醒 NIO 的 selector，将 packet 发往 Server
+    sendThread.getClientCnxnSocket().packetAdded();  
+    return packet;  
+}
 ```
 
 

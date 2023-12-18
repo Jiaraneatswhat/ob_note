@@ -590,4 +590,28 @@ private ServerState learningState() {
     }  
 }
 ```
+### 1.3.5 Follower
+```java
+// 回到 1.3.3 QuorumPeer 的 run() 中:
+case FOLLOWING:  
+    try {  
+        LOG.info("FOLLOWING");  
+        setFollower(makeFollower(logFactory));  
+        follower.followLeader();  
+    } catch (Exception e) {  
+        LOG.warn("Unexpected exception", e);  
+    } finally {  
+        follower.shutdown();  
+        setFollower(null);  
+        updateServerState();  
+    }  
+    break;
+
+// 创建一个follower对象
+protected Follower makeFollower(FileTxnSnapLog logFactory) throws IOException {  
+    return new Follower(this, new FollowerZooKeeperServer(logFactory, this, this.zkDb));  
+}
+
+
+```
 

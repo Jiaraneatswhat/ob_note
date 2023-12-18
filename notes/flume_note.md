@@ -44,18 +44,7 @@ public static void main(String[] args) {
 	application.handleConfigurationEvent(configurationProvider.getConfiguration());
 	application.start();
 	}
-}
-
-public void handleConfigurationEvent(MaterializedConfiguration conf) {  
-  try {  
-    // 先停止之前的组件
-    stopAllComponents();  
-    // 初始化所有组件
-    initializeAllComponents(conf);  
-    // 启动组件
-    startAllComponents(conf);  
-  }
-}
+} 
 ```
 ## 1.3 从配置中获取组件相关配置
 ```java
@@ -84,10 +73,12 @@ public MaterializedConfiguration getConfiguration() {
           conf.addChannel(channelName, channelComponent.channel);  
         }  
       }  
-      for (Map.Entry<String, SourceRunner> entry : sourceRunnerMap.entrySet()) {  
+      for (Map.Entry<String, SourceRunner> entry : sourceRunnerMap.entrySet()) { 
+        // SourceRunner 有 PollableSourceRunner 和 EventDrivenSourceRunner 两个子类
         conf.addSourceRunner(entry.getKey(), entry.getValue());  
       }  
       for (Map.Entry<String, SinkRunner> entry : sinkRunnerMap.entrySet()) {  
+        // SinkRunner 中会创建 PollingRunner
         conf.addSinkRunner(entry.getKey(), entry.getValue());  
       }  
     } 
@@ -165,6 +156,7 @@ private void loadSources(AgentConfiguration agentConf,
                 getSourceChannels(channelComponentMap, source, channelNames);  
         if (sourceChannels.isEmpty()) {...}
          // 为 source 配置 channel 选择器
+         // Channel 选择器决定 Source 接收的一个特定事件写入哪些 Channel 中,它将选择的结果告知 Channel 处理器,然后由 Channel 处理器将event 写入指定的 Channel
         ChannelSelectorConfiguration selectorConfig =  
             config.getSelectorConfiguration();  
 
@@ -185,5 +177,111 @@ private void loadSources(AgentConfiguration agentConf,
       } 
     }  
   }
+}
+```
+## 1.6 Sink 的初始化
+```java
+private void loadSinks(AgentConfiguration agentConf,  
+    Map<String, ChannelComponent> channelComponentMap, Map<String, SinkRunner> sinkRunnerMap)  
+    throws InstantiationException {  
+    
+  Set<String> sinkNames = agentConf.getSinkSet();  
+  Map<String, ComponentConfiguration> compMap =  
+      agentConf.getSinkConfigMap();  
+  Map<String, Sink> sinks = new HashMap<String, Sink>();  
+  /*  
+   * Components which have a ComponentConfiguration object   */  
+   for (String sinkName : sinkNames) {  
+    ComponentConfiguration comp = compMap.get(sinkName);  
+    if (comp != null) {  
+      SinkConfiguration config = (SinkConfiguration) comp;  
+      Sink sink = sinkFactory.create(comp.getComponentName(), comp.getType());  
+      try {  
+        Configurables.configure(sink, config);  
+        ChannelComponent channelComponent = channelComponentMap.get(config.getChannel());  
+        // 检查 sink 和 channel 的兼容性
+        checkSinkChannelCompatibility(sink, channelComponent.channel);  
+        sink.setChannel(channelComponent.channel);  
+        sinks.put(comp.getComponentName(), sink);  
+        channelComponent.components.add(sinkName);  
+      }  
+    }  
+  }
+}
+
+private void checkSinkChannelCompatibility(Sink sink, Channel channel)
+    throws InstantiationException {
+    // 开启事务
+    if (sink instanceof BatchSizeSupported && channel instanceof TransactionCapacitySupported) {
+        // FileChannel和MemoryChannel都实现了getTransactionCapacity方法
+        long transCap = ((TransactionCapacitySupported) channel).getTransactionCapacity();
+        // 调用不同sink的getBatchSize方法
+        long batchSize = ((BatchSizeSupported) sink).getBatchSize();
+        // 事务大小不能小于批大小
+        if (transCap < batchSize) {...}
+    }
+}
+```
+## 1.7 组件的运行
+```java
+public void handleConfigurationEvent(MaterializedConfiguration conf) { 
+  try {  
+    // 先停止之前的组件
+    stopAllComponents();  
+    // 初始化所有组件
+    initializeAllComponents(conf);  
+    // 启动组件
+    startAllComponents(conf);  
+  }
+}
+
+private void startAllComponents(MaterializedConfiguration materializedConfiguration) {  
+
+  // channel start
+  for (Entry<String, Channel> entry :  
+      materializedConfiguration.getChannels().entrySet()) {  
+    try {  
+      logger.info("Starting Channel " + entry.getKey());  
+      supervisor.supervise(entry.getValue(),  
+          new SupervisorPolicy.AlwaysRestartPolicy(), LifecycleState.START);  
+    } 
+  }  
+  // sink start
+  for (Entry<String, SinkRunner> entry : materializedConfiguration.getSinkRunners().entrySet()) {  
+    try {  
+      logger.info("Starting Sink " + entry.getKey());  
+      supervisor.supervise(entry.getValue(),  
+          new SupervisorPolicy.AlwaysRestartPolicy(), LifecycleState.START);  
+    } 
+  }  
+  // source start
+  for (Entry<String, SourceRunner> entry :  
+       materializedConfiguration.getSourceRunners().entrySet()) {  
+    try {  
+      logger.info("Starting Source " + entry.getKey());  
+      supervisor.supervise(entry.getValue(),  
+          new SupervisorPolicy.AlwaysRestartPolicy(), LifecycleState.START);  
+    } 
+  }  
+  this.loadMonitoring();  
+}
+
+// application.start()
+public void start() {  
+  lifecycleLock.lock();  
+  try {  
+    for (LifecycleAware component : components) {  
+      supervisor.supervise(component,  
+          new SupervisorPolicy.AlwaysRestartPolicy(), LifecycleState.START);  
+    }  
+  }
+}
+
+public synchronized void supervise(LifecycleAware lifecycleAware,  
+    SupervisorPolicy policy, LifecycleState desiredState) {    
+  // monitorService 是一个线程池用于执行程序
+  ScheduledFuture<?> future = monitorService.scheduleWithFixedDelay(  
+      monitorRunnable, 0, 3, TimeUnit.SECONDS);  
+  monitorFutures.put(lifecycleAware, future);  
 }
 ```

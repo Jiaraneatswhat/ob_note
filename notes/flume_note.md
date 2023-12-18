@@ -279,9 +279,23 @@ public void start() {
 
 public synchronized void supervise(LifecycleAware lifecycleAware,  
     SupervisorPolicy policy, LifecycleState desiredState) {    
-  // monitorService 是一个线程池用于执行程序
+  // monitorService 是一个线程池用于执行程序, 调用对应的 runner 来启动组件
   ScheduledFuture<?> future = monitorService.scheduleWithFixedDelay(  
       monitorRunnable, 0, 3, TimeUnit.SECONDS);  
   monitorFutures.put(lifecycleAware, future);  
 }
 ```
+
+# 复习
+
+## .1 基本组成
+- `Source`
+	- `TailDirSource`
+	- `KafkaSource`
+	- `AvroSource`：用于 `Flume` 之间的直接对接，构建 `Flume` 复杂拓扑结构
+- `Channel`
+	- `MemoryChannel`
+	- `FileChannel`
+	- `KafkaChannel`
+- `Sink`
+	- `HDFSSink`

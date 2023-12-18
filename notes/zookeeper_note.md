@@ -403,9 +403,7 @@ private void sendNotifications() {
 #### 1.3.4.2 交换选票
 ```java
 while ((self.getPeerState() == ServerState.LOOKING) && (!stop)) {  
-    /*  
-     * Remove next notification from queue, times out after 2 times     * the termination time     
-     */    
+    // 从 recvqueue取出选票 
      Notification n = recvqueue.poll(notTimeout, TimeUnit.MILLISECONDS);  
   
     /*  

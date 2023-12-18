@@ -481,7 +481,12 @@ protected boolean totalOrderPredicate(long newId, long newZxid, long newEpoch, l
     }  
   
     /*  
-     * We return true if one of the following three cases hold:     * 1- New epoch is higher     * 2- New epoch is the same as current epoch, but new zxid is higher     * 3- New epoch is the same as current epoch, new zxid is the same     *  as current zxid, but server id is higher.     */  
+     * We return true if one of the following three cases hold:     
+     * 1- New epoch is higher     
+     * 2- New epoch is the same as current epoch, but new zxid is higher     
+     * 3- New epoch is the same as current epoch, new zxid is the same     
+     *  as current zxid, but server id is higher.     *
+     */  
     // 先比较 epoch, 再比较 zxid, 最后比较myid
     return ((newEpoch > curEpoch)  
             || ((newEpoch == curEpoch)  

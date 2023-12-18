@@ -1852,18 +1852,10 @@ public void run() {
           // 等待传送packet
           while ((!shouldStop() && dataQueue.isEmpty()) || doSleep) {
             long timeout = 1000;
-            if (stage == BlockConstructionStage.DATA_STREAMING) {
-              timeout = sendHeartbeat();
-            }
             try {
               dataQueue.wait(timeout);
-            } catch (InterruptedException  e) {
-              LOG.debug("Thread interrupted", e);
             }
             doSleep = false;
-          }
-          if (shouldStop()) {
-            continue;
           }
           // 产生了packet后，进行下面的逻辑
           // get packet to be sent.
@@ -1874,8 +1866,6 @@ public void run() {
           LOG.debug("Allocating new block: {}", this);
           // nextBlockOutputStream向NN申请block用于写入数据，以及选择存放block的DN的策略
           setPipeline(nextBlockOutputStream());
-          initDataStreaming();
-        }
           // 初始化DataStreaming服务，监听packet发送的状态
           initDataStreaming();
         }

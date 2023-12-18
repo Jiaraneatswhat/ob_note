@@ -822,20 +822,65 @@ public class DataNode implements Record {
 }
 
 public class Stat implements Record {  
-  private long czxid;  
-  private long mzxid;  
-  private long ctime;  
-  private long mtime;  
+  private long czxid; // 节点事务id
+  private long mzxid; // 节点最后一次修改事务id
+  private long ctime; // 节点创建时间
+  private long mtime; // 最后一次修改时间
   private int version;  
   private int cversion;  
   private int aversion;  
-  private long ephemeralOwner;  
+  private long ephemeralOwner; // 持久化 -> 0, 临时 -> session id
   private int dataLength;  
   private int numChildren;  
-  private long pzxid;
+  private long pzxid; 
 }
 ```
 ### 2.2.1 节点的类型
+- 按生命周期分：持久节点和临时节点
+- 按是否有序分：顺序节点和一般节点
+- 持久节点的存活时间不依赖于客户端会话，只有客户端在显式执行删除节点操作时，节点才消失
+- 临时节点的存活时间依赖于客户端会话，当会话结束，临时节点将会被自动删除
+- <font color='red'> 临时节点不能拥有子节点 </font>
+- 创建顺序节点时，zk 会在路径后面自动追加一个 **递增的序列号** ，可以保证在**同一个父节点下是唯一的**，利用该特性可以实现**分布式锁**等功能
 ```java
 // StatPersisted 中定义了 long 类型的 ephemeralOwner
+// DataNode 通过 getClientEphemeralOwner 可以获取到节点的持久化类型
+private static long getClientEphemeralOwner(StatPersisted stat) {  
+    EphemeralType ephemeralType = EphemeralType.get(stat.getEphemeralOwner());  
+    // 持久节点
+    if (ephemeralType != EphemeralType.NORMAL) {  
+        return 0;  
+    }  
+    // 否则返回创建临时节点的SessionId
+    return stat.getEphemeralOwner();  
+}
+
+public enum EphemeralType {  
+    /**  
+     * Not ephemeral     */    
+     VOID,  
+    /**  
+     * Standard, pre-3.5.x EPHEMERAL     */   
+     NORMAL,  
+    /**  
+     * Container node     */    
+     CONTAINER,  
+    /**  
+     * TTL node     */    
+     TTL() {...}
+}
+```
+
+# 3. Watcher 监听实现
+# 4. 节点的操作
+# 5. Shell 操作
+```shell
+# 创建节点 
+# -s 有序节点, -e 临时节点
+create [-s] [-e] path [data] [acl]
+
+# 删除节点
+delete [-v version] path
+# 删除节点及其子节点 
+deleteall 
 ```

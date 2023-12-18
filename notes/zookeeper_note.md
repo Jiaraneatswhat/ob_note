@@ -872,14 +872,13 @@ public enum EphemeralType {
 }
 ```
 
-# 3. Watcher 监听实现
+# 3. Watcher 监听流程
 - `DataTree` 中有两个 `IWatchManager` 对象，`dataWatches` 和 `childWatches`，针对不同事件，会交给不同的 `Watcher` 进行处理
 - `dataWatches` 管理的是触发节点本身，而 `childWatches` 管理的则是触发节点的父节点
 	- 客户端调用 `exists()` 和 `getData()` 方法，服务器端接收到需要监听的请求后将会把路径和监听对象交给 `dataWatches` 管理
 	- 客户端调用 `getChildren()` 方法，服务器端接收到需要监听的请求后会把路径和监听对象交给 `childWatches` 管理
 	- 发生节点的增删时，`childWatches` 只会响应 `NodeCreated`、`NodeDeleted` 两种操作
-## 3.1 监听流程
-### 3.1.1 Cli 发起监听操作(以 exists() 为例)
+## 3.1 Cli 发起监听操作(以 exists() 为例)
 
 - Cli 在调用 `exists()`、`getData()` 和 `getChildren()` 三个方法的时候，如果传了 `Watcher` 对象，客户端将会把这个对象和对应的路径保存在本地
 - `WatchRegistration` 决定将 `Watcher` 存放在哪个映射表中
@@ -919,7 +918,7 @@ public Packet queuePacket(...) {
     return packet;  
 }
 ```
-### 3.1.2 RequestProcessor 处理请求
+## 3.2 RequestProcessor 处理请求
 - `RequestProccssor` 通过构建成不同的调用链来完成不同角色下对请求的处理的逻辑
 - 
 ![[zk_request_processor.svg]]
@@ -959,7 +958,7 @@ public void processRequest(Request request) {
     }
 }
 ```
-### 3.1.3 客户端接收响应
+## 3.3 客户端接收响应
 ```java
 // cnxn 的内部类 SendThread 处理响应
 void readResponse(ByteBuffer incomingBuffer) throws IOException {
@@ -990,8 +989,9 @@ public void register(int rc) {
     }  
 }
 ```
-### 3.1.4 节点内容发生变化
+## 3.4 server 节点内容发生变化
 ```java
+// DataTree
 public Stat setData(String path, byte[] data, int version, long zxid, long time) throws KeeperException.NoNodeException {
 	// 对应 NodeDataChanged 事件
 	// 触发监听
@@ -1006,73 +1006,76 @@ public WatcherOrBitSet triggerWatch(String path, EventType type) {
 public WatcherOrBitSet triggerWatch(String path, EventType type, WatcherOrBitSet supress) {  
     WatchedEvent e = new WatchedEvent(type, KeeperState.SyncConnected, path);  
     Set<Watcher> watchers = new HashSet<>();  
-    PathParentIterator pathParentIterator = getPathParentIterator(path);  
-    synchronized (this) {  
-        for (String localPath : pathParentIterator.asIterable()) {  
-            Set<Watcher> thisWatchers = watchTable.get(localPath);  
-            if (thisWatchers == null || thisWatchers.isEmpty()) {  
-                continue;  
-            }  
-            Iterator<Watcher> iterator = thisWatchers.iterator();  
-            while (iterator.hasNext()) {  
-                Watcher watcher = iterator.next();  
-                WatcherMode watcherMode = watcherModeManager.getWatcherMode(watcher, localPath);  
-                if (watcherMode.isRecursive()) {  
-                    if (type != EventType.NodeChildrenChanged) {  
-                        watchers.add(watcher);  
-                    }  
-                } else if (!pathParentIterator.atParentPath()) {  
-                    watchers.add(watcher);  
-                    if (!watcherMode.isPersistent()) {  
-                        iterator.remove();  
-                        Set<String> paths = watch2Paths.get(watcher);  
-                        if (paths != null) {  
-                            paths.remove(localPath);  
-                        }  
-                    }  
-                }  
-            }  
-            if (thisWatchers.isEmpty()) {  
-                watchTable.remove(localPath);  
-            }  
-        }  
-    }  
-    if (watchers.isEmpty()) {  
-        if (LOG.isTraceEnabled()) {  
-            ZooTrace.logTraceMessage(LOG, ZooTrace.EVENT_DELIVERY_TRACE_MASK, "No watchers for " + path);  
-        }  
-        return null;  
-    }  
-  
     for (Watcher w : watchers) {  
-        if (supress != null && supress.contains(w)) {  
-            continue;  
-        }  
         w.process(e);  
     }  
-  
-    switch (type) {  
-        case NodeCreated:  
-            ServerMetrics.getMetrics().NODE_CREATED_WATCHER.add(watchers.size());  
-            break;  
-  
-        case NodeDeleted:  
-            ServerMetrics.getMetrics().NODE_DELETED_WATCHER.add(watchers.size());  
-            break;  
-  
-        case NodeDataChanged:  
-            ServerMetrics.getMetrics().NODE_CHANGED_WATCHER.add(watchers.size());  
-            break;  
-  
-        case NodeChildrenChanged:  
-            ServerMetrics.getMetrics().NODE_CHILDREN_WATCHER.add(watchers.size());  
-            break;  
-        default:  
-            // Other types not logged.  
-            break;  
-    }  
-  
     return new WatcherOrBitSet(watchers);  
+}
+
+// NIOServerCnxn.java
+public void process(WatchedEvent event) {  
+	// int NOTIFICATION_XID = -1    -1表示事件触发通知
+    ReplyHeader h = new ReplyHeader(ClientCnxn.NOTIFICATION_XID, -1L, 0);  
+  
+    // Convert WatchedEvent to a type that can be sent over the wire  
+    WatcherEvent e = event.getWrapper();  
+      
+    int responseSize = sendResponse(h, e, "notification", null, null, ZooDefs.OpCode.error);  
+}
+```
+## 3.5 客户端接收通知并回调监听
+```java
+void readResponse(ByteBuffer incomingBuffer) throws IOException {  
+    ReplyHeader replyHdr = new ReplyHeader();  
+	switch (replyHdr.getXid()) {
+		case NOTIFICATION_XID: 
+			// WatcherEvent 是事件通信对象
+			// WatchedEvent 是客户端事件对象
+		    WatcherEvent event = new WatcherEvent();  
+		    event.deserialize(bbia, "response");  
+		    WatchedEvent we = new WatchedEvent(event);
+		    // 交给事件线程处理  
+		    eventThread.queueEvent(we);  
+	    return;
+}
+
+// cnxn 的内部类 EventThread
+private void queueEvent(WatchedEvent event, Set<Watcher> materializedWatchers) {  
+    final Set<Watcher> watchers;
+    // 创建 WatcherSetEventPair 加入 LinkedBlockingQueue waitingEvents 中
+    WatcherSetEventPair pair = new WatcherSetEventPair(watchers, event);  
+    // queue the pair (watch set & event) for later processing  
+    waitingEvents.add(pair);  
+}
+
+public void run() {  
+    try {  
+        isRunning = true;  
+        while (true) {  
+            Object event = waitingEvents.take();  
+            if (event == eventOfDeath) {  
+                wasKilled = true;  
+            } else {  
+	            // 处理事件
+                processEvent(event);  
+            }   
+        }  
+    } 
+}
+
+private void processEvent(Object event) {  
+    try {  
+        if (event instanceof WatcherSetEventPair) {  
+            // each watcher will process the event  
+            WatcherSetEventPair pair = (WatcherSetEventPair) event;  
+            for (Watcher watcher : pair.watchers) {  
+                try {  
+	                // 调用客户端实现的监听器
+                    watcher.process(pair.event);  
+                }  
+            }
+		}
+	}
 }
 ```
 
@@ -1087,8 +1090,8 @@ public WatcherOrBitSet triggerWatch(String path, EventType type, WatcherOrBitSet
 
 
 
-
 # 4. 节点的操作
+
 # 5. Shell 操作
 ```shell
 # 创建节点 

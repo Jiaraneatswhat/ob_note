@@ -420,6 +420,7 @@ while ((self.getPeerState() == ServerState.LOOKING) && (!stop)) {
     } else if (validVoter(n.sid) && validVoter(n.leader)) { 
         switch (n.state) {  
         case LOOKING:  
+	        // 首先比较epoch
             // If notification > current, replace and send messages out  
             // 服务器自身的选举轮次落后于该外部投票对应服务器的选举轮次
             if (n.electionEpoch > logicalclock.get()) { 
@@ -443,8 +444,10 @@ while ((self.getPeerState() == ServerState.LOOKING) && (!stop)) {
             }  
   
             // don't care about the version if it's in LOOKING state  
+            // 将刚收到的外部投票放入选票集合recvset中进行归档
+            // recvset用于记录当前服务器在本轮次的Leader选举中收到的所有外部投票
             recvset.put(n.sid, new Vote(n.leader, n.zxid, n.electionEpoch, n.peerEpoch));  
-  
+			  
             voteSet = getVoteTracker(recvset, new Vote(proposedLeader, proposedZxid, logicalclock.get(), proposedEpoch));  
   
             if (voteSet.hasAllQuorums()) {  
@@ -467,5 +470,23 @@ while ((self.getPeerState() == ServerState.LOOKING) && (!stop)) {
             }  
             break;  }  
     }
+}
+```
+#### 1.3.4.3 比较选票
+```java
+protected boolean totalOrderPredicate(long newId, long newZxid, long newEpoch, long curId, long curZxid, long curEpoch) {  
+  
+    if (self.getQuorumVerifier().getWeight(newId) == 0) {  
+        return false;  
+    }  
+  
+    /*  
+     * We return true if one of the following three cases hold:     * 1- New epoch is higher     * 2- New epoch is the same as current epoch, but new zxid is higher     * 3- New epoch is the same as current epoch, new zxid is the same     *  as current zxid, but server id is higher.     */  
+    // 先比较 epoch, 再比较 zxid, 最后比较myid
+    return ((newEpoch > curEpoch)  
+            || ((newEpoch == curEpoch)  
+                && ((newZxid > curZxid)  
+                    || ((newZxid == curZxid)  
+                        && (newId > curId)))));  
 }
 ```

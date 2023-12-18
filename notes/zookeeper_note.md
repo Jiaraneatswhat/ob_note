@@ -799,6 +799,7 @@ public class DataTree {
 	private static final String quotaZookeeper = Quotas.quotaZookeeper;
 	// 监听事件
 	private IWatchManager dataWatches;
+	private IWatchManager childWatches;
 	// 保存 quota 节点的路径树信息
 	// 统计某个节点下的节点数量及数据大小, 在不修改原有节点数据结构的情况下，通过 quota 保存相关信息，将路径信息以单词字典树的形式存放在 PathTrie 中
 	private final PathTrie pTrie = new PathTrie();
@@ -872,6 +873,36 @@ public enum EphemeralType {
 ```
 
 # 3. Watcher 监听实现
+- `DataTree` 中有两个 `IWatchManager` 对象，`dataWatches` 和 `childWatches`，针对不同事件，会交给不同的 `Watcher` 进行处理
+- `dataWatches` 管理的是触发节点本身，而 `childWatches` 管理的则是触发节点的父节点
+	- 客户端调用 `exists()` 和 `getData()` 方法，服务器端接收到需要监听的请求后将会把路径和监听对象交给 `dataWatches` 管理
+	- 客户端调用 `getChildren()` 方法，服务器端接收到需要监听的请求后会把路径和监听对象交给 `childWatches` 管理
+	- 发生节点的增删时，`childWatches` 只会响应 `NodeCreated`、`NodeDeleted` 两种操作
+## 3.1 监听流程
+### 3.1.1 Cli 发起监听操作(以 exists() 为例)
+
+- Cli 在调用 `exists()`、`getData()` 和 `getChildren()` 三个方法的时候，如果传了 `Watcher` 对象，客户端将会把这个对象和对应的路径保存在本地
+- `WatchRegistration` 决定将 `Watcher` 存放在哪个映射表中
+- `exists()` 对应 `ExistsWatchRegistration`，存放在 `dataWatches` 中
+- `getData()` 对应 `DataWatchRegistration`，存放在 `dataWatches` 中
+- `getChildren()` `对应ChildWatchRegistration`
+```java
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # 4. 节点的操作
 # 5. Shell 操作
 ```shell
@@ -882,5 +913,9 @@ create [-s] [-e] path [data] [acl]
 # 删除节点
 delete [-v version] path
 # 删除节点及其子节点 
-deleteall 
+deleteall path
+
+# 查看节点
+ls 查看子节点名称
+get 查看节点存储内容
 ```

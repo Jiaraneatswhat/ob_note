@@ -919,6 +919,29 @@ public Packet queuePacket(...) {
     return packet;  
 }
 ```
+### 3.1.2 RequestProcessor 处理请求
+- `RequestProccssor` 通过构建成不同的调用链来完成不同角色下对请求的处理的逻辑
+- 
+![[zk_request_processor.svg]]
+
+- `SyncRequestProcessor` 会将事务请求写入到日志文件中进行持久化
+- `AckRequestProcessor` 通知 `leader` 这个事务在本地已经同步完成，在 `leader` 确认已经有过半的服务器已经完成了事务日志的持久化后进行 `commit` 操作
+- `FinalRequestProcessor` 真正处理客户端的请求并返回处理结果
+```java
+// 当客户端发送请求数据包 Packet 被服务端接收到后, 最终由FinalRequestProcessor 进行处理
+public void processRequest(Request request) {
+
+	ServerCnxn cnxn = request.cnxn;
+	try{
+		switch (request.type) {
+		
+		
+	}
+	
+	}
+
+}
+```
 
 
 

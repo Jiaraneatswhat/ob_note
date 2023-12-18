@@ -56,6 +56,7 @@ esac
 		- CombineTextInputFormat
 
 #### 3. Shuffle 优化
+
 - map()方法后，通过 collect() 将数据写入到环形缓冲区中，根据分区号进行快速排序，分区内有序后，达到 80% 的阈值后，进行归并排序生成单个大文件，向磁盘溢写
 - reduce()方法有 copy, merge, reduce 三个阶段，首先去拉取对应的分区的数据，进行 merge 合并相同分区的数据，最后通过 reduce 方法写出
 - 可以增大环形缓冲区的大小到 200M，因为切片在最后一片时，如果剩余的数据量 < 块大小的 1.1 倍，会将剩余部分与上一片合在一起，这样就可以减少溢写的次数，以及防止归并排序。若溢写的次数仍然较多，说明文件大小很大且不能切分
@@ -64,4 +65,25 @@ esac
 - 为了减少磁盘 IO，可以使用压缩(IO 遇到瓶颈时)
 - 可以增加 Container 的内存和 CPU 资源
 - reduce 阶段，可以提高 Reduce 去 Map 拉取数据的并行度，默认 5，可以提高到 10
-- 
+- 可以提高 copy 阶段 Buffer 占 Reducer 内存的比例，默认 0.7, 可以增加到 0.8
+#### 4. Yarn 工作机制
+
+- 客户端向 Yarn 申请提交 Job
+- Yarn 向 RM 申请一个 Application，RM 返回资源提交路径
+- Yarn 提交 job 运行所需资源(jar 包，切片文件，配置文件)
+- Yarn 封装启动 MRAppMaster 的命令，选择 NodeManager 启动作为 AM 的 Container
+- RM 将用户请求初始化为 Task, AM 启动后执行任务，去 RM 上申请到资源，在 NodeManager 中启动 Container，开启 YarnChild 进程，运行 MapTask 和 ReduceTask
+
+#### 5. 调度器特点
+
+- FIFO：单队列，先进先出，不用
+- Capacity: 多队列，队列内部先进先出，用于并行度不高的场合(离线)
+- Fair：多队列，按照缺额分配，并行度高(实时)
+- 在 yarn-site.xml 中配置队列
+- 队列的设置
+	- 框架，业务线，部门，人员
+
+#### 6. Flume 自定义拦截器
+- 实现 Interceptor 接口
+- 重写四个方法：
+	- initialize

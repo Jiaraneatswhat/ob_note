@@ -447,9 +447,9 @@ while ((self.getPeerState() == ServerState.LOOKING) && (!stop)) {
             // 将刚收到的外部投票放入选票集合recvset中进行归档
             // recvset用于记录当前服务器在本轮次的Leader选举中收到的所有外部投票
             recvset.put(n.sid, new Vote(n.leader, n.zxid, n.electionEpoch, n.peerEpoch));  
-			  
+			// 添加ack
             voteSet = getVoteTracker(recvset, new Vote(proposedLeader, proposedZxid, logicalclock.get(), proposedEpoch));  
-  
+			// 判断票数过半
             if (voteSet.hasAllQuorums()) {  
   
                 // Verify if there is any change in the proposed leader  
@@ -472,7 +472,7 @@ while ((self.getPeerState() == ServerState.LOOKING) && (!stop)) {
     }
 }
 ```
-#### 1.3.4.3 比较选票
+##### 1.3.4.2.1 比较选票
 ```java
 protected boolean totalOrderPredicate(long newId, long newZxid, long newEpoch, long curId, long curZxid, long curEpoch) {  
   
@@ -495,3 +495,98 @@ protected boolean totalOrderPredicate(long newId, long newZxid, long newEpoch, l
                         && (newId > curId)))));  
 }
 ```
+##### 1.3.4.2.2 添加ack
+```java
+// 给定 vote 集合，返回检查票数的 SyncedLearnerTracker
+protected SyncedLearnerTracker getVoteTracker(Map<Long, Vote> votes, Vote vote) {  
+    SyncedLearnerTracker voteSet = new SyncedLearnerTracker();  
+    voteSet.addQuorumVerifier(self.getQuorumVerifier());  
+    /*  
+     * First make the views consistent. Sometimes peers will have different     
+     * zxids for a server depending on timing.     
+     */    
+     for (Map.Entry<Long, Vote> entry : votes.entrySet()) {  
+        if (vote.equals(entry.getValue())) {  
+            voteSet.addAck(entry.getKey());  
+        }  
+    }  
+    return voteSet;  
+} 
+
+public boolean addAck(Long sid) {  
+    boolean change = false;  
+    for (QuorumVerifierAcksetPair qvAckset : qvAcksetPairs) {  
+        if (qvAckset.getQuorumVerifier().getVotingMembers().containsKey(sid)) {  
+            qvAckset.getAckset().add(sid);  
+            change = true;  
+        }  
+    }  
+    return change;  
+}
+```
+##### 1.3.4.2.3 判断半数
+```java
+public boolean hasAllQuorums() {  
+    for (QuorumVerifierAcksetPair qvAckset : qvAcksetPairs) {  
+        if (!qvAckset.getQuorumVerifier().containsQuorum(qvAckset.getAckset())) { 
+            return false;  
+        }  
+    }  
+    return true;  
+}
+
+// QuorumMaj.java
+half = votingMembers.size() / 2;
+public boolean containsQuorum(Set<Long> ackSet) {  
+    return (ackSet.size() > half);  
+}
+```
+#### 1.3.4.3 收尾
+```java
+if (voteSet.hasAllQuorums()) {  
+  
+    // Verify if there is any change in the proposed leader  
+    // 遍历所有Notification，查看是否有更好的投票
+    while ((n = recvqueue.poll(finalizeWait, TimeUnit.MILLISECONDS)) != null) {  
+        if (totalOrderPredicate(n.leader, n.zxid, n.peerEpoch, proposedLeader, proposedZxid, proposedEpoch)) {  
+            recvqueue.put(n);  
+            break;  
+        }  
+    }  
+  
+    /*  
+     * This predicate is true once we don't read any new     
+     * relevant message from the reception queue     
+     */    
+     if (n == null) {  
+	    // 更新Peer状态
+        setPeerState(proposedLeader, voteSet);  
+        Vote endVote = new Vote(proposedLeader, proposedZxid, logicalclock.get(), proposedEpoch);  
+        leaveInstance(endVote);  
+        return endVote;  
+    }  
+}
+
+private void setPeerState(long proposedLeader, SyncedLearnerTracker voteSet) {
+	// 推举的 leader 跟自己的myid相同时，更新状态为LEADING
+	// 否则调用learningState()
+    ServerState ss = (proposedLeader == self.getMyId()) ? ServerState.LEADING : learningState();  
+    self.setPeerState(ss);  
+    if (ss == ServerState.LEADING) {  
+        leadingVoteSet = voteSet;  
+    }  
+}
+
+private ServerState learningState() { 
+	// 3.3版本后新增加了 observer, 防止集群规模过大时，需要半数的ACK，增加 observer, 可以处理读，但是不参与投票
+	// 既保证了集群的扩展性，又避免过多服务器参与投票导致的集群处理请求能力下降
+    if (self.getLearnerType() == LearnerType.PARTICIPANT) {  
+        LOG.debug("I am a participant: {}", self.getMyId());  
+        return ServerState.FOLLOWING;  
+    } else {  
+        LOG.debug("I am an observer: {}", self.getMyId());  
+        return ServerState.OBSERVING;  
+    }  
+}
+```
+

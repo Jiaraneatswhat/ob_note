@@ -804,3 +804,38 @@ public class DataTree {
 	private final PathTrie pTrie = new PathTrie();
 }
 ```
+## 2.2 DataNode
+```java
+// DataNode 继承自 Record类
+// zk 中数据的 serde 使用 Jute 组件中的 Record 接口，定义了序列化/反序列化两个方法
+public class DataNode implements Record {  
+
+    // the data for this datanode
+    // 父节点不存储数据, 最大存储数据量是1M
+    byte[] data;  
+	// 记录客户端对znode节点的访问权限
+    Long acl;  
+	// 节点的状态信息，事务id、版本号、时间戳等
+    public StatPersisted stat;  
+    // 子节点引用信息 
+    private Set<String> children = null;
+}
+
+public class Stat implements Record {  
+  private long czxid;  
+  private long mzxid;  
+  private long ctime;  
+  private long mtime;  
+  private int version;  
+  private int cversion;  
+  private int aversion;  
+  private long ephemeralOwner;  
+  private int dataLength;  
+  private int numChildren;  
+  private long pzxid;
+}
+```
+### 2.2.1 节点的类型
+```java
+// StatPersisted 中定义了 long 类型的 ephemeralOwner
+```

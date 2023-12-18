@@ -934,13 +934,39 @@ public void processRequest(Request request) {
 	ServerCnxn cnxn = request.cnxn;
 	try{
 		switch (request.type) {
-		
-		
+			case OpCode.exists: {   
+			    ExistsRequest existsRequest = new ExistsRequest();  
+			    path = existsRequest.getPath(); 
+			    // 把cnxn客户端对象当成 cli 监听器放到 DataTree 的监听表中
+			    Stat stat = zks.getZKDatabase().statNode(path,                             existsRequest.getWatch() ? cnxn : null);  
+		    rsp = new ExistsResponse(stat);  
+		    requestPathMetricsCollector.registerRequest(request.type, path);  
+		    break;  
+			}
+		}
 	}
-	
-	}
-
+	// 返回响应
+	try {  
+    if (path == null || rsp == null) {...} 
+    else {  
+        int opCode = request.type;  
+        switch (opCode) {  
+            case OpCode.getData : {...}  
+            case OpCode.getChildren2 : {...}  
+            default:  
+                responseSize = cnxn.sendResponse(hdr, rsp, "response");  
+        }  
+    }
 }
+```
+### 3.1.3 客户端接收响应
+```java
+// cnxn 的内部类 SendThread 处理响应
+void readResponse(ByteBuffer incomingBuffer) throws IOException {
+	finishPacket(packet);
+}
+
+
 ```
 
 

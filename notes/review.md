@@ -84,6 +84,32 @@ esac
 	- 框架，业务线，部门，人员
 
 #### 6. Flume 自定义拦截器
+
 - 实现 Interceptor 接口
 - 重写四个方法：
-	- initialize
+	- initialize()
+	- intercept(Event e)
+	- intercept(List<\Event> events)
+	- close()
+- 声明一个内部 Builder 类实现 Interceptor.Builder，重写 build 方法返回拦截器实例
+- 打包到 Flume 的 lib 目录中
+- 在配置信息中配置拦截器$Builder
+
+#### 7. Channel 选择器
+
+- 默认 Replicating，向每个 Channel 都会发送一份数据
+- Load Balancing: 实现负载均衡，通过 round robin 或 random 来选择 Channel
+- Multiplexing: 配合拦截器一起使用，根据 header 的信息，进行拦截发送给不同的 Channel
+
+#### 8. Flume 优化
+
+- 内存默认 20M，增加至 4-6G
+- HDFS Sink 小文件：滚动参数
+	- hdfs.rollInterval 30s
+	- hdfs.rollCount 1024 bytes
+	- hdfs.rollSize 10 event
+- 提高吞吐量
+	- batchSize：单次发送事件数：默认 100，调整至 2000-3000
+- 丢数据
+	- 通过监控器观察 Source 成功 Put 的事件数 = Sink 成功 Take 的事件数 + Channel 中现有的事件数
+	- 采用 TailDirSource, KakfaChannel, 以及 KafkaSource, FileChannel, HDFSSink 组件，组件间的数据传输有事务保证，没有丢数据

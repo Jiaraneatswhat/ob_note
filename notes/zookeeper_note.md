@@ -562,6 +562,7 @@ if (voteSet.hasAllQuorums()) {
 	    // 更新Peer状态
         setPeerState(proposedLeader, voteSet);  
         Vote endVote = new Vote(proposedLeader, proposedZxid, logicalclock.get(), proposedEpoch);  
+        // 清空recvqueue
         leaveInstance(endVote);  
         return endVote;  
     }  
@@ -578,7 +579,7 @@ private void setPeerState(long proposedLeader, SyncedLearnerTracker voteSet) {
 }
 
 private ServerState learningState() { 
-	// 3.3版本后新增加了 observer, 防止集群规模过大时，需要半数的ACK，增加 observer, 可以处理读，但是不参与投票
+	// 3.3.0版本后新增加了 observer, 防止集群规模过大时，需要半数的ACK，增加 observer, 可以处理读，但是不参与投票
 	// 既保证了集群的扩展性，又避免过多服务器参与投票导致的集群处理请求能力下降
     if (self.getLearnerType() == LearnerType.PARTICIPANT) {  
         LOG.debug("I am a participant: {}", self.getMyId());  

@@ -786,5 +786,14 @@ public void run() {
 - `zk` 在内存中维护了一个类似文件系统的树形结构实现命名空间，树中的节点称为 `znode`
 ## 2.1 DataTree
 ```java
+public class DataTree {
 
+	// zk 自己封装的一个 ConcurrentHashMap，用于存放 DataNode
+	// 保存树形结构的 所有路径-节点对象 映射关系
+	private final NodeHashMap nodes;
+	// 根节点
+	private static final String rootZookeeper = "/";
+	// 初始化时创建 /zookeeper 路径节点, 作为管理节点
+	private static final String procZookeeper = Quotas.procZookeeper;
+}
 ```

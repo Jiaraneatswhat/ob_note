@@ -41,5 +41,31 @@ alter table t set TBLPROPERTIES('EXTERNAL'='true/false')
 	- 区内排序，在数据进入 Reducer 前完成排序，为每个 reducer 产生排序后的文件
 - distribute by
 	- 控制 Map 端如何拆分数据给 Reduce 端，类似 MR 中的分区器
-	- hive 根据 distribute by 后面d
+	- hive 根据 distribute by 后面的列，将数据发给对应的 Reducer
+	- 一般和 `sort by` 搭配使用
 - cluster by
+	- 当 `distribute by` 和 `sort by` 字段相同且为 `asc` 时，可以直接使用 `cluster by`
+
+#### 5. 函数
+##### 5.1 系统函数
+- 时间类：
+	- `date_add()`
+	- `date_sub()`
+	- `datediff()`
+	- `date_format()`
+	- `unix_timestamp` # time -> ts
+	- `from_unixtime` # ts -> time
+	- `next_day('', 'MO')` 下一个周 x (有可能是同一周)
+	- `last_day` 当月最后一天
+##### 5.2 窗口函数 over()
+- 聚合函数
+	- `sum, max, min, avg, count`
+- 排名函数
+	- `rank(1, 2, 2, 4), dense_rank(1, 2 ,2, 3), row_number(1, 2, 3, 4)`
+- 跨行取值函数
+	- `lead, lag`
+	- `first_value, last_value`
+	- `ntile(INTEGER x)`: 将有序分区分为 x 份并标号，适用于求前 x%的数据
+- 开窗范围
+	- `partition by a order by b`
+	- `distribute by a sor`

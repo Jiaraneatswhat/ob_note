@@ -436,7 +436,7 @@ public class SinkRunner implements LifecycleAware {
   
     runner = new PollingRunner();  
 	// 与 PollableSource 相同，在运行时调用 Sink 的 precess 方法
-  }  
+  }   
 }
 ```
 # 2. TailDirSource

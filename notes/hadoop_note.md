@@ -5640,8 +5640,7 @@ protected void doShuffle(MapHost host, IFileInputStream iFin,
        * in sync.
        */
       if (input.read() >= 0 ) {
-        throw new IOException("Unexpected extra bytes from input stream for " +
-                               getMapId());
+        throw new IOException("Unexpected extra bytes from input stream for " + getMapId());
       }
     } finally {
       CodecPool.returnDecompressor(decompressor);

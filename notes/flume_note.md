@@ -332,7 +332,6 @@ public void start() {
   
   lifecycleState = LifecycleState.START;  
 }
-
 public static class PollingRunner implements Runnable {  
   
   private PollableSource source;  
@@ -342,9 +341,70 @@ public static class PollingRunner implements Runnable {
     while (!shouldStop.get()) {  
       counterGroup.incrementAndGet("runner.polls");  
       try {  
+        // 调用 source 的 process 方法
         if (source.process().equals(PollableSource.Status.BACKOFF)) {...}
     }  
   }  
+}
+```
+### 1.8.2 EventDrivenSourceRunner
+```java
+public EventDrivenSourceRunner() {  
+  lifecycleState = LifecycleState.IDLE;  
+}
+
+// 不会创建 PollingRunner
+public void start() {  
+  Source source = getSource();  
+  ChannelProcessor cp = source.getChannelProcessor();  
+  cp.initialize();  
+  source.start();  
+  lifecycleState = LifecycleState.START;  
+}
+```
+## 1.9 ChannelProcessor
+- Source 拉取到数据后，交给 ChannelProcessor 进行处理
+```java
+// 处理单个事件
+public void processEvent(Event event) {  
+  // 拦截器处理
+  event = interceptorChain.intercept(event);  
+  if (event == null) {  
+    return;  
+  }  
+  
+  // Process required channels  
+  // 通过 Selector 选择必须成功的 Channel 在事务中执行
+  List<Channel> requiredChannels = selector.getRequiredChannels(event);  
+  for (Channel reqChannel : requiredChannels) {
+    // 不同的 Channel 有不同的事务 
+    Transaction tx = reqChannel.getTransaction();   
+    try {  
+	  // 开启事务
+      tx.begin();  
+	  // Channel 的 put 方法
+      reqChannel.put(event);  
+	  // 提交事务
+      tx.commit();  
+    } catch (Throwable t) {
+	  // 有异常回滚  
+      tx.rollback();
+    } finally {  
+      if (tx != null) {
+        // 关闭事务  
+        tx.close();  
+      }  
+    }  
+  }  
+  // Process optional channels  
+  // 处理可以忽略失败的可选 Channel
+}
+
+// Channel 接口定义了发布 Event, 消费 Event, 获取事务的方法
+public interface Channel extends LifecycleAware, NamedComponent {
+	public void put(Event event) throws ChannelException;  
+	public Event take() throws ChannelException;  
+	public Transaction getTransaction();
 }
 ```
 # 2. TailDirSource

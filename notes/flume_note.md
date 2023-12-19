@@ -407,6 +407,38 @@ public interface Channel extends LifecycleAware, NamedComponent {
 	public Transaction getTransaction();
 }
 ```
+## 1.10 SinkRunner
+```java
+public class SinkRunner implements LifecycleAware {  
+  // 同 PollableSource 的 PollingRunner
+  private PollingRunner runner;  
+  private Thread runnerThread;  
+  private LifecycleState lifecycleState;  
+  
+  private SinkProcessor policy;  
+  
+  public SinkRunner() {  
+    counterGroup = new CounterGroup();  
+    lifecycleState = LifecycleState.IDLE;  
+  }  
+  
+  public SinkRunner(SinkProcessor policy) {  
+    this();  
+    setSink(policy);  
+  }  
+  
+  @Override  
+  public void start() {  
+    SinkProcessor policy = getPolicy();  
+
+	// 启动 SinkProcessor
+    policy.start();  
+  
+    runner = new PollingRunner();  
+	// 与 PollableSource 相同，在运行时调用 Sink 的 precess 方法
+  }  
+}
+```
 # 2. TailDirSource
 ## 2.1 加载 source 时进行配置
 ```java

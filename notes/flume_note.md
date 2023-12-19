@@ -286,6 +286,9 @@ public synchronized void supervise(LifecycleAware lifecycleAware,
 }
 ```
 
+# 2. TailDirSource
+## 2.1 
+
 # 复习
 
 ## .1 基本组成

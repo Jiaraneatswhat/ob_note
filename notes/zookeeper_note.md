@@ -781,7 +781,91 @@ public void run() {
 }
 ```
 
+## 1.4 启动 Cli
+```java
+// zkCli.sh 运行 org.apache.zookeeper.ZooKeeperMain
+public static void main(String[] args) throws IOException, InterruptedException {  
+    ZooKeeperMain main = new ZooKeeperMain(args);  
+    main.run();  
+}
 
+void run() throws IOException, InterruptedException {  
+    if (cl.getCommand() == null) {...} 
+    else {  
+        // Command line args non-null.  Run what was passed.  
+        processCmd(cl);  
+    }  
+}
+
+protected boolean processCmd(MyCommandOptions co) throws IOException, InterruptedException {  
+    boolean watch = false;  
+    try {  
+        watch = processZKCmd(co);  
+    }
+    return watch;  
+}
+
+protected boolean processZKCmd(MyCommandOptions co) throws CliException, IOException, InterruptedException {  
+    String[] args = co.getArgArray();  
+    String cmd = co.getCommand();  
+    // 连接server 
+	conncectToZk();
+    // execute from commandMap  
+    CliCommand cliCmd = commandMapCli.get(cmd);  
+    if (cliCmd != null) {  
+        cliCmd.setZk(zk);  
+        watch = cliCmd.parse(args).exec();  
+    }
+    return watch;  
+}
+
+protected void connectToZK(String newHost) throws InterruptedException, IOException {  
+  
+    host = newHost;  
+  
+    ZKClientConfig clientConfig = null;  
+  
+    if (cl.getOption("client-configuration") != null) {  
+        try {  
+            clientConfig = new ZKClientConfig(cl.getOption("client-configuration"));  
+        } 
+    }  
+    int timeout = Integer.parseInt(cl.getOption("timeout"));  
+    zk = new ZooKeeperAdmin(host, timeout, new MyWatcher(), readOnly, clientConfig);   
+}
+
+public ZooKeeperAdmin(  
+    String connectString,  
+    int sessionTimeout,  
+    Watcher watcher) throws IOException {  
+    // ZooKeeperAdmin 继承了 ZooKeeper
+    super(connectString, sessionTimeout, watcher);  
+}
+
+public ZooKeeper(  
+    String connectString,  
+    int sessionTimeout,  
+    Watcher watcher,  
+    boolean canBeReadOnly,  
+    HostProvider hostProvider,  
+    ZKClientConfig clientConfig  
+) throws IOException {  
+    this.clientConfig = clientConfig != null ? clientConfig : new ZKClientConfig();  
+    this.hostProvider = hostProvider;  
+    ConnectStringParser connectStringParser = new ConnectStringParser(connectString);  
+
+	// 创建连接对象并启动
+    cnxn = createConnection(  
+        connectStringParser.getChrootPath(),  
+        hostProvider,  
+        sessionTimeout,  
+        this.clientConfig,  
+        watcher,  
+        getClientCnxnSocket(),  
+        canBeReadOnly);  
+    cnxn.start();  
+}
+```
 # 2. 数据结构
 - `zk` 在内存中维护了一个类似文件系统的树形结构实现命名空间，树中的节点称为 `znode`
 ## 2.1 DataTree

@@ -286,7 +286,67 @@ public synchronized void supervise(LifecycleAware lifecycleAware,
   monitorFutures.put(lifecycleAware, future);  
 }
 ```
+## 1.8 SourceRunner
+```java
+public abstract class SourceRunner implements LifecycleAware {  
+  private Source source;  
+   public static SourceRunner forSource(Source source) {  
+    SourceRunner runner = null;  
+	// Source 提供了两种子接口, 轮询的 PollableSource 和 事件驱动的 EventDrivenSource
+	// 根据 source 不同创建不同的 SourceRunner
+    if (source instanceof PollableSource) {  
+      runner = new PollableSourceRunner();  
+      ((PollableSourceRunner) runner).setSource((PollableSource) source);  
+    } else if (source instanceof EventDrivenSource) {  
+      runner = new EventDrivenSourceRunner();  
+      ((EventDrivenSourceRunner) runner).setSource((EventDrivenSource) source);  
+    }
+    return runner;  
+  }  
+}
+```
+### 1.8.1 PollableSourceRunner
+```java
+public PollableSourceRunner() {  
+  //初始化状态为 IDLE
+  lifecycleState = LifecycleState.IDLE;  
+}
 
+public void start() {  
+  PollableSource source = (PollableSource) getSource();  
+  ChannelProcessor cp = source.getChannelProcessor();
+  // 调用拦截器的 initialize 方法
+  cp.initialize();  
+  // 启动 source
+  source.start();  
+  // 创建一个拉取数据的 PollingRunner
+  runner = new PollingRunner();  
+  
+  runner.source = source;  
+  runner.counterGroup = counterGroup;  
+  runner.shouldStop = shouldStop;  
+  
+  runnerThread = new Thread(runner);  
+  // 启动 PollingRunner
+  runnerThread.start();  
+  
+  lifecycleState = LifecycleState.START;  
+}
+
+public static class PollingRunner implements Runnable {  
+  
+  private PollableSource source;  
+  
+  @Override  
+  public void run() {  
+    while (!shouldStop.get()) {  
+      counterGroup.incrementAndGet("runner.polls");  
+      try {  
+        if (source.process().equals(PollableSource.Status.BACKOFF)) {...}
+    }  
+  }  
+}
+```
 # 2. TailDirSource
 ## 2.1 加载 source 时进行配置
 ```java

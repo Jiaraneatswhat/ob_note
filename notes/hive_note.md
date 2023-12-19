@@ -12,4 +12,34 @@
 	- 优化器：针对不同计算引擎进行不同的优化
 
 #### 2. 与 MySQL 对比
-- 相同点：有类似的chau'x'n
+
+- 相同点：有类似的查询语言
+- 不同点：
+	- `MySQL` 是 `OLTP`, 侧重于 `CRUD`，而 `Hive` 是 `OLAP`，侧重于查
+	- 数据量规模不同，`Hive` 支持很大规模的数据计算
+	- 存储位置不同，`Hive` 存储在 `HDFS`，`MySQL` 将数据保存在文件系统中
+	- `Hive` 不建议对数据进行修改
+	- `Hive` 执行延迟较高，数据库执行延迟较低
+
+#### 3. 内部表和外部表
+- 删表时
+	- 内部表删除元数据和数据本身
+	- 外部表只删除元数据信息，数据本身还在
+	- 可以相互转换
+``` sql
+alter table t set TBLPROPERTIES('EXTERNAL'='true/false')
+```
+- 绝大部分情况下使用外部表，测试使用的临时表可以创建内部表
+
+#### 4. 四个 By
+
+- order by
+	- 默认升序
+	- 全局排序，将所有数据集中在一个 reduce 中
+	- 严格模式下，需要使用 limit
+- sort by
+	- 区内排序，在数据进入 Reducer 前完成排序，为每个 reducer 产生排序后的文件
+- distribute by
+	- 控制 Map 端如何拆分数据给 Reduce 端，类似 MR 中的分区器
+	- hive 根据 distribute by 后面d
+- cluster by

@@ -103,7 +103,33 @@ GROUP BY a, b, c GROUPING SETS ((a, b, c), (a, b), (a), ( ))
 
 #### 6. 优化
 ##### 6.1 建表
-- 分区：根据分区存储到不同的路径下
-- 分桶：根据分桶的字段将数据存储到相应的文件中
-- 文件格式：列存
+- 分区：根据分区存储到不同的路径下，防止后续全表扫描
+- 分桶：根据分桶的字段将数据存储到相应的文件中，对未知的复杂的数据进行提前采样
+- 文件格式：列存(orc, parquet)
 - 压缩
+##### 6.2 写 SQL
+- 单表：
+	- 行列过滤(提前进行 where，不使用 select * )
+	- 矢量计算：批量读取数据，默认 1024 条
+	- map-side 聚合 `set hive.map.aggr=true; 默认true`，预聚合，减少 `shuffle` 数据量
+	- 某些没有依赖关系的 Stage 可以同时执行 `set hive.exec.parallel=true`
+- 多表：
+	- CBO (Cost Based Optimizer): 在 join 时计算成本，选择最佳的 join 方式，默认开启
+	- 谓词下推
+		- 尽量将过滤造作前移，以减少后续计算的数据量
+```sql
+-- 过滤条件为关联条件，下推至两张表
+select * from t1 join t2 on t1.id = t2.id where t1.id > 50
+-- 过滤条件不是关联条件，只会下推到相关表
+select * from t1 join t2 on t1.id = t2.id where t1.age > 50
+-- left join 相同，无论什么join，只要是关联条件就会下推到两张表
+select * from t1 left join t2 on t1.id = t2.id where t1.id > 50
+select * from t1 left join t2 on t1.id = t2.id where t1.age > 50
+-- 下推到两张表
+select * from t1 left join t2 on t1.id = t2.id where t2.id > 50
+-- 特殊情况，下推到t2表会导致结果发生变化
+-- 2.x 谓词下推失效
+-- 3.x 下推到相关表，将left join 变为 join
+select * from t1 left join t2 on t1.id = t2.id where t2.age > 50
+```
+	

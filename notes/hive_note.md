@@ -68,4 +68,31 @@ alter table t set TBLPROPERTIES('EXTERNAL'='true/false')
 	- `ntile(INTEGER x)`: 将有序分区分为 x 份并标号，适用于求前 x%的数据
 - 开窗范围
 	- `partition by a order by b`
-	- `distribute by a sor`
+	- `distribute by a sort by b` 作用同上，固定搭配
+	- `rows between`:
+		- `current row`
+		- `n rows preceding`
+		- `n rows following`
+- eg:
+```sql
++-----+                                               +--------------+
+| num |  select sum(num) over(order by num) from t    |  sum_window  |
++-----+  ------------------------------------------>  +--------------+  
+|  1  |   over 不指定窗口范围但是有 order by 时       |      1       |
+|  2  |   默认范围是从开始到当前值                    |      3       |
+|  3  |   order by <= 当前值的所有数据都会开一个窗口  |      9       |
+|  3  |   因此两个 3 会放在同一个窗口里               |      9       |
+|  4  |                                               |      13      |
+|  5  |                                               |      18      |
++-----+                                               +--------------+
+```
+##### 5.3 多维分析函数
+```sql
+GROUP BY a, b, c WITH CUBE
+-- 等价于
+GROUP BY a, b, c GROUPING SETS ((a, b, c), (a, b),  ...)
+
+GROUP BY a, b, c with ROLLUP
+-- 等价于
+GROUP BY a, b, c GROUPING SETS ((a, b, c), (a, b), (a), ( )).
+```

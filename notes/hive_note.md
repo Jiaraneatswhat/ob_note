@@ -132,4 +132,19 @@ select * from t1 left join t2 on t1.id = t2.id where t2.id > 50
 -- 3.x 下推到相关表，将left join 变为 join
 select * from t1 left join t2 on t1.id = t2.id where t2.age > 50
 ```
-	
+- 大表 join 小表(数据量 < 25M) -> map join
+- 大表 join 大表 
+	- SMB(Sort Merge Bucket) Map Join
+	- 参与 join 的表是分桶表，分桶字段为 join 的关联字段
+	- 分桶数有倍数关系，将相对小表分桶后尽量达到可以 merge 的条件，让每个桶小于 25M
+- 整体：
+	- 本地模式
+	- Fetch 抓取(默认开启)，简单的 SQL 就不会执行 MR
+	- 严格模式
+	- 调整 Mapper 个数：
+		- `splitSize = max(1, min(blockSize, LONG_MAX_VALUE))`
+		- 增加 `Mapper` 个数需要减小 `splitSize`，`blockSize` 一般不做更改，减小 `LONG_MAX_VALUE`
+		- 减少 `Mapper` 个数需要增大 `splitSize`，增大 1
+	- 调整 Reducer 个数：
+		- 默认 -1
+		- `min(fileSize / 256M, 1009)`

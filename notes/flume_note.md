@@ -292,21 +292,14 @@ public synchronized void supervise(LifecycleAware lifecycleAware,
 ```java
 public synchronized void configure(Context context) {  
   String fileGroups = context.getString(FILE_GROUPS);  
-  Preconditions.checkState(fileGroups != null, "Missing param: " + FILE_GROUPS);  
-  
   filePaths = selectByKeys(context.getSubProperties(FILE_GROUPS_PREFIX),  
                            fileGroups.split("\\s+"));  
-  Preconditions.checkState(!filePaths.isEmpty(),  
-      "Mapping for tailing files is empty or invalid: '" + FILE_GROUPS_PREFIX + "'");  
-  
   String homePath = System.getProperty("user.home").replace('\\', '/');  
   positionFilePath = context.getString(POSITION_FILE, homePath + DEFAULT_POSITION_FILE);  
   Path positionFile = Paths.get(positionFilePath);  
   try {  
     Files.createDirectories(positionFile.getParent());  
-  } catch (IOException e) {  
-    throw new FlumeException("Error creating positionFile parent directories", e);  
-  }  
+  }
   headerTable = getTable(context, HEADERS_PREFIX);  
   batchSize = context.getInteger(BATCH_SIZE, DEFAULT_BATCH_SIZE);  
   skipToEnd = context.getBoolean(SKIP_TO_END, DEFAULT_SKIP_TO_END);  
@@ -325,12 +318,6 @@ public synchronized void configure(Context context) {
   fileHeaderKey = context.getString(FILENAME_HEADER_KEY,  
           DEFAULT_FILENAME_HEADER_KEY);  
   maxBatchCount = context.getLong(MAX_BATCH_COUNT, DEFAULT_MAX_BATCH_COUNT);  
-  if (maxBatchCount <= 0) {  
-    maxBatchCount = DEFAULT_MAX_BATCH_COUNT;  
-    logger.warn("Invalid maxBatchCount specified, initializing source "  
-        + "default maxBatchCount of {}", maxBatchCount);  
-  }  
-  
   if (sourceCounter == null) {  
     sourceCounter = new SourceCounter(getName());  
   }  

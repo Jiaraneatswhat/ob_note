@@ -92,7 +92,18 @@ GROUP BY a, b, c WITH CUBE
 -- 等价于
 GROUP BY a, b, c GROUPING SETS ((a, b, c), (a, b),  ...)
 
-GROUP BY a, b, c with ROLLUP
+GROUP BY a, b, c with ROLLUP -- 适用于层级维度(如：年月日)
 -- 等价于
-GROUP BY a, b, c GROUPING SETS ((a, b, c), (a, b), (a), ( )).
+GROUP BY a, b, c GROUPING SETS ((a, b, c), (a, b), (a), ( ))
 ```
+##### 5.4 自定义函数(按行算)
+- UDF: 一进一出
+- UDTF: 一进多出
+- UDAF：多进多出
+
+#### 6. 优化
+##### 6.1 建表
+- 分区
+- 分桶
+- 文件格式：列存
+- 压缩

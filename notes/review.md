@@ -2,13 +2,18 @@
 
 - 查看内存: 
 	- `top` 
-	- `free -m` 
+	- `free -m `:  默认 `kb` 使用 `mb` 显示大小 `
 	- `java` 进程 `jmap -heap` 
 - 查看磁盘
-	- `df -h`
-	- `du -sh`
-- 查看端口 `netstat -anp`
+	- `df -h`: -h 格式化输出
+	- `du -sh`:  -s summary -h 格式化
+- 查看端口 `netstat -anp` 
+	- -a all 
+	- -n 不显示别名 
+	- -p 显示 pid, pname
 - 查看进程 `ps -ef`
+	- -e 显示全部
+	- -f 显示全部字段
 
 #### 2. 启动停止脚本
 ```shell

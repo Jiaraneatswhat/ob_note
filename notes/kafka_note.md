@@ -1719,5 +1719,25 @@ private def elect(): Unit = {
     }
 }
 
+def registerControllerAndIncrementControllerEpoch(controllerId: Int): (Int, Int) = {
+	val (curEpoch, curEpochZkVersion) = getControllerEpoch
+    .map(e => (e._1, e._2.getVersion))
+    // 在zk上创建节点
+    .getOrElse(maybeCreateControllerEpochZNode()
+	// epoch + 1
+    val newControllerEpoch = curEpoch + 1
+    val expectedControllerEpochZkVersion = curEpochZkVersion
+}
+```
+### 2.2.5 去 Zk 创建节点
+```java
+private def maybeCreateControllerEpochZNode(): (Int, Int) = {  
+  createControllerEpochRaw(KafkaController.InitialControllerEpoch).resultCode match {...}
 
+// ControllerEpochZNode.path = "/controller_epoch"
+def createControllerEpochRaw(epoch: Int): CreateResponse = {  
+  val createRequest = CreateRequest(ControllerEpochZNode.path, ControllerEpochZNode.encode(epoch),  
+    defaultAcls(ControllerEpochZNode.path), CreateMode.PERSISTENT)  
+  retryRequestUntilConnected(createRequest)  
+}
 ```

@@ -2046,4 +2046,6 @@ public void create(
 - 来一条 2M 的数据，Kafka 会产生什么现象
 	- 卡死，默认的最大的数据大小为 1M
 ## 4.7 生产流程
-- 
+- 创建一个 `KafkaProducer` 对象，给 `Producer` 配置拦截器，序列化器，分区器，创建一个 `RecordAccumulator` 对象以及一个线程池，开启 `Sender` 线程，创建 `NetworkClient` 用于连接 `Broker`
+- 调用 `send` 方法，数据经过拦截器，序列化器，分区器后发送到 `RecordAccumulator` 中，未达到数据发送条件时，`sender` 线程会阻塞
+- 当数据达到 `batchSize` (`batch.size 默认16k`) 或到达等待时间(`linger.ms 默认0s`)，会唤醒 `Sender` 线程，通过 `Selector` 选择 `Channel` 

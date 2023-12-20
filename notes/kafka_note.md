@@ -1318,33 +1318,55 @@ public int partition(String topic, Cluster cluster) {
 }
 
 public int nextPartition(String topic, Cluster cluster, int prevPartition) {  
-    List<PartitionInfo> partitions = cluster.partitionsForTopic(topic);  
-    Integer oldPart = indexCache.get(topic);  
-    Integer newPart = oldPart;  
-    // Check that the current sticky partition for the topic is either not set or that the partition that   
-    // triggered the new batch matches the sticky partition that needs to be changed.  
+    List<PartitionInfo> partitions = cluster.partitionsForTopic(topic); // null
+    Integer oldPart = indexCache.get(topic); // null
+    Integer newPart = oldPart; // null  
     if (oldPart == null || oldPart == prevPartition) {  
+        // 可用的分区
         List<PartitionInfo> availablePartitions = cluster.availablePartitionsForTopic(topic);  
-        if (availablePartitions.size() < 1) {  
-            Integer random = Utils.toPositive(ThreadLocalRandom.current().nextInt());  
-            newPart = random % partitions.size();  
-        } else if (availablePartitions.size() == 1) {  
-            newPart = availablePartitions.get(0).partition();  
+        if (availablePartitions.size() < 1) {// 产生新的分区号
+        } 
+        else if (availablePartitions.size() == 1) {  
+            // 集合中唯一一个元素的分区  
         } else {  
+	        // 可用分区数有多个, 循环直到分区号与之前不同
             while (newPart == null || newPart.equals(oldPart)) {  
                 int random = Utils.toPositive(ThreadLocalRandom.current().nextInt());  
                 newPart = availablePartitions.get(random % availablePartitions.size()).partition();  
             }  
-        }  
-        // Only change the sticky partition if it is null or prevPartition matches the current sticky partition.  
-        if (oldPart == null) {  
-            indexCache.putIfAbsent(topic, newPart);  
-        } else {  
-            indexCache.replace(topic, prevPartition, newPart);  
-        }  
+        }    
         return indexCache.get(topic);  
     }  
     return indexCache.get(topic);  
+}
+
+// UniformStickyPartitioner 还定义了 onNewBatch 方法，产生新的批次时会立即更换分区
+public void onNewBatch(String topic, Cluster cluster, int prevPartition) {  
+    stickyPartitionCache.nextPartition(topic, cluster, prevPartition);  
+}
+```
+### 1.5.3 RoundRobinPartitioner
+```java
+public int partition(String topic, Object key, byte[] keyBytes, Object value, byte[] valueBytes, Cluster cluster) {  
+    List<PartitionInfo> partitions = cluster.partitionsForTopic(topic);  
+    int numPartitions = partitions.size();  
+    int nextValue = nextValue(topic);  
+    List<PartitionInfo> availablePartitions = cluster.availablePartitionsForTopic(topic);  
+    // 有可用的分区时，用+1的值mod可用分区数
+    if (!availablePartitions.isEmpty()) {  
+        int part = Utils.toPositive(nextValue) % availablePartitions.size();  
+        return availablePartitions.get(part).partition();  
+        // 否则不分区
+    } else {  
+        // no partitions are available, give a non-available partition  
+        return Utils.toPositive(nextValue) % numPartitions;  
+    }  
+}
+
+// +1
+private int nextValue(String topic) {  
+    AtomicInteger counter = topicCounterMap.computeIfAbsent(topic, k -> new AtomicInteger(0));  
+    return counter.getAndIncrement();  
 }
 ```
 # 2. Broker
@@ -1907,4 +1929,5 @@ public void create(
 		- ProducerRecord 中指定分区直接发往指定分区
 		- 未指定分区，但是有 Key，通过 hash 值
 	- 粘性
-	- 轮询
+	- 轮询：每次加 1 后取余，避免数据每次第一次发送给同一个分区
+- ack

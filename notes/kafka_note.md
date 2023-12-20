@@ -1564,7 +1564,161 @@ def startup() = {
   })  
   // ControllerEventManager 中定义了一个 QueuedEvent
   controllerContext.stats.rateAndTimeMetrics)
+  // 将 Startup 类型的 ControllerEvent 添加到集合中
   eventManager.put(Startup)  
+  // 启动 ControllerEventManager
   eventManager.start()  
 }
+```
+### 2.2.2 启动 ControllerEventManager
+```scala
+// 定义了ControllerEventThread
+// thread = new ControllerEventThread(ControllerEventThreadName)
+// 启动 thread
+def start(): Unit = thread.start()
+// ControllerEventThread 继承了 ShutdownableThread，run方法会调用doWork
+override def doWork(): Unit = {
+  // 取出一个事件
+  val dequeued = pollFromEventQueue()  
+  dequeued.event match {  
+    case ShutdownEventThread => // The shutting down of the thread has been initiated at this point. Ignore this event.  
+    case controllerEvent =>  
+      _state = controllerEvent.state   
+      try {  
+        def process(): Unit = dequeued.process(processor)  
+
+		// 根据 state 调用process
+        rateAndTimeMetrics.get(state) match {  
+          case Some(timer) => timer.time { process() }  
+          case None => process()  
+        }  
+      } 
+      _state = ControllerState.Idle  
+  }  
+}
+```
+### 2.2.3 Controller 处理 Startup 事件
+```scala
+override def process(event: ControllerEvent): Unit = {  
+  try {  
+    event match {
+	    case Startup =>  
+			processStartup()
+		}
+	}
+}
+
+private def processStartup(): Unit = {
+	// 注册 ControllerChangeHandler 监听器
+	zkClient.registerZNodeChangeHandlerAndCheckExistence(controllerChangeHandler) 
+	// 选举
+	elect()  
+}
+
+// Controller 初始化时会创建一个 ControllerChangeHandler，用于处理 controller 的变化
+class ControllerChangeHandler(eventManager: ControllerEventManager) extends ZNodeChangeHandler {
+  override val path: String = ControllerZNode.path
+
+  override def handleCreation(): Unit = eventManager.put(ControllerChange)
+  // controller节点消失时，向eventManager中放入Reelect事件
+  override def handleDeletion(): Unit = eventManager.put(Reelect)
+  // 节点数据发生变化时，放入ControllerChange事件
+  override def handleDataChange(): Unit = eventManager.put(ControllerChange)
+}
+
+// case Reelect => processReelect()
+// case ControllerChange => processControllerChange()
+
+private def processReelect(): Unit = {
+    maybeResign()
+    elect()
+}
+
+private def processControllerChange(): Unit = {
+    maybeResign()
+}
+
+// 该broker之前是controller，需要先卸任，再重新竞选，否则直接竞选
+private def maybeResign(): Unit = {
+    // 判断之前是不是controller
+    val wasActiveBeforeChange = isActive
+    // 注册ControllerChangeHandler监听器
+    zkClient.registerZNodeChangeHandlerAndCheckExistence(controllerChangeHandler)
+    activeControllerId = zkClient.getControllerId.getOrElse(-1)
+    // 之前是controller现在不是，需要卸任
+    if (wasActiveBeforeChange && !isActive) {
+        onControllerResignation()
+    }
+}
+
+private def onControllerResignation(): Unit = {
+    debug("Resigning")
+    // de-register listeners
+    // 取消ZooKeeper监听器的注册
+    zkClient.unregisterZNodeChildChangeHandler(isrChangeNotificationHandler.path)
+    zkClient.unregisterZNodeChangeHandler(partitionReassignmentHandler.path)
+    zkClient.unregisterZNodeChangeHandler(preferredReplicaElectionHandler.path)
+    zkClient.unregisterZNodeChildChangeHandler(logDirEventNotificationHandler.path)
+    unregisterBrokerModificationsHandler(brokerModificationsHandlers.keySet)
+
+    // shutdown leader rebalance scheduler
+    // 关闭Kafka线程调度器，其实就是取消定期的Leader重选举
+    // 将统计字段全部清0
+    kafkaScheduler.shutdown()
+    offlinePartitionCount = 0
+    preferredReplicaImbalanceCount = 0
+    globalTopicCount = 0
+    globalPartitionCount = 0
+    topicsToDeleteCount = 0
+    replicasToDeleteCount = 0
+    ineligibleTopicsToDeleteCount = 0
+    ineligibleReplicasToDeleteCount = 0
+
+    // stop token expiry check scheduler
+    if (tokenCleanScheduler.isStarted)
+      tokenCleanScheduler.shutdown()
+
+    // de-register partition ISR listener for on-going partition reassignment task
+    // 取消分区重分配监听器的注册
+    unregisterPartitionReassignmentIsrChangeHandlers()
+    // shutdown partition state machine
+     // 关闭分区状态机
+    partitionStateMachine.shutdown()
+    // 取消主题变更监听器的注册
+    zkClient.unregisterZNodeChildChangeHandler(topicChangeHandler.path)
+    // 取消分区变更监听器的注册
+    unregisterPartitionModificationsHandlers(partitionModificationsHandlers.keys.toSeq)
+    // 取消主题删除监听器的注册
+    zkClient.unregisterZNodeChildChangeHandler(topicDeletionHandler.path)
+    // shutdown replica state machine
+    replicaStateMachine.shutdown()
+    zkClient.unregisterZNodeChildChangeHandler(brokerChangeHandler.path)
+
+    controllerChannelManager.shutdown()
+    // 清空集群元数据
+    controllerContext.resetContext()
+
+}
+```
+### 2.2.4 选举
+```scala
+private def elect(): Unit = {
+    activeControllerId = zkClient.getControllerId.getOrElse(-1)
+    // 其他broker再获取controllerId时，此时不为-1直接返回
+    if (activeControllerId != -1) {
+      debug(s"Broker $activeControllerId has been elected as the controller, so stopping the election process.")
+      return
+    }
+    try {
+      // broker 向 controller 注册自己
+      val (epoch, epochZkVersion) = zkClient.registerControllerAndIncrementControllerEpoch(config.brokerId)
+      controllerContext.epoch = epoch
+      controllerContext.epochZkVersion = epochZkVersion
+      activeControllerId = config.brokerId
+      
+      onControllerFailover()
+    }
+}
+
+
 ```

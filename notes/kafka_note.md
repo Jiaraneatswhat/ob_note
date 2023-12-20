@@ -1947,8 +1947,14 @@ public void create(
 		- 第一次启动时(新的消费者组), 没有初始的 `offset` 时也会触发
 		- 保证了存储数据的一致性
 
-## 4.3 消费者组
+## 4.3 消费者
 - 分区分配策略
 	- `RangeAssignor`：按范围分
-	- `RoundRobinAssignor`：
+	- `RoundRobinAssignor`：对消费者进行排序后，轮询消费
+	- `StickyAssignor`：在重新分区时，尽量保证原有分区与消费者之间的绑定关系不变
 - Offset 存储
+	- 老版本：`zk`
+	- 新版本：`__consumer_offsets` 50 个分区
+	- 手动维护：`Flink：Checkpoint`
+
+ -

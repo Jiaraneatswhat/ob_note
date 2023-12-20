@@ -1547,7 +1547,24 @@ class ZooKeeperClient(connectString: String,
 
 ![[controller_select.svg]]
 
-### 2.2.1 
+### 2.2.1 启动 Controller
 ```scala
-
+def startup() = {  
+  zkClient.registerStateChangeHandler(new StateChangeHandler {  
+    override val name: String = StateChangeHandlers.ControllerHandler  
+    override def afterInitializingSession(): Unit = {  
+      eventManager.put(RegisterBrokerAndReelect)  
+    }  
+    override def beforeInitializingSession(): Unit = {  
+      val queuedEvent = eventManager.clearAndPut(Expire)  
+  
+      // Block initialization of the new session until the expiration event is being handled,  
+      // which ensures that all pending events have been processed before creating the new session      queuedEvent.awaitProcessing()  
+    }  
+  })  
+  // ControllerEventManager 中定义了一个 QueuedEvent
+  controllerContext.stats.rateAndTimeMetrics)
+  eventManager.put(Startup)  
+  eventManager.start()  
+}
 ```

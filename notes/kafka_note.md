@@ -1980,5 +1980,34 @@ public void create(
 	- `kafka-producer-perf-test.sh` (<font color='red'>perf</font>ormance)
 		- --record-size: 一条消息的大小(byte)
 		- --num-records
-		- --through
+		- --throughput: 每秒的吞吐量
 	- `kafka-consumer-perf-test.sh` 
+		- --broker-list
+		- --topic
+		- --fetch-size
+		- --messages
+- 机器台数: `峰值速度 / min(生产速率，消费速率)`
+- 监控：通过 eagle
+	- 生产、消费速度
+	- lag: 消费数据与 `Kafka` 中 `offset` 的差值，是否存在数据积压问题
+- 保存天数更改为 3 天
+## 4.2 挂了
+- 多副本可以保证数据不丢
+- Flume，日志文件解耦
+- 大部分情况下是内存的原因
+## 4.3 数据丢失
+- 生产者丢数据
+	- ack 不是 -1
+	- 解决：将 `ack` 设置为 -1，如果此时 `follower` 副本超过了同步时间，进入 `osr` 队列时，此时只会有 `leader` 进行响应，相当于 `ack` 变为了 1
+	- 因此还需要 `isr` 中副本数 >= 2
+- 消费者丢数据
+	- 消费者消费到数据后，先保存 o ffset，再保存数据
+	- 保存 offset 后，任务挂掉，重启后会接着 offset 进行消费，导致数据丢失
+	- 解决：先保存数据，再保存 offset
+## 4.4 数据重复
+- 生产者
+	- ack 设置为-1 时有可能导致数据重复
+	- 解决：幂等，事务
+- 消费者
+	- 先保存数据，再 保存 offset 有可能导致数据重复
+	- 

@@ -1547,6 +1547,8 @@ class ZooKeeperClient(connectString: String,
 
 ![[controller_select.svg]]
 
+![[controller_first_elect.svg]]
+
 ### 2.2.1 启动 Controller
 ```scala
 def startup() = {  

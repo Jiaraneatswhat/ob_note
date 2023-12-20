@@ -1939,3 +1939,16 @@ public void create(
 - 主题名-分区号作为目录名进行物理存储
 - 分区：提高吞吐量，增加了负载均衡的能力
 - 副本：提高可靠性
+	- `ISR + OSR = AR`
+	- `LEO`：每个副本最大的 `offset + 1`
+	- `HW`: 同一个分区中，多个副本最小的 `LEO`
+		- 消费者可见的最大 `offset`
+		- 当需要消费的 `offset` 超过记录的 `offset` 时，会触发  `auto.offset.reset`
+		- 第一次启动时(新的消费者组), 没有初始的 `offset` 时也会触发
+		- 保证了存储数据的一致性
+
+## 4.3 消费者组
+- 分区分配策略
+	- `RangeAssignor`：按范围分
+	- `RoundRobinAssignor`：
+- Offset 存储

@@ -77,7 +77,7 @@ alter table t set TBLPROPERTIES('EXTERNAL'='true/false')
 ```sql
 +-----+                                               +--------------+
 | num |  select sum(num) over(order by num) from t    |  sum_window  |
-+-----+  ------------------------------------------>  +--------------+  
++-----+  ------------------------------------------>  +--------------+ 
 |  1  |   over 不指定窗口范围但是有 order by 时       |      1       |
 |  2  |   默认范围是从开始到当前值                    |      3       |
 |  3  |   order by <= 当前值的所有数据都会开一个窗口  |      9       |
@@ -155,6 +155,9 @@ select * from t1 left join t2 on t1.id = t2.id where t2.age > 50
 - 原因
 	- 单表 `group by`
 	- 多表 `join`
+	 
+	 ![[unoptimized_big2big_join.svg]]
+	 
 	- map 端文件不可切时，文件大小差距也可能造成数据倾斜
 		- 解决方法：HDFS Sink 限制了单个文件的大小
 - 解决
@@ -164,6 +167,8 @@ select * from t1 left join t2 on t1.id = t2.id where t2.age > 50
 	- 多表
 		- 大表 join 小表 -> map join
 		- 大表 join 大表
-
-		 ![[unoptimized_big2big_join.svg]]
-				- 不能使用 SMB Map Join，因为fen'ron
+			- 不能使用 SMB Map Join，因为分桶后 join 时仍然是倾斜的
+			- 相对大表加随机数打散，相对小表加随机数扩容
+	
+	![[optimized_big2big_join.svg]]
+	

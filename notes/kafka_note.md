@@ -1735,9 +1735,76 @@ private def maybeCreateControllerEpochZNode(): (Int, Int) = {
   createControllerEpochRaw(KafkaController.InitialControllerEpoch).resultCode match {...}
 
 // ControllerEpochZNode.path = "/controller_epoch"
+// 创建持久节点
 def createControllerEpochRaw(epoch: Int): CreateResponse = {  
   val createRequest = CreateRequest(ControllerEpochZNode.path, ControllerEpochZNode.encode(epoch),  
     defaultAcls(ControllerEpochZNode.path), CreateMode.PERSISTENT)  
   retryRequestUntilConnected(createRequest)  
+}
+
+private def retryRequestsUntilConnected[Req <: AsyncRequest](requests: Seq[Req]): Seq[Req#Response] = {  
+  while (remainingRequests.nonEmpty) {  
+    val batchResponses = zooKeeperClient.handleRequests(remainingRequests)  
+  responses  
+}
+
+// ZooKeeperClient 处理请求
+def handleRequests[Req <: AsyncRequest](requests: Seq[Req]): Seq[Req#Response] = {  
+  if (requests.isEmpty) 
+  else {  
+    requests.foreach { request =>  
+      inFlightRequests.acquire()  
+      try {  
+        inReadLock(initializationLock) {  
+          // 向 ZooKeeperClient 发送请求
+          send(request) { response =>  
+            responseQueue.add(response)  
+            inFlightRequests.release()  
+            countDownLatch.countDown()  
+          }  
+        }  
+      } 
+    }  
+  }  
+}
+
+private[zookeeper] def send[Req <: AsyncRequest](request: Req)(processResponse: Req#Response => Unit): Unit = {  
+  // ZooKeeperClient中创建了org.apache.zookeeper包中的zk对象
+  // zooKeeper = new ZooKeeper
+  request match {  
+    // 创建节点请求
+    case CreateRequest(path, data, acl, createMode, ctx) =>  
+      zooKeeper.create(path, data, acl.asJava, createMode,  
+        (rc, path, ctx, name) =>  
+          callback(CreateResponse(Code.get(rc), path, Option(ctx), name, responseMetadata(sendTimeMs))),  
+        ctx.orNull)  
+  }  
+}
+
+// ZooKeeper.java
+public void create(  
+    final String path,  
+    byte[] data,  
+    List<ACL> acl,  
+    CreateMode createMode,  
+    StringCallback cb,  
+    Object ctx) {  
+    final String clientPath = path;  
+    PathUtils.validatePath(clientPath, createMode.isSequential());  
+    EphemeralType.validateTTL(createMode, -1);  
+  
+    final String serverPath = prependChroot(clientPath);  
+    // 请求头
+    RequestHeader h = new RequestHeader();  
+    h.setType(createMode.isContainer() ? ZooDefs.OpCode.createContainer : ZooDefs.OpCode.create);  
+    CreateRequest request = new CreateRequest();  
+    CreateResponse response = new CreateResponse();  
+    ReplyHeader r = new ReplyHeader();  
+    request.setData(data);  
+    request.setFlags(createMode.toFlag());  
+    request.setPath(serverPath);  
+    request.setAcl(acl);  
+    // cnxn 发送 Packet
+    cnxn.queuePacket(h, r, request, response, cb, clientPath, serverPath, ctx, null);  
 }
 ```

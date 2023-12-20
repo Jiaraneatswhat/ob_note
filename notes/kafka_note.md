@@ -1261,6 +1261,92 @@ def appendRecordsToLeader(records: MemoryRecords, origin: AppendOrigin, required
     info.copy(leaderHwChange = if (leaderHWIncremented) LeaderHwChange.Increased else LeaderHwChange.Same)
 }
 ```
+## 1.5 生产者的分区器
+- Partitioner 接口有三个子类
+	- DefaultPartitioner
+	- UniformStickyPartitioner
+	- RoundRobinPartitioner
+### 1.5.1 DefaultPartitioner
+- 分区策略
+	- `ProducerRecord` 中指定分区直接发往指定分区
+	- 未指定分区，但是有 Key，通过 hash 值
+	- 分区和 Key 都没有指定，通过粘性分区器处理
+```java
+public int partition(String topic, Object key, byte[] keyBytes, Object value, byte[] valueBytes, Cluster cluster) {  
+    return partition(topic, key, keyBytes, value, valueBytes, cluster, cluster.partitionsForTopic(topic).size());  
+}
+
+// Cluster 中存放了 topic 和 partition 对应的映射关系
+// private final Map<String, List<PartitionInfo>> partitionsByTopic;
+// private final Map<TopicPartition, PartitionInfo> partitionsByTopicPartition;
+// 首先去已经保存过的映射关系中，查找对应的分区
+public List<PartitionInfo> partitionsForTopic(String topic) {  
+    return partitionsByTopic.getOrDefault(topic, Collections.emptyList());  
+}
+
+public int partition(String topic, Object key, byte[] keyBytes, Object value, byte[] valueBytes, Cluster cluster,  
+                     int numPartitions) {  
+	 // 未指定 key，通过粘性分区器处理
+    if (keyBytes == null) {  
+        return stickyPartitionCache.partition(topic, cluster);  
+    }  
+    // 指定了 key，计算 hash 值
+    return BuiltInPartitioner.partitionForKey(keyBytes, numPartitions);  
+}
+
+// BuiltInPartitioner.java
+// murmur2 算法求 hash
+public static int partitionForKey(final byte[] serializedKey, final int numPartitions) {  
+    return Utils.toPositive(Utils.murmur2(serializedKey)) % numPartitions;  
+}
+```
+### 1.5.2 UniformStickyPartitioner
+```java
+// UniformStickyPartitioner 中创建了一个 StickyPartitionCache 用于决定当前主题的分区
+public int partition(String topic, Object key, byte[] keyBytes, Object value, byte[] valueBytes, Cluster cluster) {  
+    return stickyPartitionCache.partition(topic, cluster);  
+}
+
+public int partition(String topic, Cluster cluster) {
+	// 已经缓存过 topic 
+    Integer part = indexCache.get(topic);  
+    if (part == null) {  
+	    // 计算新的分区
+        return nextPartition(topic, cluster, -1);  
+    }  
+    return part;  
+}
+
+public int nextPartition(String topic, Cluster cluster, int prevPartition) {  
+    List<PartitionInfo> partitions = cluster.partitionsForTopic(topic);  
+    Integer oldPart = indexCache.get(topic);  
+    Integer newPart = oldPart;  
+    // Check that the current sticky partition for the topic is either not set or that the partition that   
+    // triggered the new batch matches the sticky partition that needs to be changed.  
+    if (oldPart == null || oldPart == prevPartition) {  
+        List<PartitionInfo> availablePartitions = cluster.availablePartitionsForTopic(topic);  
+        if (availablePartitions.size() < 1) {  
+            Integer random = Utils.toPositive(ThreadLocalRandom.current().nextInt());  
+            newPart = random % partitions.size();  
+        } else if (availablePartitions.size() == 1) {  
+            newPart = availablePartitions.get(0).partition();  
+        } else {  
+            while (newPart == null || newPart.equals(oldPart)) {  
+                int random = Utils.toPositive(ThreadLocalRandom.current().nextInt());  
+                newPart = availablePartitions.get(random % availablePartitions.size()).partition();  
+            }  
+        }  
+        // Only change the sticky partition if it is null or prevPartition matches the current sticky partition.  
+        if (oldPart == null) {  
+            indexCache.putIfAbsent(topic, newPart);  
+        } else {  
+            indexCache.replace(topic, prevPartition, newPart);  
+        }  
+        return indexCache.get(topic);  
+    }  
+    return indexCache.get(topic);  
+}
+```
 # 2. Broker
 - 基本组件
 
@@ -1818,3 +1904,7 @@ public void create(
 - 序列化器
 - 分区器
 	- 默认 `DefaultPartitioner`
+		- ProducerRecord 中指定分区直接发往指定分区
+		- 未指定分区，但是有 Key，通过 hash 值
+	- 粘性
+	- 轮询

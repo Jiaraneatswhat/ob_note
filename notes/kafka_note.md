@@ -1697,10 +1697,9 @@ private def onControllerResignation(): Unit = {
     controllerChannelManager.shutdown()
     // 清空集群元数据
     controllerContext.resetContext()
-
 }
 ```
-### 2.2.4 选举
+### 2.2.4 第一次选举
 ```scala
 private def elect(): Unit = {
     activeControllerId = zkClient.getControllerId.getOrElse(-1)

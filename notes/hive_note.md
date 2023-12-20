@@ -111,12 +111,12 @@ GROUP BY a, b, c GROUPING SETS ((a, b, c), (a, b), (a), ( ))
 - 单表：
 	- 行列过滤(提前进行 where，不使用 select * )
 	- 矢量计算：批量读取数据，默认 1024 条
-	- map-side 聚合 `set hive.map.aggr=true; 默认true`，预聚合，减少 `shuffle` 数据量
+	- map-side 聚合 `hive.map.aggr=true; 默认true`，预聚合，减少 `shuffle` 数据量
 	- 某些没有依赖关系的 Stage 可以同时执行 `set hive.exec.parallel=true`
 - 多表：
 	- CBO (Cost Based Optimizer): 在 join 时计算成本，选择最佳的 join 方式，默认开启
 	- 谓词下推
-		- 尽量将过滤造作前移，以减少后续计算的数据量
+		- 尽量将过滤作前移，以减少后续计算的数据量
 ```sql
 -- 过滤条件为关联条件，下推至两张表
 select * from t1 join t2 on t1.id = t2.id where t1.id > 50
@@ -163,7 +163,7 @@ select * from t1 left join t2 on t1.id = t2.id where t2.age > 50
 - 解决
 	- 单表
 		- 不影响业务逻辑，可以进行一次预聚合
-		- 否则，可以添加随机数实现双重聚合，先对随机数拼接字段进行一次分组聚合，打散数据，再进行第二次聚合
+		- 否则，可以给分区字段添加随机数实现双重聚合，先对随机数拼接字段进行一次分组聚合，打散数据，再进行第二次聚合
 	- 多表
 		- 大表 join 小表 -> map join
 		- 大表 join 大表

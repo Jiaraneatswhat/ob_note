@@ -1810,3 +1810,11 @@ public void create(
     cnxn.queuePacket(h, r, request, response, cb, clientPath, serverPath, ctx, null);  
 }
 ```
+# 3. Consumer
+# 4. 复习
+## 4.1 生产流程
+- 两个线程：`main`， `sender`
+- 拦截器
+- 序列化器
+- 分区器
+	- 默认 `DefaultPartitioner`

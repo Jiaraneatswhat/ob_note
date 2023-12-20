@@ -1369,6 +1369,7 @@ private int nextValue(String topic) {
     return counter.getAndIncrement();  
 }
 ```
+## 1.6 生产者的单分区有序
 # 2. Broker
 - 基本组件
 
@@ -2028,5 +2029,13 @@ public void create(
 	- 零拷贝
 	- 顺序写磁盘
 - 能不能消费到 7 天前的数据
-	- `kafka` `segment` 的默认大小是 `1GB`
-	- 
+	- `Kafka` `segment` 的默认大小是 `1GB`
+	- 到达默认的删除时间是，会按照文件进行删除，需要文件中的最后一条数据到达 7 天才会删除
+	- 有可能一个文件中同时存在 7 天和 7 天前的数据
+- 如果新增了一条维度信息，马上进行了修改，修改数据比新增数据先写出到 `HBase`，如何解决
+	- 考察如何保证 `Kafka` 的数据有序性 
+	- 将新增和更新的数据发往同一个分区 -> 保证 `key` 相同 -> 按主键作为 `Kafka` 的 `key` 值
+	- `maxwell` 的配置文件中，通过 `producer_partition_by=primary_key` 设置
+	- 仅限于 `HBase`：将时间时间作为版本写入到 `HBase` 中
+- 来一条 2M 的数据，Kafka 会产生什么现象
+	- 卡死，默认的最大的数据大小为 1M

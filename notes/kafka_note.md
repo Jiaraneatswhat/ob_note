@@ -1369,7 +1369,13 @@ private int nextValue(String topic) {
     return counter.getAndIncrement();  
 }
 ```
-## 1.6 生产者的单分区有序
+## 1.6 单分区有序
+- 通过幂等实现
+- 未开启幂等，Broker 收到数据，还未返回 ack 时挂掉，重新生产数据时就会产生重复
+![[nonidempotent.png]]
+- 开启幂等，通过 `ProduceId` 来判断是否是同一个 `Producer`
+
+![[idempotent.png]]
 # 2. Broker
 - 基本组件
 
@@ -2039,3 +2045,5 @@ public void create(
 	- 仅限于 `HBase`：将时间时间作为版本写入到 `HBase` 中
 - 来一条 2M 的数据，Kafka 会产生什么现象
 	- 卡死，默认的最大的数据大小为 1M
+## 4.7 生产流程
+- 

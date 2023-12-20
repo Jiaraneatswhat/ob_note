@@ -1442,11 +1442,7 @@ checkpointBrokerMetadata(BrokerMetadata(config.brokerId, Some(clusterId)))
     }
 }
 ```
-## 2.2 Controller 选举 Leader
-
-![[controller_select.svg]]
-
-### 2.2.1 initZkClient()
+### 2.1.4 连接 zk 创建节点
 ```scala
 private def initZkClient(time: Time): Unit = {
     info(s"Connecting to zookeeper on ${config.zkConnect}")
@@ -1470,4 +1466,88 @@ private def initZkClient(time: Time): Unit = {
     _zkClient = createZkClient(config.zkConnect, secureAclsEnabled)
     _zkClient.createTopLevelPaths()
 }
+
+// KafkaZkClient的apply
+def apply(connectString: String,
+            isSecure: Boolean,
+            sessionTimeoutMs: Int,
+            connectionTimeoutMs: Int,
+            maxInFlightRequests: Int,
+            time: Time,
+            metricGroup: String = "kafka.server",
+            metricType: String = "SessionExpireListener",
+            name: Option[String] = None,
+            zkClientConfig: Option[ZKClientConfig] = None) = {
+	// 创建一个 ZooKeeperClient 和 KafkaZkClient
+    val zooKeeperClient = new ZooKeeperClient(connectString, sessionTimeoutMs, connectionTimeoutMs, maxInFlightRequests,
+      time, metricGroup, metricType, name, zkClientConfig)
+    new KafkaZkClient(zooKeeperClient, isSecure, time)
+}
+
+// KafkaZkClient对ZooKeeperClient进行封装，内部定义了对zk的操作
+class KafkaZkClient private[zk] (zooKeeperClient: ZooKeeperClient, isSecure: Boolean, time: Time) extends AutoCloseable with Logging with KafkaMetricsGroup {
+	def registerBroker(brokerInfo: BrokerInfo): Long = {...}
+    def registerControllerAndIncrementControllerEpoch(controllerId: Int): (Int, Int) = {...}
+    def updateLeaderAndIsr(
+    leaderAndIsrs: Map[TopicPartition, LeaderAndIsr],
+    controllerEpoch: Int,
+    expectedControllerEpochZkVersion: Int
+  ): UpdateLeaderAndIsrResult = {...}
+}
+
+class ZooKeeperClient(connectString: String,
+                      sessionTimeoutMs: Int,
+                      connectionTimeoutMs: Int,
+                      maxInFlightRequests: Int,
+                      time: Time,
+                      metricGroup: String,
+                      metricType: String,
+                      name: Option[String],
+                      zkClientConfig: Option[ZKClientConfig]) extends Logging with KafkaMetricsGroup {
+      // ZooKeeperClient内部定义了ZooKeeperClientWatcher用于监听zookeeper
+      private[zookeeper] object ZooKeeperClientWatcher extends Watcher {
+    override def process(event: WatchedEvent): Unit = {
+      debug(s"Received event: $event")
+      Option(event.getPath) match {
+        case None =>
+          val state = event.getState
+          stateToMeterMap.get(state).foreach(_.mark())
+          inLock(isConnectedOrExpiredLock) {
+            isConnectedOrExpiredCondition.signalAll()
+          }
+          if (state == KeeperState.AuthFailed) {
+            error("Auth failed.")
+            stateChangeHandlers.values.foreach(_.onAuthFailure())
+          } else if (state == KeeperState.Expired) {
+            scheduleSessionExpiryHandler()
+          }
+        case Some(path) =>
+          /*
+           * zNodeChildChangeHandlers有以下几个子类：
+           * BrokerChangeHandler
+           * IsrChangeNotificationHandler
+           * TopicDeletionHandler
+           * ChangeNotificationHandler
+           * LogDirEventNotificationHandler
+           * TopicChangeHandler
+           */
+          // 监听到节点的变化后，根据不同的event调用不同的handler
+          (event.getType: @unchecked) match {
+            case EventType.NodeChildrenChanged => zNodeChildChangeHandlers.get(path).foreach(_.handleChildChange())
+            case EventType.NodeCreated => zNodeChangeHandlers.get(path).foreach(_.handleCreation())
+            case EventType.NodeDeleted => zNodeChangeHandlers.get(path).foreach(_.handleDeletion())
+            case EventType.NodeDataChanged => zNodeChangeHandlers.get(path).foreach(_.handleDataChange())
+          }
+      }
+    }
+  }
+}
+```
+## 2.2 Controller 选举 Leader
+
+![[controller_select.svg]]
+
+### 2.2.1 
+```scala
+
 ```

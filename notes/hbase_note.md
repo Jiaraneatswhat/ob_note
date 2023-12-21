@@ -1171,6 +1171,7 @@ throws IOException, RuntimeException {
     long expectedSleep;  
     try {
 	  // 查找meta表位置  
+	  // ClientServiceCallable 继承了 RegionServerCallable，会调用父类的 prepare 方法
       callable.prepare(tries != 0);  
       interceptor.intercept(context.prepare(callable, tries));  
       return callable.call(getTimeout(callTimeout));  
@@ -2340,4 +2341,4 @@ byte[][] findRegionsToForceFlush() throws IOException {
 				- `MemStore`
 				- `StoreFile`
 ## 9.2 写流程
-- 客户端首先去
+- 客户端首先去自己的

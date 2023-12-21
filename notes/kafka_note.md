@@ -2050,5 +2050,5 @@ public void create(
 - 调用 `send` 方法，数据经过拦截器，序列化器，分区器后发送到 `RecordAccumulator` 中，未达到数据发送条件时，`sender` 线程会阻塞
 - 当数据达到 `batchSize` (`batch.size 默认16k`) 或到达等待时间(`linger.ms 默认0s`)，会唤醒 `Sender` 线程，通过 `Selector` 选择 `Channel` 向 `Leader` 发送 `ProducerRequest`
 - `Leader` 响应 `Producer` 的请求，完成写入，返回 ack
-
 ## 4.8 Broker 工作流程
+- 

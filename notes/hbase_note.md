@@ -2333,6 +2333,11 @@ byte[][] findRegionsToForceFlush() throws IOException {
 	- `HMaster`：管理元数据
 	- `RegionServer`：管理数据和 Region
 		- `WALFactory`：处理和 WAL 相关的请求
-		- BlockCache
-		- 
+		- `BlockCache`
+		- `Region`： 表的切片
+			- `WAL`
+			- `Store`：列族的切片
+				- `MemStore`
+				- `StoreFile`
+## 9.2 写流程
 

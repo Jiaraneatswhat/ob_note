@@ -2316,4 +2316,13 @@ private Result get(Get get, final boolean checkExistenceOnly) throws IOException
 - 向待写入表发起 Get 请求
 - `Server` 收到 `Get` 请求，创建 `MemStore` 和 `StoreFile` 的 `Scanner`
 	- `MemStore` 的 `Scanner` 在内存中直接读取
-	- `StoreFile` 的 `Scanner` 首先通过布隆过滤器进行索引，
+	- `StoreFile` 的 `Scanner` 
+		- 首先通过布隆过滤器读取文件的索引部分，对要检索的行的信息进行索引，判断文件中是否有要查询的行，接着根据信息找到行所在的数据块
+		- 根据 `Block` 的 `id` 判断是否已经在 `BlockCache` 中缓存过，缓存过的情况下不会读取 `StoreFile`，否则从 `StoreFile` 中扫描 `Block` 进行缓存
+	- 以为 `HBase` 中的数据存在版本，查到的数据不一定是版本最大的，因此将从 `MemStore`，`StoreFile`，`BlockCache` 中查到的所有数据进行合并
+		- 所有指数据是同一条数据的不同版本 (`ts`) 或不同的类型 (`PUT` / `DELETE`)
+	- 返回合并结果(非 `DELETE` 数据)
+## 9.4 刷写
+- RegionServer 级别：到达堆内存的 `40% * 95% = 38%` 时shua'xie
+## 9.5 
+

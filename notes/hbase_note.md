@@ -2340,4 +2340,4 @@ byte[][] findRegionsToForceFlush() throws IOException {
 				- `MemStore`
 				- `StoreFile`
 ## 9.2 写流程
-
+- 客户端首先去

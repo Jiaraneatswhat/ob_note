@@ -2322,3 +2322,17 @@ byte[][] findRegionsToForceFlush() throws IOException {
 }
 ```
 ## 5.6 Flush 写出 HFile
+
+# 6. 读流程
+# 7.
+# 8.
+# 9. 复习
+## 9.1 架构
+- 外部：`ZK`,  `HDFS`
+- 内部：
+	- `HMaster`：管理元数据
+	- `RegionServer`：管理数据和 Region
+		- `WALFactory`：处理和 WAL 相关的请求
+		- BlockCache
+		- 
+

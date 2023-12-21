@@ -2232,11 +2232,11 @@ protected FlushResultImpl internalFlushcache(WAL wal, long myseqid,
 }   
 ```
 ## 5.2 Region 级别
-- 当一个 `Region` 中所有的 memstore 的大小达到了 `hbase.hregion.memstore.flush.size(默认128M) *  hbase.hregion.memstore.block.multiplier(默认4)` 时，会阻止继续往该 `Region` 写数据，进行所有 memstore 的刷写
-- 在进行 `Region` 级别的操作(`split, merge, compact`)前，都会执行 requestFlush())
+- 当一个 `Region` 中所有的 `memstore` 的大小达到了 `hbase.hregion.memstore.flush.size(默认128M) *  hbase.hregion.memstore.block.multiplier(默认4)` 时，会阻止继续往该 `Region` 写数据，进行所有 `memstore` 的刷写
+- 在进行 `Region` 级别的操作(`split, merge, compact`)前，都会执行 `requestFlush()`
 ## 5.3 RegionServer 级别
-- 当一个 `Region Server` 中所有 `Memstore` 的大小总和达到了上限（`hbase.regionserver.global.memstore.upperLimit ＊ hbase_heapsize，默认 40%的 JVM 内存使用量`），会触发部分 `Memstore` 刷新
-- flush 顺序是按照 Memstore 由大到小执行，直至总体内存使用量低于阈值（`hbase.regionserver.global.memstore.lowerLimit ＊ hbase_heapsize，默认 38%的 JVM 内存使用量`）
+- 当一个 `RegionServer` 中所有 `Memstore` 的大小总和达到了上限（`hbase.regionserver.global.memstore.upperLimit ＊ hbase_heapsize，默认 40%的 JVM 内存使用量`），会触发部分 `Memstore` 刷新
+- flush 顺序是按照 `Memstore` 由大到小执行，直至总体内存使用量低于阈值（`hbase.regionserver.global.memstore.lowerLimit ＊ hbase_heapsize，默认 38%` ) 的 JVM 内存使用量）
 ![[RegionServerFlush.svg]]
 
 

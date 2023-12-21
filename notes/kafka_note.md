@@ -2052,5 +2052,12 @@ public void create(
 - `Leader` 响应 `Producer` 的请求，完成写入，返回 ack
 ## 4.8 Broker 工作流程
 - KafkaServer 在启动时会创建 Controller，ReplicaManager，LogManager，GroupCoordinator 等组件并启动
-- Controller 启动后会去 Zk 创建节点并注册 Watcher，先创建节点的成为 leader，如果 leader 节点挂了，
-- 
+- Controller 启动后会去 Zk 创建节点并注册 Watcher，先创建节点的成为 leader，如果 leader 节点挂了，zk 监听到节点的变化，就会触发重选举
+- Leader Controller 所在节点的 ReplicaManager 会选举 Partition 的 leader，以 isr 中存活为前提，按照 AR 排在前面的优先
+- ReplicaManager 会获取 isr，由 controller 将节点信息上传到zk
+## 4.9 消费者组消费流程
+- Consumer 向 GroupCoordinator 发起 joinGroup 请求，先发送的成为 leader consumer
+- GroupCoordinator 向 leader consumer 发送待消费主题的信息
+- leader consumer 制定消费方案发给 GroupCoordinator
+- GroupCoordinator 将消费方案发送给每个 Consumer
+- 每个 Consumer 和 GroupCoordinator 保持心跳，一旦超时，或者处理消息时间过长，就会被移除并触发再平衡

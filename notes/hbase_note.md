@@ -2346,7 +2346,43 @@ private Result get(Get get, final boolean checkExistenceOnly) throws IOException
 - Major Compaction 是指将一个 `Store` 中所有的 `HFile` 合并成一个 `HFile`，这个过程还会完全清理三类无意义数据：被删除的数据、`TTL` 过期数据、版本号超过设定版本号的数据
 ## 9.6 切分
 - 每个 Table 初始只有一个 Region，随着数据的不断写入，Region 会进行自动切分
+- 切分策略的类都继承自 `RegionSplitPolicy`，有两个方法
+	- `shouldSplit()`
+	- `getSplitPoint()`：返回 `row` 的值，将所有 `row` 分为两段
 - 切分的时机： `hbase.regionserver.region.split.policy`
 	- 默认 `org.apache.hadoop.hbase.regionserver.SteppingSplitPolicy`
 	- 如果 RS 只有一个 Region，按照 `2 * hbase.hregion.memstore.flush.size 刷写memstore大小` 进行切分
 	- 否则按照 `habse.hregion.max.filesize 默认10G` 进行切分
+## 9.7 数据删除时机
+- eg:
+```shell
+# 向 HBase 中 put 一条数据
+put 'table', 'rk', 'colFamily:xxx', 'val1' 
+# 更改数据
+put 'table', 'rk', 'colFamily:xxx', 'val2'
+# 通过 scan 查看历史版本数据
+scan 'table', {RAW=>TRUE, VERSIONS>=2}
+# 返回
+ROW           COLUMN+CELL
+rk            column=colFamily:xxx, timestamp=ts2, value=val2
+rk            column=colFamily:xxx, timestamp=ts1, value=val1 
+# 手动flush, 再进行查询时只能查到val2
+flush 'table'
+# 再更改一次数据
+put 'table', 'rk', 'colFamily:xxx', 'val3'
+# flush后查看
+ROW           COLUMN+CELL
+rk            column=colFamily:xxx, timestamp=ts3, value=val3
+rk            column=colFamily:xxx, timestamp=ts2, value=val2 
+```
+- 原因
+	- 第一次刷写后的 `val2` 在文件中，第二次再进行刷写时无法删除
+	- 刷写会删除在同一个 `MemStore` 中的过期数据
+	- 而合并会删除所有过期数据，`Major` 合并会删除数据的删除标记
+## 9.8 RowKey 设计
+### 9.8.1 设计原则
+- 唯一性，`rowkey` 需要包含事实的主键列
+- 散列性
+- 长度
+- 范围查询的需求应尽量连续紧凑分布
+- 随机查询的需求应尽量散列分布，保证负载均衡

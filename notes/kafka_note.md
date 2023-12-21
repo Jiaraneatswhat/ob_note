@@ -1376,6 +1376,9 @@ private int nextValue(String topic) {
 - 开启幂等，通过 `ProduceId` 来判断是否是同一个 `Producer`
 
 ![[idempotent.png]]
+```java
+
+```
 # 2. Broker
 - 基本组件
 
@@ -2043,21 +2046,21 @@ public void create(
 	- 将新增和更新的数据发往同一个分区 -> 保证 `key` 相同 -> 按主键作为 `Kafka` 的 `key` 值
 	- `maxwell` 的配置文件中，通过 `producer_partition_by=primary_key` 设置
 	- 仅限于 `HBase`：将事件时间作为版本写入到 `HBase` 中
-- 来一条 2M 的数据，Kafka 会产生什么现象
+- 来一条 2M 的数据，`Kafka` 会产生什么现象
 	- 卡死，默认的最大的数据大小为 1M
 ## 4.7 生产流程
 - 创建一个 `KafkaProducer` 对象，给 `Producer` 配置拦截器，序列化器，分区器，创建一个 `RecordAccumulator` 对象以及一个线程池，开启 `Sender` 线程，创建 `NetworkClient` 用于连接 `Broker`
 - 调用 `send` 方法，数据经过拦截器，序列化器，分区器后发送到 `RecordAccumulator` 中，未达到数据发送条件时，`sender` 线程会阻塞
 - 当数据达到 `batchSize` (`batch.size 默认16k`) 或到达等待时间(`linger.ms 默认0s`)，会唤醒 `Sender` 线程，通过 `Selector` 选择 `Channel` 向 `Leader` 发送 `ProducerRequest`
-- `Leader` 响应 `Producer` 的请求，完成写入，返回 ack
+- `Leader` 响应 `Producer` 的请求，完成写入，返回 `ack`
 ## 4.8 Broker 工作流程
-- KafkaServer 在启动时会创建 Controller，ReplicaManager，LogManager，GroupCoordinator 等组件并启动
-- Controller 启动后会去 Zk 创建节点并注册 Watcher，先创建节点的成为 leader，如果 leader 节点挂了，zk 监听到节点的变化，就会触发重选举
-- Leader Controller 所在节点的 ReplicaManager 会选举 Partition 的 leader，以 isr 中存活为前提，按照 AR 排在前面的优先
-- ReplicaManager 会获取 isr，由 controller 将节点信息上传到zk
+- `KafkaServer` 在启动时会创建 `Controller`，`ReplicaManager`，`LogManager`，`GroupCoordinator` 等组件并启动
+- `Controller` 启动后会去 `Zk` 创建节点并注册 `Watcher`，先创建节点的成为 `leader`，如果 `leader` 节点挂了，`zk` 监听到节点的变化，就会触发重选举
+- `Leader` `Controller` 所在节点的 `ReplicaManager` 会选举 `Partition` 的 `leader`，以 `isr` 中存活为前提，按照 `AR` 排在前面的优先
+- `ReplicaManager` 会获取 `isr`，由 `controller` 将节点信息上传到 `zk`
 ## 4.9 消费者组消费流程
-- Consumer 向 GroupCoordinator 发起 joinGroup 请求，先发送的成为 leader consumer
-- GroupCoordinator 向 leader consumer 发送待消费主题的信息
-- leader consumer 制定消费方案发给 GroupCoordinator
-- GroupCoordinator 将消费方案发送给每个 Consumer
-- 每个 Consumer 和 GroupCoordinator 保持心跳，一旦超时，或者处理消息时间过长，就会被移除并触发再平衡
+- `Consumer` 向 `GroupCoordinator` 发起 `joinGroup` 请求，先发送的成为 `leader` `consumer`
+- `GroupCoordinator` 向 `leader consumer` 发送待消费主题的信息
+- `leader consumer` 制定消费方案发给 `GroupCoordinator`
+- `GroupCoordinator` 将消费方案发送给每个 `Consumer`
+- 每个 `Consumer` 和 `GroupCoordinator` 保持心跳，一旦超时，或者处理消息时间过长，就会被移除并触发再平衡

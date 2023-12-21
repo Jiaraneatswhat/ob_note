@@ -2042,7 +2042,7 @@ public void create(
 	- 考察如何保证 `Kafka` 的数据有序性 
 	- 将新增和更新的数据发往同一个分区 -> 保证 `key` 相同 -> 按主键作为 `Kafka` 的 `key` 值
 	- `maxwell` 的配置文件中，通过 `producer_partition_by=primary_key` 设置
-	- 仅限于 `HBase`：将时间时间作为版本写入到 `HBase` 中
+	- 仅限于 `HBase`：将事件时间作为版本写入到 `HBase` 中
 - 来一条 2M 的数据，Kafka 会产生什么现象
 	- 卡死，默认的最大的数据大小为 1M
 ## 4.7 生产流程

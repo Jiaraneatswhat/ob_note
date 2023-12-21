@@ -2323,6 +2323,14 @@ private Result get(Get get, final boolean checkExistenceOnly) throws IOException
 		- 所有指数据是同一条数据的不同版本 (`ts`) 或不同的类型 (`PUT` / `DELETE`)
 	- 返回合并结果(非 `DELETE` 数据)
 ## 9.4 刷写
-- RegionServer 级别：到达堆内存的 `40% * 95% = 38%` 时shua'xie
-## 9.5 
+- RegionServer 级别：到达堆内存的 `40% * 95% = 38%` 时刷写
+	- 达到堆内存的 40% 时会阻塞写入，直到降低到 38% 以下
+- Region 级别：
+	- 某个 `MemStore` 到达 128M 时，所在 `Region` 的所有 `MemStore` 都会进行刷写
+- MemStore 级别：
+	- `Region` 中任意一个 `MemStore` 的大小达到了 128M，会触发刷写操作(`hbase.hregion.memstore.flush.size 默认128M`)
+- HLog 文件数达到 32
+- 官方不建议使用过多 `ColumnFamily`，是因为当一个 `MemStore` 达到 128M，而其他 `MemStore` 的大小还很小时，刷写就会产生大量的小文件
+## 9.5 合并
+
 

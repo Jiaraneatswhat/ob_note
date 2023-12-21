@@ -2267,6 +2267,27 @@ byte[][] findRegionsToForceFlush() throws IOException {
 ## 5.6 Flush 写出 HFile
 
 # 6. 读流程
+## 6.1 RPC 发送 get 请求
+```java
+private Result get(Get get, final boolean checkExistenceOnly) throws IOException {  
+
+	if (get.getConsistency() == Consistency.STRONG) {  
+	  final Get configuredGet = get;  
+	  ClientServiceCallable<Result> callable = new ClientServiceCallable<Result>() {  
+    @Override  
+    protected Result rpcCall() throws Exception {  
+      ClientProtos.GetRequest request = RequestConverter.buildGetRequest();  
+      ClientProtos.GetResponse response = doGet(request);  
+      return response == null? null:  
+        ProtobufUtil.toResult(response.getResult(), getRpcControllerCellScanner());  
+    }  
+  };  
+	  return rpcCallerFactory.<Result>newCaller(readRpcTimeoutMs).callWithRetries(callable,  
+      this.operationTimeoutMs);  
+	}
+}
+```
+
 # 7.
 # 8.
 # 9. 复习
@@ -2288,7 +2309,11 @@ byte[][] findRegionsToForceFlush() throws IOException {
 - 向 `meta` 表所在的 `RS` 发起写请求，获取 `meta` 表的内容(要写的表在哪个 `RS`) (4.3.1)
 - 将 `meta` 表内容缓存在本地(4.3.2)
 - 通过 `RPC` 向 `Server` 发送 `put` 请求
-- 首先写 WAL，将数据写入本地缓存(4.4.2.3)，将缓存写入 `HDFS` (4.4.3)，再将数据同步到磁盘(4.4.4)
+- 首先写 `WAL`，将数据写入本地缓存(4.4.2.3)，将缓存写入 `HDFS` (4.4.3)，再将数据同步到磁盘(4.4.4)
 - 最后将数据写入到 `MemStore` (4.4.5)
 ## 9.3 读流程
 - 缓存 `meta` 表为止的步骤与写流程相同
+- 向待写入表发起 Get 请求
+- `Server` 收到 `Get` 请求，创建 `MemStore` 和 `StoreFile` 的 `Scanner`
+	- `MemStore` 的 `Scanner` 在内存中直接读取
+	- `StoreFile` 的 `Scanner` 首先通过布隆过滤器进行索引，

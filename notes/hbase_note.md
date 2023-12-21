@@ -1354,66 +1354,8 @@ protected void loadCache() throws IOException {
         scanResultCache.numberOfCompleteRows() - numberOfCompleteRowsBefore;  
     for (Result rs : resultsToAddToCache) {  
       cache.add(rs);  
-      long estimatedHeapSizeOfResult = calcEstimatedSize(rs);  
-      countdown--;  
-      remainingResultSize -= estimatedHeapSizeOfResult;  
-      addEstimatedSize(estimatedHeapSizeOfResult);  
       this.lastResult = rs;  
-    }  
-  
-    if (scan.getLimit() > 0) {  
-      int newLimit = scan.getLimit() - numberOfCompleteRows;  
-      assert newLimit >= 0;  
-      scan.setLimit(newLimit);  
-    }  
-    if (scan.getLimit() == 0 || scanExhausted(values)) {  
-      closeScanner();  
-      closed = true;  
-      break;  
-    }  
-    boolean regionExhausted = regionExhausted(values);  
-    if (callable.isHeartbeatMessage()) {  
-      if (!cache.isEmpty()) {  
-        // Caller of this method just wants a Result. If we see a heartbeat message, it means  
-        // processing of the scan is taking a long time server side. Rather than continue to        // loop until a limit (e.g. size or caching) is reached, break out early to avoid causing        // unnecesary delays to the caller        LOG.trace("Heartbeat message received and cache contains Results. " +  
-          "Breaking out of scan loop");  
-        // we know that the region has not been exhausted yet so just break without calling  
-        // closeScannerIfExhausted        break;  
-      }  
-    }  
-    if (cache.isEmpty() && !closed && scan.isNeedCursorResult()) {  
-      if (callable.isHeartbeatMessage() && callable.getCursor() != null) {  
-        // Use cursor row key from server  
-        cache.add(Result.createCursorResult(callable.getCursor()));  
-        break;  
-      }  
-      if (values.length > 0) {  
-        // It is size limit exceed and we need return the last Result's row.  
-        // When user setBatch and the scanner is reopened, the server may return Results that        // user has seen and the last Result can not be seen because the number is not enough.        // So the row keys of results may not be same, we must use the last one.        cache.add(Result.createCursorResult(new Cursor(values[values.length - 1].getRow())));  
-        break;  
-      }  
-    }  
-    if (countdown <= 0) {  
-      // we have enough result.  
-      closeScannerIfExhausted(regionExhausted);  
-      break;  
-    }  
-    if (remainingResultSize <= 0) {  
-      if (!cache.isEmpty()) {  
-        closeScannerIfExhausted(regionExhausted);  
-        break;  
-      } else {  
-        // we have reached the max result size but we still can not find anything to return to the  
-        // user. Reset the maxResultSize and try again.        remainingResultSize = maxScannerResultSize;  
-      }  
-    }  
-    // we are done with the current region  
-    if (regionExhausted) {  
-      if (!moveToNextRegion()) {  
-        closed = true;  
-        break;  
-      }  
-    }  
+    }   
   }  
 }
 ```
@@ -1803,7 +1745,7 @@ private WriteEntry doWALAppend(WALEdit walEdit, Durability durability, List<UUID
 }
 
 // WAL的实现类AbstractFSWAL有两个子类FSHLog和AsyncFSWAL
-// 都回调用父类的stampSequenceIdAndPublishToRingBuffer方法
+// 都会调用父类的stampSequenceIdAndPublishToRingBuffer方法
 protected final long stampSequenceIdAndPublishToRingBuffer(RegionInfo hri, WALKeyImpl key,  
     WALEdit edits, boolean inMemstore, RingBuffer<RingBufferTruck> ringBuffer)  
     throws IOException {   
@@ -2341,4 +2283,12 @@ byte[][] findRegionsToForceFlush() throws IOException {
 				- `MemStore`
 				- `StoreFile`
 ## 9.2 写流程
-- 客户端首先去自己的
+- 客户端首先去内存中寻找元数据信息，刚启动时找不到(4.2.4)
+- 与 `zk` 通信，获取 `meta` 表所在的 `RegionServer` (4.2.6)
+- 向 `meta` 表所在的 `RS` 发起写请求，获取 `meta` 表的内容(要写的表在哪个 `RS`) (4.3.1)
+- 将 `meta` 表内容缓存在本地(4.3.2)
+- 通过 `RPC` 向 `Server` 发送 `put` 请求
+- 首先写 WAL，将数据写入本地缓存(4.4.2.3)，将缓存写入 `HDFS` (4.4.3)，再将数据同步到磁盘(4.4.4)
+- 最后将数据写入到 `MemStore` (4.4.5)
+## 9.3 读流程
+- 缓存 `meta` 表为止的步骤与写流程相同

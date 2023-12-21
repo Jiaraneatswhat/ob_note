@@ -2051,4 +2051,6 @@ public void create(
 - 当数据达到 `batchSize` (`batch.size 默认16k`) 或到达等待时间(`linger.ms 默认0s`)，会唤醒 `Sender` 线程，通过 `Selector` 选择 `Channel` 向 `Leader` 发送 `ProducerRequest`
 - `Leader` 响应 `Producer` 的请求，完成写入，返回 ack
 ## 4.8 Broker 工作流程
+- KafkaServer 在启动时会创建 Controller，ReplicaManager，LogManager，GroupCoordinator 等组件并启动
+- Controller 启动后会去 Zk 创建节点并注册 Watcher，先创建节点的成为 leader，如果 leader 节点挂了，
 - 

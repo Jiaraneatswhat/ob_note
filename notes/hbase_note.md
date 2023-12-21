@@ -2332,5 +2332,12 @@ private Result get(Get get, final boolean checkExistenceOnly) throws IOException
 - HLog 文件数达到 32
 - 官方不建议使用过多 `ColumnFamily`，是因为当一个 `MemStore` 达到 128M，而其他 `MemStore` 的大小还很小时，刷写就会产生大量的小文件
 ## 9.5 合并
-
-
+- 合并有两种：Minor Compaction 和 Major Compaction
+	- `MemStoreflush` 操作结束后会检查当前 `Store` 中 `StoreFile` 的个数，一旦超过了 ` hbase.hstore.compactionThreshold 默认3 `，就会触发合并
+	- RS 会在后台启动一个 `CompactionChecker` 线程定期触发检查对应的 `Store` 是否需要执行合并，对应的参数
+		- `hbase.server.thread.wakefrequency` 默认 10000ms
+		- `hbase.server.compactchecker.interval.multiplier` 默认 1000
+		- 不满足 `compactionThreshold` 的条件时，就会去检查是否需要 Major 合并
+- Major 合并的参数
+	- 
+	- 

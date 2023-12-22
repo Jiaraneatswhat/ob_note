@@ -2288,6 +2288,99 @@ private Result get(Get get, final boolean checkExistenceOnly) throws IOException
 	}
 }
 ```
+## 6.2 RS 处理 GET 请求
+```java
+public GetResponse get(final RpcController controller,  
+    final GetRequest request) throws ServiceException {  
+  long before = EnvironmentEdgeManager.currentTime();  
+  OperationQuota quota = null;  
+  HRegion region = null;  
+  try {  
+    region = getRegion(request.getRegion());  
+    Boolean existence = null;  
+    Result r = null;  
+    RpcCallContext context = RpcServer.getCurrentCall().orElse(null);  
+    quota = getRpcQuotaManager().checkQuota(region, OperationQuota.OperationType.GET);  
+  
+    Get clientGet = ProtobufUtil.toGet(get);  
+    if (get.getExistenceOnly() && region.getCoprocessorHost() != null) {  
+      existence = region.getCoprocessorHost().preExists(clientGet);  
+    }  
+    if (existence == null) {  
+      if (context != null) {
+        // 获取数据  
+        r = get(clientGet, (region), null, context);  
+      }  
+      if (get.getExistenceOnly()) {...}  
+    }    
+    return builder.build();  
+  }
+}
+
+private Result get(Get get, HRegion region, RegionScannersCloseCallBack closeCallBack,  
+    RpcCallContext context) throws IOException {  
+  region.prepareGet(get);  
+  
+  // This method is almost the same as HRegion#get.  
+  List<Cell> results = new ArrayList<>();  
+  long before = EnvironmentEdgeManager.currentTime();  
+  // 将 get 封装为 Scan 对象
+  Scan scan = new Scan(get);  
+  RegionScannerImpl scanner = null;  
+  try {  
+    scanner = region.getScanner(scan);  
+    scanner.next(results);  
+  } 
+  
+  return Result.create(results, get.isCheckExistenceOnly() ? !results.isEmpty() : null, stale);  
+}
+```
+## 6.3 创建 Scanner
+```java
+public RegionScannerImpl getScanner(Scan scan) throws IOException {  
+ return getScanner(scan, null);  
+}
+
+public RegionScannerImpl getScanner(Scan scan, List<KeyValueScanner> additionalScanners)  
+    throws IOException {  
+  return getScanner(scan, additionalScanners, HConstants.NO_NONCE, HConstants.NO_NONCE);  
+}
+
+private RegionScannerImpl getScanner(Scan scan, List<KeyValueScanner> additionalScanners,  
+    long nonceGroup, long nonce) throws IOException {
+  // 判断操作类型，GET 或 SCAN 时是否支持读，添加读锁  
+  startRegionOperation(Operation.SCAN);  
+  try {  
+    // Verify families are all valid
+    // 没有待扫描的列族时，去 htableDescriptor 中获取后添加
+    if (!scan.hasFamilies()) {  
+      // Adding all families to scanner  
+      for (byte[] family : this.htableDescriptor.getColumnFamilyNames()) {  
+        scan.addFamily(family);  
+      }  
+    } else {  
+      for (byte[] family : scan.getFamilyMap().keySet()) {  
+        // 否则检查列族是否存在
+        checkFamily(family);  
+      }  
+    }  
+    return instantiateRegionScanner(scan, additionalScanners, nonceGroup, nonce);  
+  } finally {  
+    closeRegionOperation(Operation.SCAN);  
+  }  
+}
+
+protected RegionScannerImpl instantiateRegionScanner(Scan scan,  
+    List<KeyValueScanner> additionalScanners, long nonceGroup, long nonce) throws IOException {  
+  if (scan.isReversed()) {  
+    if (scan.getFilter() != null) {  
+      scan.getFilter().setReversed(true);  
+    }  
+    return new ReversedRegionScannerImpl(scan, additionalScanners, this);  
+  }  
+  return new RegionScannerImpl(scan, additionalScanners, this, nonceGroup, nonce);  
+}
+```
 
 # 7.
 # 8.

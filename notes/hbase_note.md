@@ -2429,3 +2429,12 @@ rk            column=colFamily:xxx, timestamp=ts2, value=val2
 	- id 放在开头，订单不一定连续，不满足紧凑分布的条件
 	- start_key: 0X_a_2022-01
 	- stop_key: 0X_a_2022-01|
+- 统计所有用户在某个月份消费的总金额
+	- start_key: 0X_2022-01
+	- stop_key: 0X_2022-02
+### 9.8.3 项目中 RowKey 的设计
+- 需求：主流根据维度表的主键查询单条明细数据
+	- 不需要考虑集中性
+	- 对于数据量大的表可以考虑预分区
+	- 使用 `MySQL` 维表的主键作为 `RowKey`
+	- 如果是预分区表，需要将主键 `Hash` 取分区号拼接原先的主键作为 `RowKey`

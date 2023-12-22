@@ -98,4 +98,34 @@ rdd.aggregate("")((a, b) => Math.min(a.length, b.length).toString,
 ### .2.4 任务切分
 - 从后往前进行切分，从行动算子向前找宽依赖划分 `Stage`
 - 提交时先提交父阶段
-- Application 
+- `Application` 指一个 `Spark` 应用程序
+	- 一个 `Application` 由多个 `Job` 组成
+	- 一个 `Job` 由多个 `Task` 组成
+	- `Application `启动时会创建一个 `SparkContext` 作为入口点
+- `Job` 数与行动算子有关系
+	- 一般情况下相等
+	- 如果配置了 `Checkpoint`，会启动一个新 `Job`，此时个数不相等
+- `Job` 可以分为多个 `Stage`：`Stage个数  = 宽依赖数 + 1`
+- `Stage` 可以分为多个 `Task`，`Task` 个数取决于 `RDD` 的分区数
+### .2.5 分区器
+- `HashPartitioner`
+- `RangePartitioner`
+- 自定义分区器
+### .2.6 持久化
+- cache 和 checkpoint
+	- 存储位置不同：`cache` 存储在内存中，`checkpoint` 存储在 HDFS 中
+	- `cache` 不会切断血缘关系，`ck` 会切断
+	- 计算到 `cache` 的位置时，会将执行中间结果进行缓存，后面会从缓存位置继续执行任务
+	- 计算到 `ck` 的位置时，提交一个新任务从头执行到当前位置，保存在 `HDFS` 中
+	- 使用场景
+		- `RDD` 复用：减少计算次数
+		- 一个很长的任务链中间的 `shuffle` 阶段后，`防止重复shuffle`
+```java
+rdd.cache()
+rdd.checkPoint("hdfs://xxx")
+```
+### .2.7 共享变量
+- 广播变量(共享读操作)
+	- 当多个分区多个 Task 都要用到同一份数据时，为了避免数据的重复发送，选择广播变量的方式，会将广播变量发给每个节点，作为只读值处理
+- 累加器(共享写操作)
+	- 

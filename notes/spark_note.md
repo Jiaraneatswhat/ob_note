@@ -37,8 +37,8 @@ protected def getDependencies: Seq[Dependency[_]] = deps
 ```scala
 protected def getPreferredLocations(split: Partition): Seq[String] = Nil
 ```
-### .2 算子
-#### .2.1 常用的算子
+### .2.2 算子
+#### .2.2.1 常用的算子
 	- `map`
 	- `flatMap`
 	-  `mapValues`
@@ -57,7 +57,7 @@ protected def getPreferredLocations(split: Partition): Seq[String] = Nil
 	- `sortByKey` 
 	- `repartition`
 	- `reduceByKey`
-#### .2.2 算子的比较
+#### .2.2.2 算子的比较
 - `map` 和 `mapPartitions`
 	- `map` 对 `RDD` 中的每一个元素进行操作，`mapPartition` 是对 `RDD` 中的每一个分区进行操作
 - `foreach` 和 `foreachPartition`
@@ -67,5 +67,35 @@ protected def getPreferredLocations(split: Partition): Seq[String] = Nil
 	- 为什么不将连接创建在 main 方法中？
 		- 因为 `main` 方法中，与 `RDD` 无关的操作交给 `Driver` 执行，`RDD` 操作由 `Executor` 执行，`main` 方法中获取的连接不能序列化传给 `Executor`
 - `groupByKey` 和 `reduceByKey`
-	- groupByKey 只有分组的功能
-	- 
+	- `groupByKey` 只有分组的功能
+	- `reduceByKey` 不但可以分组，也可以进行聚合操作
+		- 会先进行局部聚合，效率要高于 `groupByKey` + 逻辑聚合操作
+- aggregate 算子
+```scala
+/*
+ * zeroValue: 每个分区 seqOp 累加的初始值以及最终不同分区组合结果 comOp 的初始值
+ * seqOp: 用于累加分区内数据的算子
+ * combOp: 用于组合不同分区累加结果的算子
+ * 
+def aggregate[U: ClassTag](zeroValue: U)(seqOp: (U, T) => U, combOp: (U, U) => U): U = withScope {...}
+*/
+
+val rdd = sc.makeRDD(Array("12", "234", "345", "4567"), 2)
+rdd.aggregate("0")((a, b) => Math.max(a.length, b.length).toString,
+				   (x, y) => x + y)
+// "0" 和 “12” 比较，得到 "2" 和 "234" 比较得到 "3"
+// 另一个分区的结果是 "4", 字符串最终拼接，加上初始值得到 "034"
+// 考虑到并行度为2，有可能先产生 “4”，返回 “043”
+
+rdd.aggregate("")((a, b) => Math.min(a.length, b.length).toString,
+				   (x, y) => x + y)
+// "" 和 “12” 比较，返回 “0 ”，“0” 和 “234” 比较返回 “1”
+// 同理另一个分区返回 “1”, 最终结果 "11"
+```
+### .2.3 血缘关系
+- 窄依赖：父 `RDD` 和子 `RDD` 的分区是一对一的关系
+- 宽依赖：父 `RDD` 的一个分区会被多个子 `RDD` 分区所继承
+### .2.4 任务切分
+- 从后往前进行切分，从行动算子向前找宽依赖划分 `Stage`
+- 提交时先提交父阶段
+- Application 

@@ -321,7 +321,8 @@ protected void handleReportForDutyResponse(final RegionServerStartupResponse c)
 - region
 	- 一张表若干连续的行形成的区域
 	- `Region` 中行的排序按照 `rowkey` 字典排序
-	- `Region`不能跨`RegionSever`，且当数据量大的时候，`HBase`会拆分`Region`
+	- `Region` 不能跨 `RegionSever`，且当数据量大的时候，`HBase` 会拆分 `Region`
+- 在 HBase 中一个列族和一个列修饰符组合起来(列族：列修饰符)称为一个列
 ## 2.3 HFlie 结构
 
 ![[HFile.svg]]

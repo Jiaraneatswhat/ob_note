@@ -128,4 +128,11 @@ rdd.checkPoint("hdfs://xxx")
 - 广播变量(共享读操作)
 	- 当多个分区多个 Task 都要用到同一份数据时，为了避免数据的重复发送，选择广播变量的方式，会将广播变量发给每个节点，作为只读值处理
 - 累加器(共享写操作)
-	- 
+	- Driver 端定义的变量会发给每个 `Executor`，`Executor` 更新副本的值不会对 Driver 产生影响，需要将其注册成累加器
+## .3 SparkSql
+- `RDD`, `DataSet`, `DataFrame`
+```scala
+type DataFrame = Dataset[Row]
+
+
+```

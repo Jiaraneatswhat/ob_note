@@ -2455,22 +2455,31 @@ public List<KeyValueScanner> getScanners(boolean cacheBlocks, boolean usePread,
     // 获取要 scan 的StoreFile  
     storeFilesToScan = this.storeEngine.getStoreFileManager().getFilesForScan(startRow,  
       includeStartRow, stopRow, includeStopRow);
-    // 创建MemStore 的  
+    // 创建 MemStore 的Scanner  
     memStoreScanners = this.memstore.getScanners(readPt);  
   } finally {  
     this.lock.readLock().unlock();  
   }  
   
   // First the store file scanners  
-  
-  // TODO this used to get the store files in descending order,  // but now we get them in ascending order, which I think is  // actually more correct, since memstore get put at the end.  
   List<StoreFileScanner> sfScanners = StoreFileScanner.getScannersForStoreFiles(storeFilesToScan,  
     cacheBlocks, usePread, isCompaction, false, matcher, readPt);  
-  List<KeyValueScanner> scanners = new ArrayList<>(sfScanners.size() + 1);  
+  List<KeyValueScanner> scanners = new ArrayList<>(sfScanners.size() + 1); 
+  // 加入 scanner 的 ArrayList中 
   scanners.addAll(sfScanners);  
   // Then the memstore scanners  
   scanners.addAll(memStoreScanners);  
   return scanners;  
+}
+```
+## 6.6 创建 KeyValueScanner
+```java
+public List<KeyValueScanner> getScanners(long readPt) throws IOException {  
+  List<KeyValueScanner> list = new ArrayList<>();  
+  long order = snapshot.getNumOfSegments();  
+  order = addToScanners(active, readPt, order, list);  
+  addToScanners(snapshot.getAllSegments(), readPt, order, list);  
+  return list;  
 }
 ```
 

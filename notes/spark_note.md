@@ -33,4 +33,13 @@ protected def getDependencies: Seq[Dependency[_]] = deps
 // 子类重写决定分区
 @transient val partitioner: Option[Partitioner] = None
 ```
-- 
+- 计算的优先位置(可选)
+```scala
+protected def getPreferredLocations(split: Partition): Seq[String] = Nil
+```
+### .2 算子
+- 常用的算子
+```scala
+// map
+
+```

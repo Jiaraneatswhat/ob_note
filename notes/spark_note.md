@@ -1,5 +1,6 @@
 # 1. 提交 Job 流程
 ## 1.1 执行脚本
+- spark-submit.sh
 ```shell
 if [ -z "${SPARK_HOME}" ]; then  # -z 字符串长度为0
   source "$(dirname "$0")"/find-spark-home
@@ -7,6 +8,123 @@ fi
 
 exec "${SPARK_HOME}"/bin/spark-class org.apache.spark.deploy.SparkSubmit "$@"
 ```
+- spark-class.sh
+```shell
+if [ -z "${SPARK_HOME}" ]; then
+  source "$(dirname "$0")"/find-spark-home # 执行 source
+fi
+
+. "${SPARK_HOME}"/bin/load-spark-env.sh # 导入 spark-env 的设置
+
+# Find the java binary
+if [ -n "${JAVA_HOME}" ]; then
+  RUNNER="${JAVA_HOME}/bin/java" # 定义运行 java 的 runner
+fi
+
+# 调用org.apache.spark.launcher的main方法
+# 被 spark-class 调用，负责调用其他类，对参数进行解析，生成执行命令，将命令返回给exec"${CMD[@]}”
+build_command() {
+  # java -cp(classpath) 指定jar包路径
+  "$RUNNER" -Xmx128m $SPARK_LAUNCHER_OPTS -cp "$LAUNCH_CLASSPATH" org.apache.spark.launcher.Main "$@"
+  printf "%d\0" $? # 执行完成打印成功的状态码\0
+}
+
+# ${arr[@]}表示所有元素，${#arr[@]}表示数组长度
+# 执行java -cp
+CMD=("${CMD[@]:0:$LAST}")
+exec "${CMD[@]}"
+```
+## 1.2 运行 SparkSubmit
+### 1.2.1 main()
+```scala
+def main(args: Array[String]): Unit = {
+  val submit = new SparkSubmit()
+  submit.doSubmit(args) // 创建SparkSubmit对象调用doSubmit()
+}
+
+def doSubmit(args: Array[String]): Unit = {
+  // 创建一个SparkSubmitArguments对象解析参数
+  val appArgs = parseArguments(args)
+  appArgs.action match {
+    // 匹配到SUBMIT，调用submit()
+    case SparkSubmitAction.SUBMIT => submit(appArgs, uninitLog)
+  }
+}
+
+private def submit(args: SparkSubmitArguments, uninitLog: Boolean): Unit = {
+  def doRunMain(): Unit = {
+    if (args.proxyUser != null) {
+      try {
+        proxyUser.doAs(new PrivilegedExceptionAction[Unit]() {
+          override def run(): Unit = {
+            // 调用runMain()
+            runMain(args, uninitLog)
+          }
+}
+```
+### 1.2.2 rumMain()
+```scala
+private def runMain(args: SparkSubmitArguments, uninitLog: Boolean): Unit = {
+  /*
+   * 判断是本地/Yarn/Mesos等模式，部署模式等
+   * prepareSubmitEnvironment用于准备submit的环境，返回一个四元组:
+   * childArgs: 子进程的参数
+   * childClasspath: 子进程的类路径
+   * sparkConf
+   * childMainClass: 子进程的类 
+   */
+  val (childArgs, childClasspath, sparkConf, childMainClass) = prepareSubmitEnvironment(args)
+  val loader = getSubmitClassLoader(sparkConf)
+  // 添加需要的jar包
+  for (jar <- childClasspath) {
+    addJarToClasspath(jar, loader)
+  }
+
+  var mainClass: Class[_] = null
+
+  try {
+    mainClass = Utils.classForName(childMainClass)
+  }
+
+  val app: SparkApplication = if (classOf[SparkApplication].isAssignableFrom(mainClass)) {
+    // 继承了SparkApplication的话返回mainClass的对象
+    mainClass.getConstructor().newInstance().asInstanceOf[SparkApplication]
+  } else {
+    // 否则创建JavaMainApplication的对象
+    new JavaMainApplication(mainClass)
+  }
+  try {
+    // 启动SparkApplication
+    app.start(childArgs.toArray, sparkConf)
+  }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 Resilient Distributed Datasets

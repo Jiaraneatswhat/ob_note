@@ -2488,15 +2488,11 @@ public List<KeyValueScanner> getScanners(long readPt) throws IOException {
 public static List<StoreFileScanner> getScannersForStoreFiles(Collection<HStoreFile> files,  
     boolean cacheBlocks, boolean usePread, boolean isCompaction, boolean canUseDrop,  
     ScanQueryMatcher matcher, long readPt) throws IOException {  
-  if (files.isEmpty()) {  
-    return Collections.emptyList();  
-  }  
   List<StoreFileScanner> scanners = new ArrayList<>(files.size());  
-  boolean canOptimizeForNonNullColumn = matcher != null ? !matcher.hasNullColumnInQuery() : false;  
   PriorityQueue<HStoreFile> sortedFiles =  
       new PriorityQueue<>(files.size(), StoreFileComparators.SEQ_ID);  
   for (HStoreFile file : files) {  
-    // The sort function needs metadata so we need to open reader first before sorting the list.  
+    // 初始化 Reader  
     file.initReader();  
     sortedFiles.add(file);  
   }  
@@ -2524,7 +2520,10 @@ public static List<StoreFileScanner> getScannersForStoreFiles(Collection<HStoreF
   return scanners;  
 }
 ```
+## 6.6 初始化 Reader
+```java
 
+```
 # 7.
 # 8.
 # 9. 复习

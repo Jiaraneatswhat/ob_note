@@ -2388,7 +2388,8 @@ RegionScannerImpl(Scan scan, List<KeyValueScanner> additionalScanners, HRegion r
 
 protected void initializeScanners(Scan scan, List<KeyValueScanner> additionalScanners)  
     throws IOException {  
-  try {  
+  try {
+    // 遍历列族，创建对应数量的 Scanner  
     for (Map.Entry<byte[], NavigableSet<byte[]>> entry : scan.getFamilyMap().entrySet()) { 
       // 创建 Store 的 Scanner
       HStore store = stores.get(entry.getKey());  
@@ -2402,27 +2403,74 @@ protected void initializeScanners(Scan scan, List<KeyValueScanner> additionalSca
       }  
     }  
     initializeKVHeap(scanners, joinedScanners, region);  
-  } catch (Throwable t) {  
-    throw handleException(instantiatedScanners, t);  
-  }  
+  }
 }
 ```
-### 6.4 创建 StoreScanner
+## 6.4 创建 StoreScanner
 ```java
 public KeyValueScanner getScanner(Scan scan, final NavigableSet<byte[]> targetCols, long readPt)  
     throws IOException {  
   lock.readLock().lock();  
-  try {  
+  try {
+    // scanInfo 中有扫描列族的信息   
     ScanInfo scanInfo;  
-    if (this.getCoprocessorHost() != null) {  
-      scanInfo = this.getCoprocessorHost().preStoreScannerOpen(this);  
-    } else {  
-      scanInfo = getScanInfo();  
-    }  
     return createScanner(scan, scanInfo, targetCols, readPt);  
   } finally {  
     lock.readLock().unlock();  
   }  
+}
+
+protected KeyValueScanner createScanner(Scan scan, ScanInfo scanInfo,  
+    NavigableSet<byte[]> targetCols, long readPt) throws IOException {  
+  return scan.isReversed() ? new ReversedStoreScanner(this, scanInfo, scan, targetCols, readPt)  
+      : new StoreScanner(this, scanInfo, scan, targetCols, readPt);  
+}
+
+public StoreScanner(HStore store, ScanInfo scanInfo, Scan scan, NavigableSet<byte[]> columns,  
+    long readPt) throws IOException {  
+  // 构造器创建 StoreScanner
+  this(store, scan, scanInfo, columns != null ? columns.size() : 0, readPt, scan.getCacheBlocks(), ScanType.USER_SCAN);  
+  
+  try {  
+    // Pass columns to try to filter out unnecessary StoreFiles.  
+    // 创建 MemStore 和 StoreFile 的 Scanner后，通过 KV 过滤
+    List<KeyValueScanner> scanners = selectScannersFrom(store,  
+      store.getScanners(cacheBlocks, scanUsePread, false, matcher, scan.getStartRow(), scan.includeStartRow(), scan.getStopRow(), scan.includeStopRow(), this.readPt));  
+  
+    // Seek all scanners to the start of the Row (or if the exact matching row  
+    // key does not exist, then to the start of the next matching Row).   
+    seekScanners(scanners, matcher.getStartKey(), explicitColumnQuery && lazySeekEnabledGlobally, parallelSeekEnabled);  
+  }   
+}
+```
+## 6.5 创建 StoreFileScanner 和 KeyValueScanner(扫描 MemStore)
+```java
+public List<KeyValueScanner> getScanners(boolean cacheBlocks, boolean usePread,  
+    boolean isCompaction, ScanQueryMatcher matcher, byte[] startRow, boolean includeStartRow,  
+    byte[] stopRow, boolean includeStopRow, long readPt) throws IOException {  
+  Collection<HStoreFile> storeFilesToScan;  
+  List<KeyValueScanner> memStoreScanners;  
+  this.lock.readLock().lock();  
+  try {
+    // 获取要 scan 的StoreFile  
+    storeFilesToScan = this.storeEngine.getStoreFileManager().getFilesForScan(startRow,  
+      includeStartRow, stopRow, includeStopRow);
+    // 创建MemStore 的  
+    memStoreScanners = this.memstore.getScanners(readPt);  
+  } finally {  
+    this.lock.readLock().unlock();  
+  }  
+  
+  // First the store file scanners  
+  
+  // TODO this used to get the store files in descending order,  // but now we get them in ascending order, which I think is  // actually more correct, since memstore get put at the end.  
+  List<StoreFileScanner> sfScanners = StoreFileScanner.getScannersForStoreFiles(storeFilesToScan,  
+    cacheBlocks, usePread, isCompaction, false, matcher, readPt);  
+  List<KeyValueScanner> scanners = new ArrayList<>(sfScanners.size() + 1);  
+  scanners.addAll(sfScanners);  
+  // Then the memstore scanners  
+  scanners.addAll(memStoreScanners);  
+  return scanners;  
 }
 ```
 

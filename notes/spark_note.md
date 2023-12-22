@@ -132,7 +132,33 @@ rdd.checkPoint("hdfs://xxx")
 ## .3 SparkSql
 - `RDD`, `DataSet`, `DataFrame`
 ```scala
+// DF 是特殊的 DS
 type DataFrame = Dataset[Row]
+// DS -> DF
+ds.toDF // 返回的是 Dataset[Row]
+// DS -> RDD
+ds.rdd
+lazy val rdd: RDD[T] = {  
+  val objectType = exprEnc.deserializer.dataType  
+  rddQueryExecution.toRdd.mapPartitions { rows =>  
+    rows.map(_.get(0, objectType).asInstanceOf[T])  
+  }  
+}
+// RDD -> DS
+import spark.implicits._
+rdd.toDS // 需要隐式转换才能使用toDS
 
-
+```
+- 读取数据
+```scala
+SparkSession spark
+spark.read.json("path").load()
+spark.read.format("json").load("src")
+spark.read.load("src") // 默认的文件格式 parquet
+```
+- 写出数据
+```scala
+ds.write.json("dst").save
+ds.write.format("json").save
+ds.write.save("dst") // 
 ```

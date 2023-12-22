@@ -2335,7 +2335,7 @@ private Result get(Get get, HRegion region, RegionScannersCloseCallBack closeCal
   return Result.create(results, get.isCheckExistenceOnly() ? !results.isEmpty() : null, stale);  
 }
 ```
-## 6.3 创建 Scanner
+## 6.3 创建 RegionScannerImpl
 ```java
 public RegionScannerImpl getScanner(Scan scan) throws IOException {  
  return getScanner(scan, null);  
@@ -2369,7 +2369,7 @@ private RegionScannerImpl getScanner(Scan scan, List<KeyValueScanner> additional
     closeRegionOperation(Operation.SCAN);  
   }  
 }
-
+// Scan 可以正向也可以逆向进行，设置错误时可能出现找不到数据的情况
 protected RegionScannerImpl instantiateRegionScanner(Scan scan,  
     List<KeyValueScanner> additionalScanners, long nonceGroup, long nonce) throws IOException {  
   if (scan.isReversed()) {  
@@ -2379,6 +2379,50 @@ protected RegionScannerImpl instantiateRegionScanner(Scan scan,
     return new ReversedRegionScannerImpl(scan, additionalScanners, this);  
   }  
   return new RegionScannerImpl(scan, additionalScanners, this, nonceGroup, nonce);  
+}
+
+RegionScannerImpl(Scan scan, List<KeyValueScanner> additionalScanners, HRegion region,  
+    long nonceGroup, long nonce) throws IOException {    
+  initializeScanners(scan, additionalScanners);  
+}
+
+protected void initializeScanners(Scan scan, List<KeyValueScanner> additionalScanners)  
+    throws IOException {  
+  try {  
+    for (Map.Entry<byte[], NavigableSet<byte[]>> entry : scan.getFamilyMap().entrySet()) { 
+      // 创建 Store 的 Scanner
+      HStore store = stores.get(entry.getKey());  
+      KeyValueScanner scanner = store.getScanner(scan, entry.getValue(), this.readPt);  
+      instantiatedScanners.add(scanner);  
+      if (this.filter == null || !scan.doLoadColumnFamiliesOnDemand()  
+          || this.filter.isFamilyEssential(entry.getKey())) {  
+        scanners.add(scanner);  
+      } else {  
+        joinedScanners.add(scanner);  
+      }  
+    }  
+    initializeKVHeap(scanners, joinedScanners, region);  
+  } catch (Throwable t) {  
+    throw handleException(instantiatedScanners, t);  
+  }  
+}
+```
+### 6.4 创建 StoreScanner
+```java
+public KeyValueScanner getScanner(Scan scan, final NavigableSet<byte[]> targetCols, long readPt)  
+    throws IOException {  
+  lock.readLock().lock();  
+  try {  
+    ScanInfo scanInfo;  
+    if (this.getCoprocessorHost() != null) {  
+      scanInfo = this.getCoprocessorHost().preStoreScannerOpen(this);  
+    } else {  
+      scanInfo = getScanInfo();  
+    }  
+    return createScanner(scan, scanInfo, targetCols, readPt);  
+  } finally {  
+    lock.readLock().unlock();  
+  }  
 }
 ```
 

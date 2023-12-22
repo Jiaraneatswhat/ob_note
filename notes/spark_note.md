@@ -1,3 +1,14 @@
+# 1. 提交 Job 流程
+## 1.1 执行脚本
+```shell
+if [ -z "${SPARK_HOME}" ]; then  # -z 字符串长度为0
+  source "$(dirname "$0")"/find-spark-home
+fi
+
+exec "${SPARK_HOME}"/bin/spark-class org.apache.spark.deploy.SparkSubmit "$@"
+```
+
+
 Resilient Distributed Datasets
 # 复习
 ## .1 入门
@@ -160,5 +171,33 @@ spark.read.load("src") // 默认的文件格式 parquet
 ```scala
 ds.write.json("dst").save
 ds.write.format("json").save
-ds.write.save("dst") // 
+ds.write.save("dst") // 默认的文件格式 parquet
+```
+## .4 提交流程
+## .5 内核 Shuffle
+- HashShuffle
+	- 类似 `MR` 中的 `shuffle`，会产生许多小文件
+	- `小文件个数 = Mapper数 * Reducer数`
+- 优化后的 HashShuffle
+	- 相同 `CPU` 执行的 `Task` 共用内存和文件
+	- 将相同 `CPU` 执行的结果进行合并
+- SortShuffle
+	- 溢写磁盘前排序，最后合并产生一个文件，同时产生一个 `index` 文件，告诉 `Reducer` 去哪里拉取对应分区数据
+	- `产生的文件个数 = Mapper 数 * 2`
+- BypassMergeSortShuffle
+	- 类似 Hash 按分区溢写，类似 Sort 合并文件
+	- 用到了按分区溢写，Reducer 个数需要限制
+```scala
+def shouldBypassMergeSort(conf: SparkConf, dep: ShuffleDependency[_, _, _]): Boolean = {  
+  // We cannot bypass sorting if we need to do map-side aggregation. 
+  // 不排序，所以不能是预聚合算子 
+  if (dep.mapSideCombine) {  
+    false  
+  } else {  
+    // spark.shuffle.sort.bypassMergeThreshold = 200
+    // 下游 Reducer 个数不能超过200
+    val bypassMergeThreshold: Int = conf.get(config.SHUFFLE_SORT_BYPASS_MERGE_THRESHOLD)  
+    dep.partitioner.numPartitions <= bypassMergeThreshold  
+  }  
+}
 ```

@@ -21,5 +21,16 @@ protected def getPartitions: Array[Partition]
 ```
 - 分区计算函数
 ```scala
-
+// 由子类实现计算分区
+def compute(split: Partition, context: TaskContext): Iterator[T]
 ```
+- RDD 之间的依赖
+```scala
+protected def getDependencies: Seq[Dependency[_]] = deps
+```
+- 分区器(可选):  `JavaPairRDD, RDD[(K, V)]` 才有分区器
+```scala
+// 子类重写决定分区
+@transient val partitioner: Option[Partitioner] = None
+```
+- 

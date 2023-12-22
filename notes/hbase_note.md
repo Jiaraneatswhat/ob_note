@@ -2476,7 +2476,8 @@ public List<KeyValueScanner> getScanners(boolean cacheBlocks, boolean usePread,
 ```java
 public List<KeyValueScanner> getScanners(long readPt) throws IOException {  
   List<KeyValueScanner> list = new ArrayList<>();  
-  long order = snapshot.getNumOfSegments();  
+  long order = snapshot.getNumOfSegments(); 
+  // 返回 KeyValueScanner 的子类 SegmentScanner
   order = addToScanners(active, readPt, order, list);  
   addToScanners(snapshot.getAllSegments(), readPt, order, list);  
   return list;  

@@ -2472,7 +2472,7 @@ public List<KeyValueScanner> getScanners(boolean cacheBlocks, boolean usePread,
   return scanners;  
 }
 ```
-## 6.6 创建 KeyValueScanner
+### 6.5.1 创建 KeyValueScanner
 ```java
 public List<KeyValueScanner> getScanners(long readPt) throws IOException {  
   List<KeyValueScanner> list = new ArrayList<>();  
@@ -2481,6 +2481,47 @@ public List<KeyValueScanner> getScanners(long readPt) throws IOException {
   order = addToScanners(active, readPt, order, list);  
   addToScanners(snapshot.getAllSegments(), readPt, order, list);  
   return list;  
+}
+```
+### 6.5.2 创建 StoreFileScanner
+```java
+public static List<StoreFileScanner> getScannersForStoreFiles(Collection<HStoreFile> files,  
+    boolean cacheBlocks, boolean usePread, boolean isCompaction, boolean canUseDrop,  
+    ScanQueryMatcher matcher, long readPt) throws IOException {  
+  if (files.isEmpty()) {  
+    return Collections.emptyList();  
+  }  
+  List<StoreFileScanner> scanners = new ArrayList<>(files.size());  
+  boolean canOptimizeForNonNullColumn = matcher != null ? !matcher.hasNullColumnInQuery() : false;  
+  PriorityQueue<HStoreFile> sortedFiles =  
+      new PriorityQueue<>(files.size(), StoreFileComparators.SEQ_ID);  
+  for (HStoreFile file : files) {  
+    // The sort function needs metadata so we need to open reader first before sorting the list.  
+    file.initReader();  
+    sortedFiles.add(file);  
+  }  
+  boolean succ = false;  
+  try {  
+    for (int i = 0, n = files.size(); i < n; i++) {  
+      HStoreFile sf = sortedFiles.remove();  
+      StoreFileScanner scanner;  
+      if (usePread) {  
+        scanner = sf.getPreadScanner(cacheBlocks, readPt, i, canOptimizeForNonNullColumn);  
+      } else {  
+        scanner = sf.getStreamScanner(canUseDrop, cacheBlocks, isCompaction, readPt, i,  
+            canOptimizeForNonNullColumn);  
+      }  
+      scanners.add(scanner);  
+    }  
+    succ = true;  
+  } finally {  
+    if (!succ) {  
+      for (StoreFileScanner scanner : scanners) {  
+        scanner.close();  
+      }  
+    }  
+  }  
+  return scanners;  
 }
 ```
 

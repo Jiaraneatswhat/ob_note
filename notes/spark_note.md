@@ -143,33 +143,111 @@ def submitApplication(): ApplicationId = {
     yarnClient.start()  
   
     // Get a new application from our RM  
+    // Hadoop 中启动 MrAppMaster 时创建 ApplicationSubmissionContext
+    // Spark 先调用 createApplication 再创建 ApplicationSubmissionContext
     val newApp = yarnClient.createApplication()  
     val newAppResponse = newApp.getNewApplicationResponse()  
     appId = newAppResponse.getApplicationId()  
   
-    new CallerContext("CLIENT", sparkConf.get(APP_CALLER_CONTEXT),  
-      Option(appId.toString)).setCurrentContext()  
-  
-    // Verify whether the cluster has enough resources for our AM  
-    verifyClusterResources(newAppResponse)  
-  
     // Set up the appropriate contexts to launch our AM  
+    // cluster -> "org.apache.spark.deploy.yarn.ApplicationMaster"
     val containerContext = createContainerLaunchContext(newAppResponse)  
     val appContext = createApplicationSubmissionContext(newApp, containerContext)  
-  
-    // Finally, submit and monitor the application  
-    logInfo(s"Submitting application $appId to ResourceManager")  
+    // 提交任务 
     yarnClient.submitApplication(appContext)  
-    launcherBackend.setAppId(appId.toString)  
-    reportLauncherState(SparkAppHandle.State.SUBMITTED)  
-  
     appId  
-  } catch {  
-    case e: Throwable =>  
-      if (appId != null) {  
-        cleanupStagingDir(appId)  
+  }
+}
+```
+### 1.5 启动 ApplicationMaster
+```scala
+def main(args: Array[String]): Unit = {  
+  master = new ApplicationMaster(amArgs)  
+  System.exit(master.run())  
+}
+
+private[spark] class ApplicationMaster(args: ApplicationMasterArguments) extends Logging {
+	// 创建 YarnRMClient 处理向 RM 注册和去注册的请求
+	// YarnRMClient 创建了 AMRMClient[ContainerRequest]
+	private val client = doAsUser { new YarnRMClient() }
+}
+
+// 运行 master
+final def run(): Int = {  
+  doAsUser {  
+    runImpl()  
+  }  
+  exitCode  
+}
+
+private def runImpl(): Unit = {  
+  try {  
+  
+  
+    if (isClusterMode) {  
+      // Set the web ui port to be ephemeral for yarn so we don't conflict with  
+      // other spark processes running on the same box      System.setProperty("spark.ui.port", "0")  
+  
+      // Set the master and deploy mode property to match the requested mode.  
+      System.setProperty("spark.master", "yarn")  
+      System.setProperty("spark.submit.deployMode", "cluster")  
+  
+      // Set this internal configuration if it is running on cluster mode, this  
+      // configuration will be checked in SparkContext to avoid misuse of yarn cluster mode.      System.setProperty("spark.yarn.app.id", appAttemptId.getApplicationId().toString())  
+  
+      attemptID = Option(appAttemptId.getAttemptId.toString)  
+    }  
+  
+    new CallerContext(  
+      "APPMASTER", sparkConf.get(APP_CALLER_CONTEXT),  
+      Option(appAttemptId.getApplicationId.toString), attemptID).setCurrentContext()  
+  
+    logInfo("ApplicationAttemptId: " + appAttemptId)  
+  
+    // This shutdown hook should run *after* the SparkContext is shut down.  
+    val priority = ShutdownHookManager.SPARK_CONTEXT_SHUTDOWN_PRIORITY - 1  
+    ShutdownHookManager.addShutdownHook(priority) { () =>  
+      val maxAppAttempts = client.getMaxRegAttempts(sparkConf, yarnConf)  
+      val isLastAttempt = client.getAttemptId().getAttemptId() >= maxAppAttempts  
+  
+      if (!finished) {  
+        // The default state of ApplicationMaster is failed if it is invoked by shut down hook.  
+        // This behavior is different compared to 1.x version.        // If user application is exited ahead of time by calling System.exit(N), here mark        // this application as failed with EXIT_EARLY. For a good shutdown, user shouldn't call        // System.exit(0) to terminate the application.        finish(finalStatus,  
+          ApplicationMaster.EXIT_EARLY,  
+          "Shutdown hook called before final status was reported.")  
       }  
-      throw e  
+  
+      if (!unregistered) {  
+        // we only want to unregister if we don't want the RM to retry  
+        if (finalStatus == FinalApplicationStatus.SUCCEEDED || isLastAttempt) {  
+          unregister(finalStatus, finalMsg)  
+          cleanupStagingDir()  
+        }  
+      }  
+    }  
+  
+    if (isClusterMode) {  
+      runDriver()  
+    } else {  
+      runExecutorLauncher()  
+    }  
+  } catch {  
+    case e: Exception =>  
+      // catch everything else if not specifically handled  
+      logError("Uncaught exception: ", e)  
+      finish(FinalApplicationStatus.FAILED,  
+        ApplicationMaster.EXIT_UNCAUGHT_EXCEPTION,  
+        "Uncaught exception: " + StringUtils.stringifyException(e))  
+  } finally {  
+    try {  
+      metricsSystem.foreach { ms =>  
+        ms.report()  
+        ms.stop()  
+      }  
+    } catch {  
+      case e: Exception =>  
+        logWarning("Exception during stopping of the metric system: ", e)  
+    }  
   }  
 }
 ```

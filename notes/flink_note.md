@@ -5873,6 +5873,36 @@ SET execution.savepoint.path='...' # 之前保存的路径
 			- 类似 `Spark` 的窄依赖
 		- 并行度相同
 - Slot 共享组
+
+![[slot_group.svg]]
 	- 不同算子的 `Task` 可以共享 `Slot`
 	- `Job` 所需 `Slot` 数：各个共享组最大并行度之和
-	- 
+	- 只要属于同一个作业，不同任务的并行子任务可以放到同一个 `slot` 上执行
+## 8.3 运行模式、提交方式、提交流程
+- 运行模式：Yarn
+	- yarn-session: 先创建集群，再提交任务
+	- yarn-per-job: 先提交任务，再创建集群
+	- yarn-application：先提交任务，再创建集群
+	- 创建四种 `Graph` 的位置不同
+- 提交方式：
+	- 脚本：封装启动任务命令
+		- web 端口号
+		- 任务名称：默认 `flinkStreamingJob`
+	- `StreamPark`
+- 提交流程
+	- yarn-per-job
+		- 本地提交程序：
+			- `StreamGraph`
+			- 合并算子链得到 `JobGraph`
+			- 向 `RM` 提交任务
+		- `RM` 找一个 `NM` 启动 `AM`
+		- `AM`
+			- 启动 `JobManager`：`JobMaster`，`RM`
+				- `JobMaster`：将 `JobGraph` 按并行度合并成 `ExecutionGraph`
+				- `RM` 申请资源
+				- 启动 `TaskManager`
+		- `TaskManager`
+			- 物理流图：提供 `Slot` 运行 `Task`
+	- yarn-application: `StreamGraph` 和 `JobGraph` 在 `JobMaster` 生成
+## 8.4 算子
+- `SQL -> Table API -> DataStream -> ProcessFunction`

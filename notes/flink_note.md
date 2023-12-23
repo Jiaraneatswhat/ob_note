@@ -5875,3 +5875,4 @@ SET execution.savepoint.path='...' # 之前保存的路径
 - Slot 共享组
 	- 不同算子的 `Task` 可以共享 `Slot`
 	- `Job` 所需 `Slot` 数：各个共享组最大并行度之和
+	- 

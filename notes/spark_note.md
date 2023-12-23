@@ -115,7 +115,16 @@ private[spark] class YarnClusterApplication extends SparkApplication {
 }
 
 // 创建一个Client对象
-
+private[spark] class Client(
+	val args: ClientArguments,  
+    val sparkConf: SparkConf) extends Logging {
+    // 创建 YarnClientImpl 对象
+    private val yarnClient = YarnClient.createYarnClient
+    // Driver 的内存，默认1g
+    private val amMemory = if (isClusterMode) {  
+  sparkConf.get(DRIVER_MEMORY).toInt}
+  // executor 内存，默认1g
+  private val executorMemory = sparkConf.get(EXECUTOR_MEMORY)
 ```
 
 

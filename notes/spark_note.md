@@ -288,7 +288,8 @@ def register(
 private def createAllocator(driverRef: RpcEndpointRef, _sparkConf: SparkConf): Unit = {  
   val appId = client.getAttemptId().getApplicationId().toString()  
   val driverUrl = RpcEndpointAddress(driverRef.address.host, driverRef.address.port, CoarseGrainedSchedulerBackend.ENDPOINT_NAME).toString  
-  
+  // private val launcherPool = ThreadUtils.newDaemonCachedThreadPool(  "ContainerLauncher", sparkConf.get(CONTAINER_LAUNCH_MAX_THREADS))
+  // 执行 Executor 的 ThreadPoolExecutor，默认 25 个线程
   allocator = client.createAllocator(  
     yarnConf,  
     _sparkConf,  
@@ -304,8 +305,110 @@ private def createAllocator(driverRef: RpcEndpointRef, _sparkConf: SparkConf): U
   
   allocator.allocateResources()
 }
+```
+## 1.10 分配资源启动 ExecutorRunnable
+```scala
+def allocateResources(): Unit = synchronized {  
 
+  // AMRMClientImpl.java
+  val allocateResponse = amClient.allocate(progressIndicator)  
+  
+  val allocatedContainers = allocateResponse.getAllocatedContainers()  
+  
+  if (allocatedContainers.size > 0) { 
+    handleAllocatedContainers(allocatedContainers.asScala)  
+  }   
+}
 
+def handleAllocatedContainers(allocatedContainers: Seq[Container]): Unit = {  
+  runAllocatedContainers(containersToUse)  
+}
+
+private def runAllocatedContainers(containersToUse: ArrayBuffer[Container]): Unit = {  
+    if (runningExecutors.size() < targetNumExecutors) {  
+      numExecutorsStarting.incrementAndGet()  
+      if (launchContainers) {  
+        launcherPool.execute(new Runnable {  
+          override def run(): Unit = {  
+            try {  
+              new ExecutorRunnable(  
+                Some(container),  
+                conf,  
+                sparkConf,  
+                driverUrl,  
+                executorId,  
+                executorHostname,  
+                executorMemory,  
+                executorCores,  
+                appAttemptId.getApplicationId.toString,  
+                securityMgr,  
+                localResources  
+              ).run()  
+              updateInternalState()  
+            }
+          }  
+        })  
+      } 
+    } 
+  }  
+}
+
+private[yarn] class ExecutorRunnable(
+	container: Option[Container],  
+	conf: YarnConfiguration,  
+	sparkConf: SparkConf,  
+	masterAddress: String,  
+	executorId: String,  
+	hostname: String,  
+	executorMemory: Int,  
+	executorCores: Int,  
+	appId: String,  
+	securityMgr: SecurityManager,  
+	localResources: Map[String, LocalResource]) extends Logging {
+	
+	var rpc: YarnRPC = YarnRPC.create(conf)  
+	var nmClient: NMClient = _
+}
+
+def run(): Unit = {  
+  logDebug("Starting Executor Container")  
+  nmClient = NMClient.createNMClient()  
+  nmClient.init(conf)  
+  nmClient.start()  
+  startContainer()  
+}
+```
+## 1.11 开启 Container，启动 Executor
+```scala
+def startContainer(): java.util.Map[String, ByteBuffer] = {  
+  // 封装启动 Executor 的命令 
+  val commands = prepareCommand()  
+
+  try {  
+    nmClient.startContainer(container.get, ctx)  
+  }  
+}
+
+private def prepareCommand(): List[String] = {
+   ...
+   // 执行bin/java ... org.apache.spark.executor.CoarseGrainedExecutorBackend
+   val commands = prefixEnv ++
+     Seq(Environment.JAVA_HOME.$$() + "/bin/java", "-server") ++
+     javaOpts ++
+     Seq("org.apache.spark.executor.CoarseGrainedExecutorBackend",
+       "--driver-url", masterAddress,
+       "--executor-id", executorId,
+       "--hostname", hostname,
+       "--cores", executorCores.toString,
+       "--app-id", appId) ++
+     userClassPath ++
+     Seq(
+       s"1>${ApplicationConstants.LOG_DIR_EXPANSION_VAR}/stdout",
+       s"2>${ApplicationConstants.LOG_DIR_EXPANSION_VAR}/stderr")
+
+   // TODO: it would be nicer to just make sure there are no null commands here
+   commands.map(s => if (s == null) "null" else s).toList
+ }
 ```
 
 

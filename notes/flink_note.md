@@ -5841,3 +5841,24 @@ SET execution.savepoint.path='...' # 之前保存的路径
 # 直接提交sql，就会从之前的状态恢复
 ```
 # 8. 复习
+## 8.1 与 SparkStreaming 的对比
+- 本质
+	- `Flink` 基于事件触发计算，真正意义上的流处理框架
+	- `SparkStreaming` 基于时间触发计算，根据批大小进行处理的微批次处理框架
+- 时间语义：`SparkStreaming` 处理时间
+- 状态编程：
+	- `SparkStreaming` 只有一个有状态的算子
+	- `updateStateByKey`：当任务挂掉重启时，会将挂掉到当前为止的全部任务一次进行计算，会对内存造成很大负担
+	- `Flink` 所有的算子都有状态
+- Checkpoint
+	- `SparkStreaming` 将所有数据全部保存，包括代码
+	- `Flink` 只保存状态数据，可以修改业务逻辑
+- 吞吐量
+	- `SparkStreaming` 的吞吐量大，因为只有一次网络请求
+## 8.2 基础概念
+- JobManager
+	- 负责资源申请
+	- 任务切分
+	- 任务管理
+	- `Checkpoint` 触发
+	- `WebUI`

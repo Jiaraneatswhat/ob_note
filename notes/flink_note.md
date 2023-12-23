@@ -5905,4 +5905,14 @@ SET execution.savepoint.path='...' # 之前保存的路径
 			- 物理流图：提供 `Slot` 运行 `Task`
 	- yarn-application: `StreamGraph` 和 `JobGraph` 在 `JobMaster` 生成
 ## 8.4 算子
+
+![[process_funcs.svg]]
+
 - `SQL -> Table API -> DataStream -> ProcessFunction`
+- 分类
+	- Source
+	- Transform
+		- 基本转换：`map, flatMap, filter`
+		- 聚合：`max, maxBy, min, minBy, sum, reduce`
+	- 重分区
+		- keyBy: 

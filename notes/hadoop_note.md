@@ -7141,6 +7141,7 @@ public JobStatus submitJob(JobID jobId, String jobSubmitDir, Credentials ts)
     
     addHistoryToken(ts);
 	// 创建提交任务的上下文
+	// ApplicationSubmissionContext 包含了启动 AM 的所有信息
     ApplicationSubmissionContext appContext =
       createApplicationSubmissionContext(conf, jobSubmitDir, ts);
 

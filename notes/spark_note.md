@@ -125,6 +125,53 @@ private[spark] class Client(
   sparkConf.get(DRIVER_MEMORY).toInt}
   // executor 内存，默认1g
   private val executorMemory = sparkConf.get(EXECUTOR_MEMORY)
+}
+
+// 运行Client
+def run(): Unit = {  
+  this.appId = submitApplication()  
+}
+```
+## 1.4 向 RM 提交任务
+```scala
+def submitApplication(): ApplicationId = {  
+  var appId: ApplicationId = null  
+  try {  
+    launcherBackend.connect()  
+    // 初始化 YarnClientImpl Service 的初始化
+    yarnClient.init(hadoopConf)  
+    yarnClient.start()  
+  
+    // Get a new application from our RM  
+    val newApp = yarnClient.createApplication()  
+    val newAppResponse = newApp.getNewApplicationResponse()  
+    appId = newAppResponse.getApplicationId()  
+  
+    new CallerContext("CLIENT", sparkConf.get(APP_CALLER_CONTEXT),  
+      Option(appId.toString)).setCurrentContext()  
+  
+    // Verify whether the cluster has enough resources for our AM  
+    verifyClusterResources(newAppResponse)  
+  
+    // Set up the appropriate contexts to launch our AM  
+    val containerContext = createContainerLaunchContext(newAppResponse)  
+    val appContext = createApplicationSubmissionContext(newApp, containerContext)  
+  
+    // Finally, submit and monitor the application  
+    logInfo(s"Submitting application $appId to ResourceManager")  
+    yarnClient.submitApplication(appContext)  
+    launcherBackend.setAppId(appId.toString)  
+    reportLauncherState(SparkAppHandle.State.SUBMITTED)  
+  
+    appId  
+  } catch {  
+    case e: Throwable =>  
+      if (appId != null) {  
+        cleanupStagingDir(appId)  
+      }  
+      throw e  
+  }  
+}
 ```
 
 

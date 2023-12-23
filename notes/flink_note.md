@@ -4004,7 +4004,8 @@ public IntervalJoined<T1, T2, KEY> between(Time lowerBound, Time upperBound) {
 public <OUT> SingleOutputStreamOperator<OUT> process(  
         ProcessJoinFunction<IN1, IN2, OUT> processJoinFunction) {}
 ```
-# 5. 状态管理
+# 5. 触发器
+# 6. 状态管理
 - `Flink` 中的算子任务可以分为有状态和无状态两种
 	- 无状态在计算时不依赖其他数据，直接输出转换结果
 	- 有状态收到上游发送到的数据后，需要获取当前状态，进行更新后再向下流发送
@@ -4012,7 +4013,7 @@ public <OUT> SingleOutputStreamOperator<OUT> process(
 	- `RawState` 需要用户手动完成状态的备份，恢复
 	- `ManagedState` 由 Flink 完成状态的备份和恢复
 	- `ManagedState` 可以分为 `OperatorState` 和 `KeyedState`
-## 5.1 OperatorState
+## 6.1 OperatorState
 - operator state 的 API 使用时需要实现 `CheckpointedFunction` 或 `ListCheckpointed` 接口
 ### 5.1.1 ListState
 ```java
@@ -4064,7 +4065,7 @@ ds1.connect(broadcastStream)
             }  
         }).print();
 ```
-## 5.2 KeyedState
+## 6.2 KeyedState
 - `KeyedState` 针对 `KeyedStream` 的计算，每个算子的处理函数中，每个 Key 各有各自的状态，互不影响
 - `ValueState`
 	- T value(): 获取当前状态的值
@@ -4094,7 +4095,7 @@ ds1.connect(broadcastStream)
     }  
 });
 ```
-## 5.3 状态后端
+## 6.3 状态后端
 - 状态后端主要负责<font color='red'>管理本地状态的存储方式和位置</font>
 - 状态后端有两种
 - `HashMapStateBackend`
@@ -4103,17 +4104,17 @@ ds1.connect(broadcastStream)
 	- 将状态存储在内置的 `RocksDB` 中，`RocksDB` 随 `TM` 的启动而创建，将数据以 `byte[]`形式存储在缓存，缓存空间不足时将其溢写到磁盘中
 	- 可以存储大状态
 - 可以在 `flink-conf.yaml` 中配置：`state.backend.type: hashmap|rocksdb`
-# 6. 容错机制
-## 6.1 Checkpoint 机制
+# 7. 容错机制
+## 7.1 Checkpoint 机制
 - `checkpoint` 基于 <font color='red'>Chandy-Lamport</font> 算法，通过分布式异步快照将状态备份到检查点
 - `JobManager` 通过 `Barrier` 通知 `Task` 进行备份
 - `Barrier` 将数据分隔为批次，只能由源头产生，当前`barrier`到达某个算子，意味着当前批次的数据已经被这个算子全部处理完毕，可以进行状态的持久化
 ![[stream_barriers.svg]]
 - 在程序故障需要恢复快照时，总是以最近完成的 `checkpoint` 数据来恢复每一个算子的状态信息
-### 6.1.1 checkpoint 的流程
+### 7.1.1 checkpoint 的流程
 
 ![[checkpoint.svg]]
-#### 6.1.1.1 JM 创建调度线程
+#### 7.1.1.1 JM 创建调度线程
 ```java
 // 1.6开始调度任务时
 // 将job状态转换至running
@@ -4180,7 +4181,7 @@ private ScheduledFuture<?> scheduleTriggerWithDelay(long initDelay) {
             new ScheduledTrigger(), initDelay, baseInterval, TimeUnit.MILLISECONDS);  
 }
 ```
-#### 6.1.1.2 调度 Checkpoint
+#### 7.1.1.2 调度 Checkpoint
 ```java
 // CheckpointCoordinator内部类
 private final class ScheduledTrigger implements Runnable {  
@@ -4364,7 +4365,7 @@ public void triggerCheckpointBarrier(
             }
 }
 ```
-#### 6.1.1.3 算子产生 Barrier
+#### 7.1.1.3 算子产生 Barrier
 ```java
 /*
  * StreamTask是TM部署并执行的本地处理单元
@@ -4460,7 +4461,7 @@ public void checkpointState(
         }
 }
 ```
-#### 6.1.1.4 向下游广播 Barrier
+#### 7.1.1.4 向下游广播 Barrier
 ```java
 public void broadcastEvent(AbstractEvent event, boolean isPriorityEvent) throws IOException {  
     for (RecordWriterOutput<?> streamOutput : streamOutputs) {  
@@ -4544,7 +4545,7 @@ public void notifyDataAvailable() {
     requestQueue.notifyReaderNonEmpty(this);  
 }
 ```
-#### 6.1.1.5 发送 Barrier 后执行 ck
+#### 7.1.1.5 发送 Barrier 后执行 ck
 ```java
 // 6.1.1.3 step5
 private boolean takeSnapshotSync(  
@@ -4725,7 +4726,7 @@ void snapshotState(
     }  
 }
 ```
-#### 6.1.1.6 向 coordinator 发送 ack
+#### 7.1.1.6 向 coordinator 发送 ack
 ```java
 // Flink 最终调用 finishAndReportAsync()向 Master 发送报告，所有的节点都报告结束时，Master 会生成 CompletedCheckpoint 持久化到状态后端中，结束 ck 流程
 private void finishAndReportAsync(  
@@ -4843,7 +4844,7 @@ public boolean receiveAcknowledgeMessage(
                     break;  
 }
 ```
-#### 6.1.1.7 生成最终的 CompletedCheckpoint
+#### 7.1.1.7 生成最终的 CompletedCheckpoint
 ```java
 // CheckpointCoordinator.java
 private void completePendingCheckpoint(PendingCheckpoint pendingCheckpoint)  
@@ -4954,8 +4955,8 @@ public CompletableFuture<Acknowledge> confirmCheckpoint(
  */
 ```
 
-# 7. SQL
-## 7.1 基础 API
+# 8. SQL
+## 8.1 基础 API
 ### 7.1.1 创建 TableEnvironment
 - `TableEnvironment` 用于：
 	- 注册 Catalog 和表
@@ -5060,7 +5061,7 @@ public static ApiExpression call(
     return apiCall(functionInstance, arguments);  
 }
 ```
-## 7.2 Connector
+## 8.2 Connector
 ### 7.2.1 读写文件
 - 建表语句
 ```sql
@@ -5296,7 +5297,7 @@ String createTableSql =
 	" 'value.format' = 'json' " +
 	" )";
 ```
-## 7.3 Function
+## 8.3 Function
 ### 7.3.1 使用系统自带函数
 ```java
 String sql = "create table t1 ( " +  
@@ -5445,9 +5446,9 @@ t1.groupBy($("id"))
         .select($("id"), $("rank"), $("top"))  
         .execute()  
 ```
-## 7.4 SQL 窗口
-### 7.4.1 定义时间
-#### 7.4.1.1 TableApi
+## 8.4 SQL 窗口
+### 8.4.1 定义时间
+#### 8.4.1.1 TableApi
 - `TableApi` 中，`Schema` 类代表一张表的元数据信息，可用通过 `column()` 方法，指定 `POJO` 中的属性构造一列，也可以通过 `columnByExpression()` 方法，通过表达式构造列
 - `TableApi` 中的时间
 - 根据原始数据中不同的时间格式通过不同的函数来定义
@@ -5476,7 +5477,7 @@ Schema schema = Schema.newBuilder()
         .watermark("etmillts", "etmillts - interval '0.001' second")  
         .build();
 ```
-#### 7.4.1.2 SqlApi
+#### 8.4.1.2 SqlApi
 ```java
 String sql = "create table t1 ( " +  
         " id string, " +  
@@ -5490,7 +5491,7 @@ String sql = "create table t1 ( " +
         " 'path'='data/ws.json'," +  
         " 'format'='json')";
 ```
-### 7.4.2 计数窗口
+### 8.4.2 计数窗口
 - 计数窗口只有 `TableApi`，需要使用 processingTime，根据处理时间判断到达的顺序
 ```java
 Schema schema = Schema.newBuilder()  
@@ -5525,9 +5526,9 @@ tbl.window(w2)
 	.select($("vc").sum().as("sumVc"))  
 	.execute().print();
 ```
-### 7.4.3 时间窗口
+### 8.4.3 时间窗口
 - 时间窗口一般通过 SQL 来定义，不使用 `GroupWindow` 语法，使用最新的 `TVF(table-valued functions) Window` 语法
-#### 7.4.3.1 滚动窗口
+#### 8.4.3.1 滚动窗口
 - 语法
 TUMBLE(<font color='red'>TABLE data</font>, <font color='red'>DESCRIPTOR</font>(timecol), <font color='red'>size</font> \[, <font color='red'>offset</font> ])
 - `data` -> 表名
@@ -5551,7 +5552,7 @@ String sql = "select id, " +
         // 固定写法，用到了其他字段，表示keyed窗口
         " group by window_start, window_end, id";
 ```
-#### 7.4.3.2 滑动窗口
+#### 8.4.3.2 滑动窗口
 - 语法
 HOP(<font color='red'>TABLE data</font>, <font color='red'>DESCRIPTOR</font>(timecol), slide, <font color='red'>size</font> \[, <font color='red'>offset</font> ])
 ```java
@@ -5566,7 +5567,7 @@ String sql = "select " +
         " group by window_start, window_end";
 ```
 
-#### 7.4.3.3 会话窗口
+#### 8.4.3.3 会话窗口
 - 语法
 - 会话窗口不支持 TVF 语法，只能通过 GroupWindow 语法来实现
 ```java
@@ -5577,7 +5578,7 @@ String sql = "select " +
         " from t1 " +  
         " group by session(pt, interval '3' second)";
 ```
-#### 7.4.3.4 累积窗口
+#### 8.4.3.4 累积窗口
 - 累积窗口适用于每隔一段固定时间进行计算
 ![[cumulate_window.png]]
 - 每次计算 `window step` 大小的数据，当大小达到 `max window size` 后，从头接着上个窗口的数据继续计算
@@ -5592,8 +5593,8 @@ String sql = "select " +
         " group by window_start, window_end";
 ```
 
-### 7.4.4 增强聚合
-#### 7.4.4.1 GroupingSets
+### 8.4.4 增强聚合
+#### 8.4.4.1 GroupingSets
 - 场景：需要聚合的字段相同，但是分组方式不同
 ```java
 // select后面加上所有需要分组的字段，在groupby后加上grouping sets
@@ -5611,14 +5612,14 @@ String sql = "select id, ts, " +
         " tumble(table t1, descriptor(pt), interval '3' second)) " +  
         " group by window_start, window_end, grouping sets((id), (ts))";
 ```
-#### 7.4.4.2 RollUp
+#### 8.4.4.2 RollUp
 - 分组字段由右至左逐渐减少
 - rollup(a, b, c) -> 按 abc 分组 -> 按 ab 分组 -> 按 a 分组 -> 按 null 分组
 ```java
 .sqlQuery("select ... from ... group by " +  
 	" rollup(a, b, c,...)").execute().print();
 ```
-#### 7.4.4.3 Cube
+#### 8.4.4.3 Cube
 - cube(a, b, c, ...)会按 $$
 C_{n}^{n}+C_{n}^{n-1}+\dots+C_{n}^{1}+C_{n}^{0}=2^n
 $$
@@ -5628,7 +5629,7 @@ $$
         " cube(a, b, ...)").execute().print();
 ```
 
-### 7.4.5 over 窗口
+### 8.4.5 over 窗口
 - `hive` 中的 `over()`:
 - `窗口函数() over(partition by xxx order by xxx rows | range between ... and)`
 - `flink` 的无界流使得下边界是不确定的，因此 `flink` 的 `over()` 强制将下边界规定为 `current row`
@@ -5685,8 +5686,8 @@ String multiSql = "select  " +
         " from t1 " +  
         " window w as (partition by id order by pt rows between unbounded preceding and current row)";
 ```
-## 7.5 Join
-### 7.5.1 CommonJoin
+## 8.5 Join
+### 8.5.1 CommonJoin
 - `commonjoin` 指普通的 `inner join`，`left join` 等，两张表进行 join 时，表中的数据会缓存在状态中，占用资源会越来越大，可以通过配置状态的 `ttl` 来回收
 ```java
 // inner join每关联一条向结果表中增加一条 +I 的数据
@@ -5708,7 +5709,7 @@ env.execute()
 ```
 
 
-### 7.5.2 IntervalJoin
+### 8.5.2 IntervalJoin
 ```java
 // 不使用join关键字
 String sql = "select t1.id, t2.id, t1.ts, t2.ts " +  
@@ -5717,7 +5718,7 @@ String sql = "select t1.id, t2.id, t1.ts, t2.ts " +
         " t2.et " +  // 对面流的时间
         " between t1.et - interval '2' second and t1.et + interval '2' second"; // 在当前表的时间范围中
 ```
-### LookupJoin
+### 8.5.3 LookupJoin
 - 维度表一般存储在外部系统，如 `Mysql` 或 `HBase` 中， `lookupjoin` 用于事实表 `join` 维度表的场景，要求维度表中有<font color='skyblue'>处理时间</font>字段
 ```java
 String joinSql = "select t1.id, t2.name " +  
@@ -5727,7 +5728,7 @@ String joinSql = "select t1.id, t2.name " +
         " on t1.id = t2.id";
 ```
 
-## 7.6 Catalog
+## 8.6 Catalog
 - Catalog 是库的上一级，用于区分相同库下相同的表名
 - Catalog 提供了元数据信息，例如数据库、表、分区、视图以及数据库或其他外部系统中存储的函数和信息
 ```java
@@ -5742,7 +5743,7 @@ String joinSql = "select t1.id, t2.name " +
  *       -> HiveCatalog
 */
 ```
-### 7.6.1 默认 Catalog
+### 8.6.1 默认 Catalog
 ```java
 // default_catalog
 System.out.println(tblEnv.getCurrentCatalog());  
@@ -5750,7 +5751,7 @@ System.out.println(tblEnv.getCurrentCatalog());
 System.out.println(tblEnv.getCurrentDatabase());
 // 默认使用GenericInMemoryCatalog，会将Calalog的信息存在内存中
 ```
-### 7.6.2 JdbcCatalog
+### 8.6.2 JdbcCatalog
 - `AbstractJdbcCatalog` 有三个子类
 - `JdbcCatalog` 可以直接对接 `JDBC` 中的库和表，无需创建 `Flink` 的表映射，即可读取
 - 只能读取不能写入数据
@@ -5804,7 +5805,7 @@ public void useCatalog(String catalogName) {
     catalogManager.setCurrentCatalog(catalogName);  
 }
 ```
-### 7.6.3 HiveCatalog
+### 8.6.3 HiveCatalog
 - `HiveCatalog` 不仅可以直接对接 `Hive` 中的库和表，还可以把 `Flink` 中定义的表的元数据直接存储到 `Hive` 的元数据存储中
 - 使用时需要开启元数据服务
 ```java
@@ -5820,7 +5821,7 @@ public HiveCatalog(String catalogName, @Nullable String defaultDatabase, @Nullab
     ...
 }
 ```
-## 7.7 Module
+## 8.7 Module
 - `Module` 接口定义了一组元数据，包括函数，用户定义类型等
 ```java
 // Module接口有两个实现类CoreModule和HiveModule
@@ -5841,14 +5842,14 @@ public void loadModule(String moduleName, Module module) {
 // addAll全部添加到集合中
 tblEnv.useModules("hive", "core");
 ```
-## 7.8 SqlHint
+## 8.8 SqlHint
 - `SqlHint` 用于临时修改表中的元数据，只在当前查询有效
 - 在需要给出提示的地方使用: `/*+ OPTIONS('k'='v') */`，传入 k, v
 ```java
 // 修改连接器中的参数
 env.sqlQuery("select * from t1 /*+ OPTIONS('path'='...') */ ") .execute().print();
 ```
-## 7.9 SqlClient
+## 8.9 SqlClient
 - flink 提供了一个命令行的客户端，类似 hivecli，使用前必须先启动 Session 集群，再提交 sql：`/bin/sql-client.sh`
 - sqlClient 可以设置三种显示模式：`SET sql-client.execution.result-mode=`
 	- 默认 table
@@ -5866,8 +5867,8 @@ STOP JOB 'jobid' WITH SAVEPOINT
 SET execution.savepoint.path='...' # 之前保存的路径
 # 直接提交sql，就会从之前的状态恢复
 ```
-# 8. 复习
-## 8.1 与 SparkStreaming 的对比
+# 9. 复习
+## 9.1 与 SparkStreaming 的对比
 - 本质
 	- `Flink` 基于事件触发计算，真正意义上的流处理框架
 	- `SparkStreaming` 基于时间触发计算，根据批大小进行处理的微批次处理框架
@@ -5881,7 +5882,7 @@ SET execution.savepoint.path='...' # 之前保存的路径
 	- `Flink` 只保存状态数据，可以修改业务逻辑
 - 吞吐量
 	- `SparkStreaming` 的吞吐量大，因为只有一次网络请求
-## 8.2 基础概念
+## 9.2 基础概念
 - JobManager
 	- 负责资源申请
 	- 任务切分
@@ -5904,7 +5905,7 @@ SET execution.savepoint.path='...' # 之前保存的路径
 	- 不同算子的 `Task` 可以共享 `Slot`
 	- `Job` 所需 `Slot` 数：各个共享组最大并行度之和
 	- 只要属于同一个作业，不同任务的并行子任务可以放到同一个 `slot` 上执行
-## 8.3 运行模式、提交方式、提交流程
+## 9.3 运行模式、提交方式、提交流程
 - 运行模式：Yarn
 	- yarn-session: 先创建集群，再提交任务
 	- yarn-per-job: 先提交任务，再创建集群
@@ -5930,7 +5931,7 @@ SET execution.savepoint.path='...' # 之前保存的路径
 		- `TaskManager`
 			- 物理流图：提供 `Slot` 运行 `Task`
 	- yarn-application: `StreamGraph` 和 `JobGraph` 在 `JobMaster` 生成
-## 8.4 算子
+## 9.4 算子
 
 ![[process_funcs.svg]]
 
@@ -5950,7 +5951,7 @@ SET execution.savepoint.path='...' # 之前保存的路径
 		- shuffle：随机
 		- broadcast：广播
 		- global：全部发往下游第一个分区
-## 8.5 时间语义与窗口操作
+## 9.5 时间语义与窗口操作
 - 时间语义：事件、进入、处理
 - 事件时间：`Watermark`
 	- 本质：流中传输的特殊时间戳，用于衡量事件进行的机制
@@ -5958,6 +5959,27 @@ SET execution.savepoint.path='...' # 之前保存的路径
 	- 作用机制：延迟关窗
 	- 传输：递增(见 4.2)、广播、短板(见 4.5)
 	- 生成策略：
-		- 周期性：默认 200ms
-			- 数据稀疏，产生的水印不会发送，
+		- 周期型：默认 200ms
+			- 数据密集时，周期型的好
+			- 数据稀疏，产生的水印不会发送
 		- 断点式
+			- 数据稀疏时，断点式好
+			- 数据密集时会产生许多的水印数据
+		- 考虑到流中存在数据稀疏和数据密集的情况，周期型更好
+- 窗口操作
+	- 分类
+		- 时间：滚动、滑动、会话
+		- 计数：滚动、滑动
+	- 核心组件：
+		- windowAssigner：
+			- window
+			- windowAll
+		- 触发器:
+			- 凌晨没有数据，按照事件时间开窗，最后一个窗口到第二天才会关闭，及时关闭如何处理
+			- 开一个 10s 的滚动时间窗口，希望每 2s 输出一次聚合结果
+			- 只有 `KeyedStream` 才可以使用定时器
+		- 移除器
+		- 如果使用事件时间
+			- 允许迟到
+			- 侧输出流
+		- 窗口函数

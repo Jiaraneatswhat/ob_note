@@ -3715,8 +3715,8 @@ public interface WindowFunction<IN, OUT, KEY, W extends Window> extends Function
 # 4. 水印
 ## 4.1 时间语义
 - Flink 中存在两种时间语义
-	- **ProcessingTime**：参考计算机时钟
-	- **EventTime**：参考数据中的时间
+	- `ProcessingTime`：参考计算机时钟
+	- `EventTime`：参考数据中的时间
 - 在一些情况下，我们需要以处理数据的时间为准，例如通过 DS 调度昨天的数据时，操作时间是今天，但是要放在昨天的分区
 ## 4.2 Watermark 概述
 - 如果要参考数据中的时间，数据中就必须携带时间，这种基于 **EventTime** 计算场景下的时间就被称为水印
@@ -3813,6 +3813,32 @@ WatermarkStrategy<T> strategy = WatermarkStrategy
     }  
 });
 ```
+- 水印的递增
+```java
+// BoundedOutOfOrdernessWatermarks
+public void onPeriodicEmit(WatermarkOutput output) {  
+    output.emitWatermark(new Watermark(maxTimestamp - outOfOrdernessMillis - 1));  
+}
+
+// WatermarkToDataOutput
+public void emitWatermark(Watermark watermark) {  
+    final long newWatermark = watermark.getTimestamp();  
+    // 只有新的 Wm 大于上次的 Wm 才会发射
+    if (newWatermark <= maxWatermarkSoFar) {  
+        return;  
+    }  
+  
+    maxWatermarkSoFar = newWatermark;  
+    watermarkEmitted.updateCurrentEffectiveWatermark(maxWatermarkSoFar);  
+  
+    try {  
+        markActiveInternally();  
+  
+        output.emitWatermark(  
+                new org.apache.flink.streaming.api.watermark.Watermark(newWatermark));  
+    } 
+}
+```
 ## 4.3 基于时间窗口的应用
 ```java
 /*
@@ -3851,8 +3877,8 @@ env.allowedLateness(Time lateness)
 - 水印在数据后到达，根据两个 Task 发送的水印，取最小更新值
 ![[Drawing 2023-11-15 18.39.18.excalidraw.svg]]
 ## 4.6 水印超时时间的设置
-- 如果上游有多个 Task，其中部分 Task 由于长时间收不到数据而不更新水印。由于下游 Task 会获取上游中最小的水印来更新自己的水印，这种情况会拖累下游 Task 的计算
-- 通过设置超时时间，长时间不产生水印的 Task 会被标记为 Idle
+- 如果上游有多个 `Task`，其中部分 `Task`由于长时间收不到数据而不更新水印。由于下游 `Task` 会获取上游中最小的水印来更新自己的水印，这种情况会拖累下游 `Task` 的计算
+- 通过设置超时时间，长时间不产生水印的 `Task` 会被标记为 `Idle`
 ```java
 WatermarkStrategy<T> watermarkStrategy = WatermarkStrategy
             .<T>forMonotonousTimestamps()
@@ -3888,7 +3914,7 @@ public void onPeriodicEmit(WatermarkOutput output) {
 }
 ```
 ## 4.7 WindowJoin
-- 对两个流先 join 再开窗，与 connect 类似，但是是通过一个方法同时处理两种流
+- 对两个流先 `join` 再开窗，与 `connect` 类似，但是是通过一个方法同时处理两种流
 ```java
 ds1.join(ds2)
 	// 类似sql join时的on
@@ -3943,8 +3969,8 @@ public EqualTo equalTo(KeySelector<T2, KEY> keySelector, TypeInformation<KEY> ke
 }
 ```
 ## 4.8 IntervalJoin
-- IntervalJoin 不需要在窗口中 join
-- 一个流中的数据可以和对面流中<font color='red'>指定时间范围间隔</font>内的数据进行 join
+- `IntervalJoin` 不需要在窗口中 `join`
+- 一个流中的数据可以和对面流中<font color='red'>指定时间范围间隔</font>内的数据进行 `join`
 ![[interval-join.svg]]
 ```java
  ds1.intervalJoin(ds2)  
@@ -4074,9 +4100,9 @@ ds1.connect(broadcastStream)
 - `HashMapStateBackend`
 	- 将状态存储在 TM 的堆内存中，基于内存读写，效率高
 - `EmbeddedRocksDBStateBackend`
-	- 将状态存储在内置的 RocksDB 中，RocksDB 随 TM 的启动而创建，将数据以 byte\[]形式存储在缓存，缓存空间不足时将其溢写到磁盘中
+	- 将状态存储在内置的 `RocksDB` 中，`RocksDB` 随 `TM` 的启动而创建，将数据以 `byte[]`形式存储在缓存，缓存空间不足时将其溢写到磁盘中
 	- 可以存储大状态
-- 可以在 flink-conf.yaml 中配置：`state.backend.type: hashmap|rocksdb`
+- 可以在 `flink-conf.yaml` 中配置：`state.backend.type: hashmap|rocksdb`
 # 6. 容错机制
 ## 6.1 Checkpoint 机制
 - `checkpoint` 基于 <font color='red'>Chandy-Lamport</font> 算法，通过分布式异步快照将状态备份到检查点
@@ -5915,4 +5941,23 @@ SET execution.savepoint.path='...' # 之前保存的路径
 		- 基本转换：`map, flatMap, filter`
 		- 聚合：`max, maxBy, min, minBy, sum, reduce`
 	- 重分区
-		- keyBy: 
+		- keyBy
+		- reblance：全局轮询
+		- rescale: 
+			- 只会将数据轮询发送到下游并行任务的一部分中
+			- 分小团体，小团体内部轮流
+		- forward：一对一，上下游并行度相同
+		- shuffle：随机
+		- broadcast：广播
+		- global：全部发往下游第一个分区
+## 8.5 时间语义与窗口操作
+- 时间语义：事件、进入、处理
+- 事件时间：`Watermark`
+	- 本质：流中传输的特殊时间戳，用于衡量事件进行的机制
+	- 作用：处理乱序数据
+	- 作用机制：延迟关窗
+	- 传输：递增(见 4.2)、广播、短板(见 4.5)
+	- 生成策略：
+		- 周期性：默认 200ms
+			- 数据稀疏，产生的水印不会发送，
+		- 断点式

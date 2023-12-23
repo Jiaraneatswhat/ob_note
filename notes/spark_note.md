@@ -596,32 +596,90 @@ override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit
         } else {  
           context.senderAddress  
         }  
-      logInfo(s"Registered executor $executorRef ($executorAddress) with ID $executorId, " +  
-        s" ResourceProfileId $resourceProfileId")  
-      addressToExecutorId(executorAddress) = executorId  
-      totalCoreCount.addAndGet(cores)  
-      totalRegisteredExecutors.addAndGet(1)  
-      val resourcesInfo = resources.map { case (rName, info) =>  
-        // tell the executor it can schedule resources up to numSlotsPerAddress times,  
-        // as configured by the user, or set to 1 as that is the default (1 task/resource)        val numParts = scheduler.sc.resourceProfileManager  
-          .resourceProfileFromId(resourceProfileId).getNumSlotsPerAddress(rName, conf)  
-        (info.name, new ExecutorResourceInfo(info.name, info.addresses, numParts))  
+      // 将 Executor 加入到 Map 中
+      CoarseGrainedSchedulerBackend.this.synchronized {  
+        executorDataMap.put(executorId, data)   
       }  
-      val data = new ExecutorData(executorRef, executorAddress, hostname,  
-        0, cores, logUrlHandler.applyPattern(logUrls, attributes), attributes,  
-        resourcesInfo, resourceProfileId, registrationTs = System.currentTimeMillis())  
-      // This must be synchronized because variables mutated  
-      // in this block are read when requesting executors      CoarseGrainedSchedulerBackend.this.synchronized {  
-        executorDataMap.put(executorId, data)  
-        if (currentExecutorIdCounter < executorId.toInt) {  
-          currentExecutorIdCounter = executorId.toInt  
-        }  
-      }  
-      listenerBus.post(  
-        SparkListenerExecutorAdded(System.currentTimeMillis(), executorId, data))  
-      // Note: some tests expect the reply to come after we put the executor in the map  
+      // 回复SUCCESS
       context.reply(true)  
     }
+}
+```
+## 1.15 注册成功后，创建 Executor 准备开启 Task
+```scala
+// ExecutorBackend 进行处理(1.14)
+case Success(_) =>  
+      self.send(RegisteredExecutor) 
+
+// 收到 Driver 注册成功的消息后，向自己发送 RegisteredExecutor 消息
+override def receive: PartialFunction[Any, Unit] = {  
+  case RegisteredExecutor =>  
+    logInfo("Successfully registered with driver")  
+    try {  
+      // 创建Executor，向 Driver 发送 LaunchedExecutor 消息
+      executor = new Executor(executorId, hostname, env, getUserClassPath, isLocal = false, resources = _resources)  
+      driver.get.send(LaunchedExecutor(executorId))  
+    }
+}
+
+// Driver 在 receive 方法中处理启动请求
+override def receive: PartialFunction[Any, Unit] = {
+	case LaunchedExecutor(executorId) =>  
+  executorDataMap.get(executorId).foreach { data =>  
+    data.freeCores = data.totalCores  
+  }  
+  makeOffers(executorId)
+}
+
+private def makeOffers(executorId: String): Unit = {  
+  // Make sure no executor is killed while some task is launching on it  
+  val taskDescs = withLock {  
+    // Filter out executors under killing  
+    if (isExecutorActive(executorId)) {  
+      val executorData = executorDataMap(executorId)  
+      // Executor 可用资源的抽象
+      val workOffers = IndexedSeq(  
+        new WorkerOffer(
+	        executorId, 
+	        executorData.executorHost, 
+	        executorData.freeCores,  
+	        Some(executorData.executorAddress.hostPort),  
+            executorData.resourcesInfo.map { 
+	            case (rName, rInfo) =>  
+	            (rName, rInfo.availableAddrs.toBuffer)  
+	          }, 
+	        executorData.resourceProfileId))  
+      scheduler.resourceOffers(workOffers, false)  
+    } else {  
+      Seq.empty  
+    }  
+  }  
+  if (taskDescs.nonEmpty) { 
+    // 准备启动 Task 
+    launchTasks(taskDescs)  
+  }  
+}
+```
+## 1.16 Driver 通知 Executor 执行任务
+```scala
+override def receive: PartialFunction[Any, Unit] = {
+	case LaunchTask(data) =>  
+  if (executor == null) {  
+    exitExecutor(1, "Received LaunchTask command but executor was null")  
+  } else {  
+    val taskDesc = TaskDescription.decode(data.value)  
+    logInfo("Got assigned task " + taskDesc.taskId)  
+    taskResources(taskDesc.taskId) = taskDesc.resources  
+    executor.launchTask(this, taskDesc)  
+  }
+}
+
+// Executor.scala
+def launchTask(context: ExecutorBackend, taskDescription: TaskDescription): Unit = {  
+  val taskId = taskDescription.taskId  
+  // 创建 TaskRunner，继承了 Runnable
+  val tr = createTaskRunner(context, taskDescription)  
+  threadPool.execute(tr)  
 }
 ```
 

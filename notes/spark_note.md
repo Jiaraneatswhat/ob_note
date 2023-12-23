@@ -378,7 +378,7 @@ def run(): Unit = {
   startContainer()  
 }
 ```
-## 1.11 开启 Container，启动 Executor
+## 1.11 开启 Container，封装启动 Executor 的命令
 ```scala
 def startContainer(): java.util.Map[String, ByteBuffer] = {  
   // 封装启动 Executor 的命令 
@@ -410,8 +410,89 @@ private def prepareCommand(): List[String] = {
    commands.map(s => if (s == null) "null" else s).toList
  }
 ```
+## 1.12 启动 CoarseGrainedExecutorBackend
+```scala
+def main(args: Array[String]): Unit = {  
+  val createFn: (RpcEnv, Arguments, SparkEnv, ResourceProfile) =>  
+    CoarseGrainedExecutorBackend = { case (rpcEnv, arguments, env, resourceProfile) =>  
+    new CoarseGrainedExecutorBackend(rpcEnv, arguments.driverUrl, arguments.executorId,  
+      arguments.bindAddress, arguments.hostname, arguments.cores,  
+      env, arguments.resourcesFileOpt, resourceProfile)  
+  }  
+  run(parseArguments(args, this.getClass.getCanonicalName.stripSuffix("$")), createFn)  
+  System.exit(0)  
+}
 
+def run(  
+    arguments: Arguments,  
+    backendCreateFn: (RpcEnv, Arguments, SparkEnv, ResourceProfile) =>  
+      CoarseGrainedExecutorBackend): Unit = {  
+  
+  
+  SparkHadoopUtil.get.runAsSparkUser { () =>  
+  
+    // Bootstrap to fetch the driver's Spark properties.  
+    val executorConf = new SparkConf  
+    val fetcher = RpcEnv.create(  
+      "driverPropsFetcher",  
+      arguments.bindAddress,  
+      arguments.hostname,  
+      -1,  
+      executorConf,  
+      new SecurityManager(executorConf),  
+      numUsableCores = 0,  
+      clientMode = true)  
 
+    // 找到 Driver 的 ref
+    var driver: RpcEndpointRef = null  
+  
+    // Create SparkEnv using properties we fetched from the driver.  
+    val env = SparkEnv.createExecutorEnv(driverConf, arguments.executorId, arguments.bindAddress,arguments.hostname, arguments.cores, cfg.ioEncryptionKey, isLocal = false)  
+    // 设置 Executor 的终端
+    val backend = backendCreateFn(env.rpcEnv, arguments, env, cfg.resourceProfile)  
+    env.rpcEnv.setupEndpoint("Executor", backend)  
+    arguments.workerUrl.foreach { url =>  
+      env.rpcEnv.setupEndpoint("WorkerWatcher",  
+        new WorkerWatcher(env.rpcEnv, url, isChildProcessStopping = backend.stopping))  
+    }  
+  }  
+}
+```
+## 1.13 设置 RPC 终端
+- `RpcEnv`: `Spark` 使用 `Netty`
+- `RpcEndpoint`：`Spark` 每个节点均会实现 `RpcEndpoint` 接口
+	- 调用shu
+- `Dispatcher`：
+	- 将发送远程消息或者从远程 RPC 接收到的消息分发至 `inBox` 或 `outBox`
+	- 如果指令接收方是自己则存入 `inBox`，如果指令接收方不是自己，则放入 `outBox`
+- 
+```scala
+override def setupEndpoint(name: String, endpoint: RpcEndpoint): RpcEndpointRef = {	  
+    // NettyRpcEnv的对象创建时会创建一个Dispatcher
+    dispatcher.registerRpcEndpoint(name, endpoint)
+}
+
+ def registerRpcEndpoint(name: String, endpoint: RpcEndpoint): NettyRpcEndpointRef = {
+   val addr = RpcEndpointAddress(nettyEnv.address, name)
+   val endpointRef = new NettyRpcEndpointRef(nettyEnv.conf, addr, nettyEnv)
+   synchronized {
+
+     // 定义MessageLoop变量，Executor的终端是IsolatedRpcEndpoint类型，创建一个DedicatedMessageLoop对象
+     var messageLoop: MessageLoop = null
+     try {
+       messageLoop = endpoint match {
+         case e: IsolatedRpcEndpoint =>
+           new DedicatedMessageLoop(name, e, this)
+         case _ =>
+           sharedLoop.register(name, endpoint)
+           sharedLoop
+       }
+       endpoints.put(name, messageLoop)
+     }
+   }
+   endpointRef
+}
+```
 
 
 
@@ -615,7 +696,7 @@ ds.write.save("dst") // 默认的文件格式 parquet
 	- `产生的文件个数 = Mapper 数 * 2`
 - BypassMergeSortShuffle
 	- 类似 Hash 按分区溢写，类似 Sort 合并文件
-	- 用到了按分区溢写，Reducer 个数需要限制
+	- 用到了按分区溢写，Reducer 个数需要限制，不能是预聚合算子
 ```scala
 def shouldBypassMergeSort(conf: SparkConf, dep: ShuffleDependency[_, _, _]): Boolean = {  
   // We cannot bypass sorting if we need to do map-side aggregation. 

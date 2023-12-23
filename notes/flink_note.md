@@ -5840,3 +5840,4 @@ STOP JOB 'jobid' WITH SAVEPOINT
 SET execution.savepoint.path='...' # 之前保存的路径
 # 直接提交sql，就会从之前的状态恢复
 ```
+# 8. 复习

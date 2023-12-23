@@ -496,8 +496,45 @@ override def setupEndpoint(name: String, endpoint: RpcEndpoint): RpcEndpointRef 
    }
    endpointRef
 }
-```
 
+// MessageLoop有两个实现类:服务于多个RPC端点的SharedMessageLoop和以及服务单个端点DedicatedMessageLoop
+private class DedicatedMessageLoop(
+    name: String,
+    endpoint: IsolatedRpcEndpoint,
+    dispatcher: Dispatcher)
+  extends MessageLoop(dispatcher) {
+  // 定义了一个Inbox对象
+  private val inbox = new Inbox(name, endpoint)
+  // 创建ThreadPool
+  override protected val threadpool = if (endpoint.threadCount() > 1) {
+    ThreadUtils.newDaemonCachedThreadPool(s"dispatcher-$name", endpoint.threadCount())
+  }
+
+  (1 to endpoint.threadCount()).foreach { _ =>
+	// 从 inbox 中取出 Runnable对象
+    threadpool.submit(receiveLoopRunnable)
+  }
+
+  // Mark active to handle the OnStart message.
+  setActive(inbox)
+}
+```
+## 1.14 ExecutorBackend.onStart()
+```scala
+override def onStart(): Unit = {  
+  // 通过 driverUrl 获取 Driver 的 Ref
+  rpcEnv.asyncSetupEndpointRefByURI(driverUrl).flatMap { ref =>  
+    // This is a very fast action so we can use "ThreadUtils.sameThread"  
+    driver = Some(ref)  
+    env.executorBackend = Option(this)  
+    // 向 Driver 发送注册 Executor 的消息
+    ref.ask[Boolean](RegisterExecutor(executorId, self, hostname, cores, extractLogUrls, extractAttributes, _resources, resourceProfile.id))  
+  }(ThreadUtils.sameThread).onComplete {  
+    case Success(_) =>  
+      self.send(RegisteredExecutor)  
+  }(ThreadUtils.sameThread)  
+}
+```
 
 
 

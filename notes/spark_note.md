@@ -34,7 +34,7 @@ build_command() {
 CMD=("${CMD[@]:0:$LAST}")
 exec "${CMD[@]}"
 ```
-## 1.2 运行 SparkSubmit
+## 1.2 运行 SparkSubmit 解析参数
 ### 1.2.1 main()
 ```scala
 def main(args: Array[String]): Unit = {
@@ -67,6 +67,11 @@ private def submit(args: SparkSubmitArguments, uninitLog: Boolean): Unit = {
 private def runMain(args: SparkSubmitArguments, uninitLog: Boolean): Unit = {
   /*
    * 判断是本地/Yarn/Mesos等模式，部署模式等
+   * clusterManager -> YARN
+   * deployMode -> CLUSTER
+   * childMainClass = YARN_CLUSTER_SUBMIT_CLASS
+   * "org.apache.spark.deploy.yarn.YarnClusterApplication"
+   * 
    * prepareSubmitEnvironment用于准备submit的环境，返回一个四元组:
    * childArgs: 子进程的参数
    * childClasspath: 子进程的类路径
@@ -94,12 +99,24 @@ private def runMain(args: SparkSubmitArguments, uninitLog: Boolean): Unit = {
     new JavaMainApplication(mainClass)
   }
   try {
-    // 启动SparkApplication
+    // 启动 SparkApplication
     app.start(childArgs.toArray, sparkConf)
   }
 }
 ```
+## 1.3 启动客户端： YarnClusterApplication
+```scala
+// YarnClusterApplication 继承了 SparkApplication，调用其 start 方法
+// Client.scala中
+private[spark] class YarnClusterApplication extends SparkApplication { 
+  override def start(args: Array[String], conf: SparkConf): Unit = {  
+    new Client(new ClientArguments(args), conf).run()  
+  }  
+}
 
+// 创建一个Client对象
+
+```
 
 
 

@@ -681,6 +681,30 @@ def launchTask(context: ExecutorBackend, taskDescription: TaskDescription): Unit
   val tr = createTaskRunner(context, taskDescription)  
   threadPool.execute(tr)  
 }
+
+override def run(): Unit = {  
+ 
+  val ser = env.closureSerializer.newInstance()  
+  logInfo(s"Running $taskName")  
+  
+  try {  
+    task = ser.deserialize[Task[Any]](  
+		taskDescription.serializedTask, 
+		Thread.currentThread.getContextClassLoader)  
+		
+    val value = Utils.tryWithSafeFinally { 
+      // run 方法会执行 runTask 
+      val res = task.run(  
+        taskAttemptId = taskId,  
+        attemptNumber = taskDescription.attemptNumber,  
+        metricsSystem = env.metricsSystem,  
+        cpus = taskDescription.cpus,  
+        resources = taskDescription.resources,  
+        plugins = plugins)  
+      threwException = false  
+      res  
+    } 
+}
 ```
 
 

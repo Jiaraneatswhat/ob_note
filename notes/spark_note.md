@@ -461,11 +461,15 @@ def run(
 ## 1.13 设置 RPC 终端
 - `RpcEnv`: `Spark` 使用 `Netty`
 - `RpcEndpoint`：`Spark` 每个节点均会实现 `RpcEndpoint` 接口
-	- 调用shu
+	- 调用顺序：`Constructor -> onStart -> receive -> onStop`
+- `RpcEndpointRef`: `RpcEndpoint` 的引用，向 `RpcEndpoint` 发送消息时需要先获取到
 - `Dispatcher`：
-	- 将发送远程消息或者从远程 RPC 接收到的消息分发至 `inBox` 或 `outBox`
-	- 如果指令接收方是自己则存入 `inBox`，如果指令接收方不是自己，则放入 `outBox`
-- 
+	- 将发送远程消息或者从远程 RPC 接收到的消息分发至 `InBox` 或 `OutBox`
+	- 如果指令接收方是自己则存入 `InBox`，如果指令接收方不是自己，则放入 `OutBox`
+- `InBox`: `RpcEndpoint` 对应一个 `InBox`
+	- `Dispatcher` 向 `Inbox` 存入消息时，都将对应 `EndpointData` 加入内部 `ReceiverQueue` 中
+	- `Dispatcher` 创建时启动一个单独线程进行轮询 `ReceiverQueue`，进行收件箱消息消费
+- `TransportClient`:负责消费 `OutBox` 的消息，发给 `TransportServer` 后，再通过 `Dispatcher` 发往 `Inbox`
 ```scala
 override def setupEndpoint(name: String, endpoint: RpcEndpoint): RpcEndpointRef = {	  
     // NettyRpcEnv的对象创建时会创建一个Dispatcher
@@ -640,7 +644,7 @@ rdd.aggregate("")((a, b) => Math.min(a.length, b.length).toString,
 	- 计算到 `ck` 的位置时，提交一个新任务从头执行到当前位置，保存在 `HDFS` 中
 	- 使用场景
 		- `RDD` 复用：减少计算次数
-		- 一个很长的任务链中间的 `shuffle` 阶段后，`防止重复shuffle`
+		- 一个很长的任务链中间的 `shuffle` 阶段后，防止重复shuffle`
 ```java
 rdd.cache()
 rdd.checkPoint("hdfs://xxx")

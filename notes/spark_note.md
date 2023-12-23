@@ -159,7 +159,7 @@ def submitApplication(): ApplicationId = {
   }
 }
 ```
-### 1.5 启动 ApplicationMaster
+## 1.5 启动 ApplicationMaster
 ```scala
 def main(args: Array[String]): Unit = {  
   master = new ApplicationMaster(amArgs)  
@@ -183,74 +183,131 @@ final def run(): Int = {
 private def runImpl(): Unit = {  
   try {  
   
-  
     if (isClusterMode) {  
-      // Set the web ui port to be ephemeral for yarn so we don't conflict with  
-      // other spark processes running on the same box      System.setProperty("spark.ui.port", "0")  
-  
-      // Set the master and deploy mode property to match the requested mode.  
+      System.setProperty("spark.ui.port", "0")  
       System.setProperty("spark.master", "yarn")  
-      System.setProperty("spark.submit.deployMode", "cluster")  
-  
-      // Set this internal configuration if it is running on cluster mode, this  
-      // configuration will be checked in SparkContext to avoid misuse of yarn cluster mode.      System.setProperty("spark.yarn.app.id", appAttemptId.getApplicationId().toString())  
-  
+      System.setProperty("spark.submit.deployMode", "cluster")   
+      System.setProperty("spark.yarn.app.id", appAttemptId.getApplicationId().toString())  
       attemptID = Option(appAttemptId.getAttemptId.toString)  
     }  
   
-    new CallerContext(  
-      "APPMASTER", sparkConf.get(APP_CALLER_CONTEXT),  
-      Option(appAttemptId.getApplicationId.toString), attemptID).setCurrentContext()  
+    if (isClusterMode) {  
+      // 启动 Driver
+      runDriver()  
+    } 
+  }
+}
+```
+## 1.6 启动 Driver
+```scala
+private def runDriver(): Unit = {  
+  addAmIpFilter(None)  
+  // 启动 Driver 线程
+  userClassThread = startUserApplication()  
   
-    logInfo("ApplicationAttemptId: " + appAttemptId)  
+  logInfo("Waiting for spark context initialization...")  
+  try {  
+    val sc = ThreadUtils.awaitResult(sparkContextPromise.future,  
+      Duration(totalWaitTime, TimeUnit.MILLISECONDS))  
+    if (sc != null) {  
+      // 等待 Context 的初始化，获取到 RPC 通信环境后去 RM 注册，申请资源
+      rpcEnv = sc.env.rpcEnv  
+      val userConf = sc.getConf  
+      val host = userConf.get("spark.driver.host")  
+      val port = userConf.get("spark.driver.port").toInt  
+      registerAM(host, port, userConf, sc.ui.map(_.webUrl))  
+
+	  // driver 的通信终端
+      val driverRef = rpcEnv.setupEndpointRef(  
+        RpcAddress(host, port),  
+        YarnSchedulerBackend.ENDPOINT_NAME)  
+      createAllocator(driverRef, userConf)  
+    } 
+}
+
+private def startUserApplication(): Thread = {  
+  var userArgs = args.userArgs  
+  // 加载 main 方法
+  val mainMethod = userClassLoader.loadClass(args.userClass)  
+    .getMethod("main", classOf[Array[String]])  
   
-    // This shutdown hook should run *after* the SparkContext is shut down.  
-    val priority = ShutdownHookManager.SPARK_CONTEXT_SHUTDOWN_PRIORITY - 1  
-    ShutdownHookManager.addShutdownHook(priority) { () =>  
-      val maxAppAttempts = client.getMaxRegAttempts(sparkConf, yarnConf)  
-      val isLastAttempt = client.getAttemptId().getAttemptId() >= maxAppAttempts  
-  
-      if (!finished) {  
-        // The default state of ApplicationMaster is failed if it is invoked by shut down hook.  
-        // This behavior is different compared to 1.x version.        // If user application is exited ahead of time by calling System.exit(N), here mark        // this application as failed with EXIT_EARLY. For a good shutdown, user shouldn't call        // System.exit(0) to terminate the application.        finish(finalStatus,  
-          ApplicationMaster.EXIT_EARLY,  
-          "Shutdown hook called before final status was reported.")  
-      }  
-  
-      if (!unregistered) {  
-        // we only want to unregister if we don't want the RM to retry  
-        if (finalStatus == FinalApplicationStatus.SUCCEEDED || isLastAttempt) {  
-          unregister(finalStatus, finalMsg)  
-          cleanupStagingDir()  
+  val userThread = new Thread {  
+    override def run() {  
+      try {  
+        if (!Modifier.isStatic(mainMethod.getModifiers)) {...} 
+        // 保证是 static
+        else {  
+          // 调用 main 方法初始化SparkContext
+          mainMethod.invoke(null, userArgs.toArray)  
+          logDebug("Done running user class")  
         }  
       }  
     }  
+  }  
+  userThread.setContextClassLoader(userClassLoader)  
+  userThread.setName("Driver")  
+  userThread.start()  
+  userThread  
+}
+```
+## 1.7 初始化 SparkContext
+## 1.8 AM 向 RM 申请资源
+```scala
+// 1.6 继续执行
+// 向 RM 注册
+private def registerAM(  
+    host: String,  
+    port: Int,  
+    _sparkConf: SparkConf,  
+    uiAddress: Option[String]): Unit = {   
+  client.register(host, port, yarnConf, _sparkConf, uiAddress, historyAddress) 
+  registered = true  
+}
+
+def register(  
+    driverHost: String,  
+    driverPort: Int,  
+    conf: YarnConfiguration,  
+    sparkConf: SparkConf,  
+    uiAddress: Option[String],  
+    uiHistoryAddress: String): Unit = {  
+  // 创建实现类  
+  amClient = AMRMClient.createAMRMClient()  
+  amClient.init(conf)  
+  amClient.start()  
   
-    if (isClusterMode) {  
-      runDriver()  
-    } else {  
-      runExecutorLauncher()  
-    }  
-  } catch {  
-    case e: Exception =>  
-      // catch everything else if not specifically handled  
-      logError("Uncaught exception: ", e)  
-      finish(FinalApplicationStatus.FAILED,  
-        ApplicationMaster.EXIT_UNCAUGHT_EXCEPTION,  
-        "Uncaught exception: " + StringUtils.stringifyException(e))  
-  } finally {  
-    try {  
-      metricsSystem.foreach { ms =>  
-        ms.report()  
-        ms.stop()  
-      }  
-    } catch {  
-      case e: Exception =>  
-        logWarning("Exception during stopping of the metric system: ", e)  
-    }  
+  synchronized {  
+    // AM 向 RM 注册
+    amClient.registerApplicationMaster(driverHost, driverPort, trackingUrl)  
+    registered = true  
   }  
 }
 ```
+## 1.9 创建 Allocator
+```scala
+private def createAllocator(driverRef: RpcEndpointRef, _sparkConf: SparkConf): Unit = {  
+  val appId = client.getAttemptId().getApplicationId().toString()  
+  val driverUrl = RpcEndpointAddress(driverRef.address.host, driverRef.address.port, CoarseGrainedSchedulerBackend.ENDPOINT_NAME).toString  
+  
+  allocator = client.createAllocator(  
+    yarnConf,  
+    _sparkConf,  
+    driverUrl,  
+    driverRef,  
+    securityMgr,  
+    localResources)  
+  
+  // Initialize the AM endpoint after the allocator has been initialized. This ensures  
+  // that when the driver sends an initial executor request (e.g. after an AM restart), 
+  // the allocator is ready to service requests.  
+  rpcEnv.setupEndpoint("YarnAM", new AMEndpoint(rpcEnv, driverRef))  
+  
+  allocator.allocateResources()
+}
+
+
+```
+
 
 
 

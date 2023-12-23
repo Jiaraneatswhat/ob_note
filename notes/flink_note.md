@@ -5862,3 +5862,16 @@ SET execution.savepoint.path='...' # 之前保存的路径
 	- 任务管理
 	- `Checkpoint` 触发
 	- `WebUI`
+- TaskManager
+	- 提供 `Slot` 执行 `Task`
+- 算子链
+	- 作用：合并 Task
+	- 条件
+		- One-to-one 操作：
+			- `source, map, flatmap, filter`
+			- 不需要重新分区，不需要调整数据顺序
+			- 类似 `Spark` 的窄依赖
+		- 并行度相同
+- Slot 共享组
+	- 不同算子的 `Task` 可以共享 `Slot`
+	- `Job` 所需 `Slot` 数：各个共享组最大并行度之和

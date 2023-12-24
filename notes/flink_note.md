@@ -4005,6 +4005,51 @@ public <OUT> SingleOutputStreamOperator<OUT> process(
         ProcessJoinFunction<IN1, IN2, OUT> processJoinFunction) {}
 ```
 # 5. 触发器
+- 触发器用来确认窗口什么时候准备完毕，可以处理窗口数据
+- 触发器的触发有三种方式
+	- `onElement()`
+	- `onEventTime()`
+	- `onProcessingTime()`
+- 触发器的返回结果
+```java
+public enum TriggerResult {  
+	// 不做操作
+    CONTINUE(false, false),  
+	// 触发且清除窗口数据
+    FIRE_AND_PURGE(true, true),  
+    // 只触发
+    FIRE(true, false),  
+    // 只清除
+	PURGE(false, true);
+}
+```
+## 5.1 EventTimeTrigger
+```java
+public TriggerResult onElement(  
+        Object element, long timestamp, TimeWindow window, TriggerContext ctx)  
+        throws Exception {  
+    if (window.maxTimestamp() <= ctx.getCurrentWatermark()) {
+	    // 事件事件 > 窗口的最大范围，立即计算  
+        // if the watermark is already past the window fire immediately  
+        return TriggerResult.FIRE;  
+    } else {
+	    // 继续  
+        ctx.registerEventTimeTimer(window.maxTimestamp());  
+        return TriggerResult.CONTINUE;  
+    }  
+}
+
+public TriggerResult onEventTime(long time, TimeWindow window, TriggerContext ctx) {  
+    return time == window.maxTimestamp() ? TriggerResult.FIRE : TriggerResult.CONTINUE;  
+}
+
+
+```
+
+
+
+
+
 # 6. 状态管理
 - `Flink` 中的算子任务可以分为有状态和无状态两种
 	- 无状态在计算时不依赖其他数据，直接输出转换结果

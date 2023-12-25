@@ -6050,8 +6050,8 @@ SET execution.savepoint.path='...' # 之前保存的路径
 		- 计数：滚动、滑动
 	- 核心组件：
 		- windowAssigner：
-			- window
-			- windowAll
+			- `window`
+			- `windowAll`
 		- 触发器:
 			- 凌晨没有数据，按照事件时间开窗，最后一个窗口到第二天才会关闭，及时关闭如何处理
 			- 开一个 10s 的滚动时间窗口，希望每 2s 输出一次聚合结果

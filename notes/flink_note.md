@@ -6111,4 +6111,16 @@ SET execution.savepoint.path='...' # 之前保存的路径
 		- 所有 `Barrier` 都到达后，`ck` 标记完成
 		- 缺点：会造成状态过大
 - 端到端的精准一次
-- 
+	- Source：可以多次重复读取数据
+		- 如果 Source 本身不能重复读取数据，结果仍然可能是不准确的
+	- Flink：`Checkpoint` 精准一次
+	- Sink：
+		- 幂等：
+			- 利用 `MySQL` 主键 `upsert`
+			- 利用 `hbase` 的 `rowkey` 唯一
+		- 事务：外部系统提供，2PC, 预写日志
+			- 两阶段提交写 `Kafka`
+			- 两阶段提交写 `MySQL`
+	- 事务的特性
+		- Atomicity：事务中的操作要么全部完成，要么全部失败
+		- Consistency：事务按预期生效，数据是yu'qi

@@ -4080,9 +4080,13 @@ public class ContinuousEventTimeTrigger<W extends Window> extends Trigger<Object
 	// 触发间隔
 	private final long interval;
 }
+
+// ReducingStateDescriptor
+private final ReducingStateDescriptor<Long> stateDesc =  
+        new ReducingStateDescriptor<>("fire-time", new Min(), LongSerializer.INSTANCE);
+
+
 ```
-
-
 # 6. 状态管理
 - `Flink` 中的算子任务可以分为有状态和无状态两种
 	- 无状态在计算时不依赖其他数据，直接输出转换结果
@@ -6054,6 +6058,9 @@ SET execution.savepoint.path='...' # 之前保存的路径
 			- `windowAll`
 		- 触发器:
 			- 凌晨没有数据，按照事件时间开窗，最后一个窗口到第二天才会关闭，及时关闭如何处理
+				- 自定义 Trigger
+				- 不属于迟到的数据注册两个定时器(事件，处理)
+					- watermark 不更新，按处理事件触发
 			- 开一个 10s 的滚动时间窗口，希望每 2s 输出一次聚合结果
 			- 只有 `KeyedStream` 才可以使用定时器
 		- 移除器

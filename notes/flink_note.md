@@ -6119,8 +6119,21 @@ SET execution.savepoint.path='...' # 之前保存的路径
 			- 利用 `MySQL` 主键 `upsert`
 			- 利用 `hbase` 的 `rowkey` 唯一
 		- 事务：外部系统提供，2PC, 预写日志
+			- 用事务向外部写，与检查点绑定在一起
+			- 当 `SInk` 遇到 `Barrier` 时，开启保存状态的同时开启一个事务，接下来所有的数据写入都在这个事务中
+			- 等检查点保存完毕时，将事务提交，写入的数据就可以使用了
+			- 如果出现了问题，状态会回退到上一个 ck，而事务也会进行回滚
 			- 两阶段提交写 `Kafka`
 			- 两阶段提交写 `MySQL`
 	- 事务的特性
-		- Atomicity：事务中的操作要么全部完成，要么全部失败
-		- Consistency：事务按预期生效，数据是yu'qi
+		- `Atomicity`：事务中的操作要么全部完成，要么全部失败
+		- `Consistency`：事务按预期生效，数据是预期的状态
+		- `Isolation`：多个并发事务之间相互隔离
+		- `Durability`：提交事务产生的影响是永久性的
+	- WAL 事务提交
+		- `Flink` 中提供了接口 `GenericWriteAheadSink`，没有实现类
+		- `Sink` 将数据的写出命令保存在日志中(`StreamStateHandle`)
+		- 生成事务记录在状态中(`PendingCheckpoint`)
+		- 进行持久化存储，向 `coordinator` 发送 handle 回调
+		- 收到检查点完成的通知后，将所有结果一次性写入外部系统
+		- 成功写入所有数据后，内部更新 `PendingCheccpoint` 的状态，将确认信息持久化，真正完成`ck`

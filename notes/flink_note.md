@@ -6132,8 +6132,27 @@ SET execution.savepoint.path='...' # 之前保存的路径
 		- `Durability`：提交事务产生的影响是永久性的
 	- WAL 事务提交
 		- `Flink` 中提供了接口 `GenericWriteAheadSink`，没有实现类
-		- `Sink` 将数据的写出命令保存在日志中(`StreamStateHandle`)
-		- 生成事务记录在状态中(`PendingCheckpoint`)
-		- 进行持久化存储，向 `coordinator` 发送 handle 回调
-		- 收到检查点完成的通知后，将所有结果一次性写入外部系统
-		- 成功写入所有数据后，内部更新 `PendingCheccpoint` 的状态，将确认信息持久化，真正完成`ck`
+		- 过程
+			- `Sink` 将数据的写出命令保存在日志中(`StreamStateHandle`)
+			- 生成事务记录在状态中(`PendingCheckpoint`)
+			- 进行持久化存储，向 `coordinator` 发送 handle 回调
+			- 收到检查点完成的通知后，将所有结果一次性写入外部系统
+			- 成功写入所有数据后，内部更新 `PendingCheccpoint` 的状态，将确认信息持久化，真正完成 `ck`
+		- 缺点：最终确认信息时如果发生了故障，只能恢复到上个状态重新写，无法保证幂等性时会造成<font color='red'>重复写入</font>
+	- 2PC(2 Phase Commit) 提交
+		- `Flink` 中提供了抽象类 `TwoPhaseCommitSinkFunction` 以及新的 `TwoPhaseCommittingSink` 接口，实现类有 `KafkaSink`
+		- 需要外部系统支持，`MySQL`, `Kafka` 都支持
+		- 过程
+			- 每批的第一条数据到达时，开启事务
+			- 数据直接输出到外部系统，此时是临时不可见数据(预提交)
+			- `ck` 完成后正式提交事务
+			- 收到响应更新状态
+			- 充分利用了 `ck` 的机制
+			- `Barrier` 的到来标志着开始一个新事务
+			- 收到 `JM` 的 `ck` 成功的消息，标志着提交事务
+- `MySQL` 的事务
+```sql
+BEGIN -- 开启事务
+COMMIT -- 提交事务
+ROLLBACK -- 回滚
+```

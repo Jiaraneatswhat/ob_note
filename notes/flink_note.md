@@ -4040,14 +4040,47 @@ public TriggerResult onElement(
 }
 
 public TriggerResult onEventTime(long time, TimeWindow window, TriggerContext ctx) {  
+	// 会话窗口下，window 的 maxTimestamp 可能会发生变化
     return time == window.maxTimestamp() ? TriggerResult.FIRE : TriggerResult.CONTINUE;  
 }
 
-
+// 和处理事件无关
+public TriggerResult onProcessingTime(long time, TimeWindow window, TriggerContext ctx)  
+        throws Exception {  
+    return TriggerResult.CONTINUE;  
+}
 ```
+## 5.2 ProcessingTimeTrigger
+```java
+// 来一条数据注册一个定时器
+public TriggerResult onElement(  
+        Object element, long timestamp, TimeWindow window, TriggerContext ctx) {  
+    ctx.registerProcessingTimeTimer(window.maxTimestamp());  
+    return TriggerResult.CONTINUE;  
+}
 
+// 和事件时间无关
+public TriggerResult onEventTime(long time, TimeWindow window, TriggerContext ctx)  
+        throws Exception {  
+    return TriggerResult.CONTINUE;  
+}
 
+// Timer 触发执行
+public TriggerResult onProcessingTime(long time, TimeWindow window, TriggerContext ctx) {  
+    return TriggerResult.FIRE;  
+}
+```
+## 5.3 ContinuousEventTimeTrigger
+- 基于水印根据给定的时间连续触发
+- 业务中有时窗口的长度过长，希望每隔一段时间就计算一次
+- SQL 中有累积窗口
+```java
+public class ContinuousEventTimeTrigger<W extends Window> extends Trigger<Object, W> {
 
+	// 触发间隔
+	private final long interval;
+}
+```
 
 
 # 6. 状态管理

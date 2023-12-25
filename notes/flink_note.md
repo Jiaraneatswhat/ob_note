@@ -6151,6 +6151,7 @@ SET execution.savepoint.path='...' # 之前保存的路径
 			- `Barrier` 的到来标志着开始一个新事务
 			- 收到 `JM` 的 `ck` 成功的消息，标志着提交事务
 		- 如果确认信息时挂了，第二次提交时存在事务 id，不会再进行重复提交，就是精准一次
+		- 隔离级别至少为读已提交
 - `MySQL` 的事务的隔离级别
 ```sql
 BEGIN -- 开启事务
@@ -6163,8 +6164,12 @@ ROLLBACK -- 回滚
  * @@x: 系统变量
 */
 select @@TX_ISOLATION
+
+-- 设置会话隔离级别
+set SESSION TRANSACTION ISOLATION LEVEL xxx
 ```
 - 读未提交
+	- 任何操作<font color='red'>不加锁</font>
 	- 会出现脏读
 		- T1 修改某个值，T2 读取到后，T1 回滚，T2 的数据无效
 		- 一般针对于 `update`
@@ -6172,6 +6177,31 @@ select @@TX_ISOLATION
 		- 同一个事务内多次读取同一行数据，得到的结果可能不一致
 		- 可能有别的事务对其进行了修改
 	- 会出现幻读
-		- 
-- 读未提交
-	- 
+		- T1 读到了 T2 新插入的数据导致数据不一致
+- 读已提交
+	- <font color='red'>增删改会增加行锁</font>，读操作不加锁
+	- 出现不可重复读，幻读
+- 可重复读：出现幻读
+- 可串行化：不出现问题，读加<font color='red'>共享锁</font>，写加<font color='red'>排它锁</font>
+## 9.7 FlinkSQL
+- 事件时间，处理时间的提取
+	- 建表时创建
+	- 流转表
+- 窗口
+	- TVF: 
+		- 优化
+		- 多维分析函数
+		- 累计窗口
+	- GroupWindow：会话窗口
+- 自定义函数
+	- UDF
+	- UDAF
+	- UDTF
+	- UDTAF: 只用于 `TableAPI`
+- Join
+	- 常规 Join：内连接，外连接
+		- 左外连接：TTL = 10s
+			- 左表lai
+	- 时序 Join：事件、处理
+	- LookupJoin：时间语义下特殊的时序 `Join`
+	- IntervalJoin

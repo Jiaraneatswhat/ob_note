@@ -6093,11 +6093,22 @@ SET execution.savepoint.path='...' # 之前保存的路径
 - Checkpoint / Savepoint
 	- Barrier 对齐
 		- 精确一次
-			- 有 Barrier 到达后
-				- 正在等待的 Task 在收到数据时进行缓存数据
-				- Barrier 未到达的 Task 来数据时，正常计算输出
-			- 所有的 Barrier 均到达后将计算结果(状态)保存
+			- 有 `Barrier` 到达后
+				- `Barrier` 已到达的 `Task` 在收到数据时进行缓存数据
+				- `Barrier` 未到达的 `Task` 来数据时，正常计算输出
+			- 所有的 `Barrier` 均到达后将计算结果(状态)保存
 			- 将缓存的数据依次处理并输出
 		- 至少一次
-			- 有 Barrier 到达后
-				- 正在等待的 Task 在收到数据时继续计算
+			- 有 `Barrier` 到达后
+				- `Barrier` 已到达的 `Task` 在收到数据时继续计算，不缓存
+					- 挂掉之后会重复读
+				- `Barrier` 未到达的 `Task` 来数据时，正常计算输出
+			- 所有的 `Barrier` 均到达后将状态保存
+	- 非 Barrier 对齐
+		- 有 `Barrier` 到达后，会将当前计算结果保存，`ck` 为未完成状态
+			- `Barrier` 已到达的 `Task` 收到数据时，正常计算输出
+			- `Barrier` 未到达的 `Task` 来数据时，正常计算输出，同时将数据本身进行缓存
+		- 所有 `Barrier` 都到达后，`ck` 标记完成
+		- 缺点：会造成状态过大
+- 端到端的精准一次
+- 

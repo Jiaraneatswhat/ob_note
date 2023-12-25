@@ -5949,8 +5949,9 @@ STOP JOB 'jobid' WITH SAVEPOINT
 SET execution.savepoint.path='...' # 之前保存的路径
 # 直接提交sql，就会从之前的状态恢复
 ```
-# 9. 复习
-## 9.1 与 SparkStreaming 的对比
+# 9. 优化
+# 10. 复习
+## 10.1 与 SparkStreaming 的对比
 - 本质
 	- `Flink` 基于事件触发计算，真正意义上的流处理框架
 	- `SparkStreaming` 基于时间触发计算，根据批大小进行处理的微批次处理框架
@@ -5964,7 +5965,7 @@ SET execution.savepoint.path='...' # 之前保存的路径
 	- `Flink` 只保存状态数据，可以修改业务逻辑
 - 吞吐量
 	- `SparkStreaming` 的吞吐量大，因为只有一次网络请求
-## 9.2 基础概念
+## 10.2 基础概念
 - JobManager
 	- 负责资源申请
 	- 任务切分
@@ -5987,7 +5988,7 @@ SET execution.savepoint.path='...' # 之前保存的路径
 	- 不同算子的 `Task` 可以共享 `Slot`
 	- `Job` 所需 `Slot` 数：各个共享组最大并行度之和
 	- 只要属于同一个作业，不同任务的并行子任务可以放到同一个 `slot` 上执行
-## 9.3 运行模式、提交方式、提交流程
+## 10.3 运行模式、提交方式、提交流程
 - 运行模式：Yarn
 	- yarn-session: 先创建集群，再提交任务
 	- yarn-per-job: 先提交任务，再创建集群
@@ -6013,7 +6014,7 @@ SET execution.savepoint.path='...' # 之前保存的路径
 		- `TaskManager`
 			- 物理流图：提供 `Slot` 运行 `Task`
 	- yarn-application: `StreamGraph` 和 `JobGraph` 在 `JobMaster` 生成
-## 9.4 算子
+## 10.4 算子
 
 ![[process_funcs.svg]]
 
@@ -6033,7 +6034,7 @@ SET execution.savepoint.path='...' # 之前保存的路径
 		- shuffle：随机
 		- broadcast：广播
 		- global：全部发往下游第一个分区
-## 9.5 时间语义与窗口操作
+## 10.5 时间语义与窗口操作
 - 时间语义：事件、进入、处理
 - 事件时间：`Watermark`
 	- 本质：流中传输的特殊时间戳，用于衡量事件进行的机制
@@ -6075,8 +6076,8 @@ SET execution.savepoint.path='...' # 之前保存的路径
 				- 特殊需求：百分比指标
 				- 可以获取窗口信息
 			- 结合使用
-## 9.6 状态编程与容错
-### 9.6.1 状态编程
+## 10.6 状态编程与容错
+### 10.6.1 状态编程
 - 状态：历史数据
 	- OperateState
 		- `List`
@@ -6089,7 +6090,7 @@ SET execution.savepoint.path='...' # 之前保存的路径
 		- `Reduce`
 		- `Aggregate`
 	- 使用在 `RichFunction` 中，可以设置 TTL
-### 9.6.2 容错
+### 10.6.2 容错
 - Checkpoint / Savepoint
 	- Barrier 对齐
 		- 精确一次
@@ -6183,9 +6184,11 @@ set SESSION TRANSACTION ISOLATION LEVEL xxx
 	- 出现不可重复读，幻读
 - 可重复读：出现幻读
 - 可串行化：不出现问题，读加<font color='red'>共享锁</font>，写加<font color='red'>排它锁</font>
-## 9.7 FlinkSQL
+## 10.7 FlinkSQL
 - 事件时间，处理时间的提取
 	- 建表时创建
+		- `pc as proctime()`
+		- `et as to_timestamp_ltz(ts, 3) (ts, 3) -> ms (ts, 0) -> s`
 	- 流转表
 - 窗口
 	- TVF: 
@@ -6223,10 +6226,11 @@ set SESSION TRANSACTION ISOLATION LEVEL xxx
 			- 右表先来数据，10s 后左表来数据
 				- \[+I]    左    null
 			- 右表先来数据，10s 内左表来数据，之后保持间隔 10s 内来数据
-				- \[+I]    左    右
-				- \[+I]    左    null
-					- 右表的ge
+				- 10s 内：\[+I]    左    右
+				- 10s 后：\[+I]    左    null
+					- 右表 `ttl` 类型是 `OnCreateAndWrite`，读取并不会刷新 `ttl` 时间
 			- 右表先来数据，10s 内左表来数据，之后超过 10s 来数据
+				- 同上
 	- 时序 Join：事件、处理
 	- LookupJoin：时间语义下特殊的时序 `Join`
 		- Cache: 维表数据不更新时使用

@@ -5065,7 +5065,7 @@ private Optional<BufferOrEvent> handleEvent(BufferOrEvent bufferOrEvent) throws 
         barrierHandler.processBarrier(checkpointBarrier, bufferOrEvent.getChannelInfo(), false);
 }
 ```
-#### 7.1.2.2 SingleCheckpointBarrierHandler
+#### 7.1.2.2 根据是否精准一次生成不同的 Handler
 ```java
 
 ```
@@ -6142,7 +6142,7 @@ SET execution.savepoint.path='...' # 之前保存的路径
 		- 缺点：会造成状态过大
 - 端到端的精准一次
 	- Source：可以多次重复读取数据
-		- 如果 Source 本身不能重复读取数据，结果仍然可能是不准确的
+		- 如果 `Source` 本身不能重复读取数据，结果仍然可能是不准确的
 	- Flink：`Checkpoint` 精准一次
 	- Sink：
 		- 幂等：

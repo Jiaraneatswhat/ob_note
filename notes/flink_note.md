@@ -4228,7 +4228,7 @@ private void notifyJobStatusChange(JobStatus newState) {
         }  
     }  
 }
-
+// 监听到 Job 的状态变化，开始进行 CK
 // CheckpointCoordinatorDeActivator.java
 public void jobStatusChanges(JobID jobId, JobStatus newJobStatus, long timestamp) {  
     if (newJobStatus == JobStatus.RUNNING) {  
@@ -4440,8 +4440,8 @@ public void triggerCheckpointBarrier(
 #### 7.1.1.3 算子产生 Barrier
 ```java
 /*
- * StreamTask是TM部署并执行的本地处理单元
- * 每个StreamTask运行一个或多个chain在一起的StreamOperator
+ * StreamTask 是 TM 部署并执行的本地处理单元
+ * 每个 StreamTask 运行一个或多个 chain 在一起的 StreamOperator
  * StreamTask
  *     -> AbstractTwoInputStreamTask
  *            -> TwoInputStreamTask
@@ -4449,7 +4449,7 @@ public void triggerCheckpointBarrier(
  *     -> OneInputStreamTask
  *     -> SourceOperatorStreamTask
  *     -> SourceStreamTask
- * 最终会调用父类StreamTask的triggerCheckpointAsync()方法
+ * 最终会调用父类 StreamTask 的 triggerCheckpointAsync() 方法
 */
 public CompletableFuture<Boolean> triggerCheckpointAsync(  
         CheckpointMetaData checkpointMetaData, CheckpointOptions checkpointOptions) {  
@@ -4480,6 +4480,7 @@ private boolean performCheckpoint(
         this::isRunning);
 }
 
+// SubtaskCheckpointCoordinatorImpl
 public void checkpointState(  
         CheckpointMetaData metadata,  
         CheckpointOptions options,  
@@ -4488,14 +4489,15 @@ public void checkpointState(
         boolean isTaskFinished,  
         Supplier<Boolean> isRunning)  
         throws Exception {  
-     
+
+	// AlignmentType = {AT_LEAST_ONCE, ALIGNED, UNALIGNED, FORCED_ALIGNED}
     if (options.getAlignment() == CheckpointOptions.AlignmentType.FORCED_ALIGNED) {  
         options = options.withUnalignedSupported();  
         initInputsCheckpoint(metadata.getCheckpointId(), options);  
     }  
   
     // Step (1): Prepare the checkpoint, allow operators to do some pre-barrier work.  
-    //           The pre-barrier work should be nothing or minimal in the common case.    
+    // The pre-barrier work should be nothing or minimal in the common case.  
     operatorChain.prepareSnapshotPreBarrier(metadata.getCheckpointId());  
   
     // Step (2): Send the checkpoint barrier downstream  
@@ -5026,6 +5028,8 @@ public CompletableFuture<Acknowledge> confirmCheckpoint(
  * 如FlinkKafkaConsumerBase的notifyCheckpointComplete()方法，会在ck成功后，将offset写入Kafka
  */
 ```
+### 7.1.2 非 Source 算子对 ck 的处理
+#### 7.1.2.1 下游接收到 Barrier
 
 # 8. SQL
 ## 8.1 基础 API

@@ -1640,30 +1640,14 @@ public JobExecutionResult execute(String jobName) throws Exception {
     if (jobName != null) {
         streamGraph.setJobName(jobName);
     }
-
     try {
         return execute(streamGraph);
-    } catch (Throwable t) {...}
+    }
 }
 
 public JobExecutionResult execute(StreamGraph streamGraph) throws Exception {
     final JobClient jobClient = executeAsync(streamGraph);
-
-    try {
-        final JobExecutionResult jobExecutionResult;
-
-        if (configuration.getBoolean(DeploymentOptions.ATTACHED)) {
-            jobExecutionResult = jobClient.getJobExecutionResult().get();
-        } else {
-            jobExecutionResult = new DetachedJobExecutionResult(jobClient.getJobID());
-        }
-
-        jobListeners.forEach(
-            jobListener -> jobListener.onJobExecuted(jobExecutionResult, null));
-
-        return jobExecutionResult;
-    } catch (Throwable t) {...}
-}
+    }
 
 public JobClient executeAsync(StreamGraph streamGraph) throws Exception {
     checkNotNull(streamGraph, "StreamGraph cannot be null.");
@@ -1673,25 +1657,9 @@ public JobClient executeAsync(StreamGraph streamGraph) throws Exception {
     // 获取到Future对象
     CompletableFuture<JobClient> jobClientFuture =
         executor.execute(streamGraph, configuration, userClassloader);
-
-    try {
-        JobClient jobClient = jobClientFuture.get();
-        jobListeners.forEach(jobListener -> jobListener.onJobSubmitted(jobClient, null));
-        collectIterators.forEach(iterator -> iterator.setJobClient(jobClient));
-        collectIterators.clear();
-        return jobClient;
-    } catch (ExecutionException executionException) {
-        final Throwable strippedException =
-            ExceptionUtils.stripExecutionException(executionException);
-        jobListeners.forEach(
-            jobListener -> jobListener.onJobSubmitted(null, strippedException));
-
-        throw new FlinkException(
-            String.format("Failed to execute job '%s'.", streamGraph.getJobName()),
-            strippedException);
-    }
 }
 
+// EmbeddedExecutor
 public CompletableFuture<JobClient> execute(
     final Pipeline pipeline,
     final Configuration configuration,

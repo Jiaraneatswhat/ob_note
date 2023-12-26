@@ -6256,8 +6256,9 @@ SET execution.savepoint.path='...' # 之前保存的路径
 ## 9.1 资源调优
 ### 9.1.1 内存设置
 ### 9.1.2 合理利用 CPU 资源
-- 容量调度器默认使用 `DefaultResourceCalculator`，只根据内存来调度资源，因此资源管理页面上每个容器的 vcore 数为 1
-- 可修改为 `DominantResourceCalculator`
+- 容量调度器默认使用 `DefaultResourceCalculator`，只根据内存来调度资源，因此资源管理页面上每个容器的 `vcore` 数为 1
+- 每个 `TM` 中的 `Slot` 共用一个 `CPU`
+- 可修改为 `DominantResourceCalculator`，每个 `Slot` 分一个 `CPU`
 ```xml
 <!-- capacity-scheduler.xml -->
 <property>
@@ -6265,7 +6266,8 @@ SET execution.savepoint.path='...' # 之前保存的路径
  <value>org.apache.hadoop.yarn.util.resource.DominantResourceCalculator</value>
 </property>
 ```
-
+- 使用 `DominantResourceCalculator` 在提交任务时可以手动指定 
+	- `-Dyarn.containers.vcores=1`
 
 # 10. 复习
 ## 10.1 与 SparkStreaming 的对比

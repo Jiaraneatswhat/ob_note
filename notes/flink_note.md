@@ -5067,6 +5067,62 @@ private Optional<BufferOrEvent> handleEvent(BufferOrEvent bufferOrEvent) throws 
 ```
 #### 7.1.2.2 根据是否精准一次生成不同的 Handler
 ```java
+public static CheckpointBarrierHandler createCheckpointBarrierHandler(  
+        CheckpointableTask toNotifyOnCheckpoint,  
+        StreamConfig config,  
+        SubtaskCheckpointCoordinator checkpointCoordinator,  
+        String taskName,  
+        List<IndexedInputGate>[] inputGates,  
+        List<StreamTaskSourceInput<?>> sourceInputs,  
+        MailboxExecutor mailboxExecutor,  
+        TimerService timerService) {  
+
+    switch (config.getCheckpointMode()) {  
+        case EXACTLY_ONCE:  
+            return createBarrierHandler(...);  
+        case AT_LEAST_ONCE:  
+            return new CheckpointBarrierTracker(...);  
+    }  
+}
+
+// 精准一次有对齐和非对齐
+private static SingleCheckpointBarrierHandler createBarrierHandler(  
+        CheckpointableTask toNotifyOnCheckpoint,  
+        StreamConfig config,  
+        SubtaskCheckpointCoordinator checkpointCoordinator,  
+        String taskName,  
+        MailboxExecutor mailboxExecutor,  
+        TimerService timerService,  
+        CheckpointableInput[] inputs,  
+        Clock clock,  
+        int numberOfChannels) {  
+    boolean enableCheckpointAfterTasksFinished =  
+            config.getConfiguration()  
+                    .get(ExecutionCheckpointingOptions.ENABLE_CHECKPOINTS_AFTER_TASKS_FINISH);  
+    if (config.isUnalignedCheckpointsEnabled()) {  
+        return SingleCheckpointBarrierHandler.alternating(  
+                taskName,  
+                toNotifyOnCheckpoint,  
+                checkpointCoordinator,  
+                clock,  
+                numberOfChannels,  
+                BarrierAlignmentUtil.createRegisterTimerCallback(mailboxExecutor, timerService),  
+                enableCheckpointAfterTasksFinished,  
+                inputs);  
+    } else {  
+        return SingleCheckpointBarrierHandler.aligned(  
+                taskName,  
+                toNotifyOnCheckpoint,  
+                clock,  
+                numberOfChannels,  
+                BarrierAlignmentUtil.createRegisterTimerCallback(mailboxExecutor, timerService),  
+                enableCheckpointAfterTasksFinished,  
+                inputs);  
+    }  
+}
+```
+#### 7.1.2.3 精准一次
+```java
 
 ```
 # 8. SQL

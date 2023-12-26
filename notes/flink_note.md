@@ -6063,6 +6063,10 @@ SET execution.savepoint.path='...' # 之前保存的路径
 		- broadcast：广播
 		- global：全部发往下游第一个分区
 	- Sink
+- 如何将一个流变为两个流 -- 侧流
+	- `getSideOutput()`
+	- 侧流输出：`ctx.output(OutputTag x, T t)`
+	- 主流输出：`Collector.collect()`
 ## 10.5 时间语义与窗口操作
 - 时间语义：事件、进入、处理
 - 事件时间：`Watermark`

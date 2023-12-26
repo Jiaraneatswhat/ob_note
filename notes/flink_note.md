@@ -5150,47 +5150,110 @@ public void processBarrier(
             state -> state.barrierReceived(context, channelInfo, barrier, !isRpcTriggered));  
 }
 
-protected void markCheckpointAlignedAndTransformState(  
-        InputChannelInfo alignedChannel,  
-        CheckpointBarrier barrier,  
-        FunctionWithException<BarrierHandlerState, BarrierHandlerState, Exception> stateTransformer)  
+// AbstractAlignedBarrierHandlerState
+public final BarrierHandlerState barrierReceived(  
+        Controller controller,  
+        InputChannelInfo channelInfo,  
+        CheckpointBarrier checkpointBarrier,  
+        boolean markChannelBlocked)  
+        throws IOException, CheckpointException {  
+    
+    if (markChannelBlocked) {  
+        state.blockChannel(channelInfo);  
+    }  
+    // Barrier 对齐后触发 ck
+    if (controller.allBarriersReceived()) {  
+	    // 通知 StreamTask 执行 ck
+        return triggerGlobalCheckpoint(controller, checkpointBarrier);  
+    }  
+  
+    return convertAfterBarrierReceived(state);  
+}
+
+public boolean allBarriersReceived() {  
+    return alignedChannels.size() == targetChannelCount;  
+}
+```
+#### 7.1.2.4 对齐至少一次
+```java
+// CheckpointBarrierTracker
+public void processBarrier(  
+        CheckpointBarrier receivedBarrier, InputChannelInfo channelInfo, boolean isRpcTriggered)  
         throws IOException {  
-    alignedChannels.add(alignedChannel);  
-    if (alignedChannels.size() == 1) {  
-        if (targetChannelCount == 1) {  
-            markAlignmentStartAndEnd(barrier.getId(), barrier.getTimestamp());  
-        } else {  
-            markAlignmentStart(barrier.getId(), barrier.getTimestamp());  
+    final long barrierId = receivedBarrier.getId();  
+  
+    // 只有一个 channel 立即 ck    
+    if (receivedBarrier.getId() > latestPendingCheckpointID && numOpenChannels == 1) {  
+        markAlignmentStartAndEnd(barrierId, receivedBarrier.getTimestamp()); 
+        notifyCheckpoint(receivedBarrier);  
+        return;  
+    }  
+
+    if (barrierCount != null) {  
+        // add one to the count to that barrier and check for completion  
+        int numChannelsNew = barrierCount.markChannelAligned(channelInfo);  
+        if (numChannelsNew == barrierCount.getTargetChannelCount()) {    
+		    // 已对齐
+            // notify the listener  
+            if (!barrierCount.isAborted()) {  
+                triggerCheckpointOnAligned(barrierCount);  
+            }  
         }  
-    }  
+    }
+}
+```
+#### 7.1.2.5 非对齐
+```java
+// 入口同 7.1.2.3，barrierReceived 通过 
+// AlternatingWaitingForFirstBarrierUnaligned 实现
+public BarrierHandlerState barrierReceived(  
+        Controller controller,  
+        InputChannelInfo channelInfo,  
+        CheckpointBarrier checkpointBarrier,  
+        boolean markChannelBlocked)  
+        throws CheckpointException, IOException {  
   
-    // we must mark alignment end before calling currentState.barrierReceived which might  
-    // trigger a checkpoint with unfinished future for alignment duration    if (alignedChannels.size() == targetChannelCount) {  
-        if (targetChannelCount > 1) {  
-            markAlignmentEnd();  
+    CheckpointBarrier unalignedBarrier = checkpointBarrier.asUnaligned();  
+    // 第一次缓存数据
+    controller.initInputsCheckpoint(unalignedBarrier);  
+    for (CheckpointableInput input : channelState.getInputs()) {  
+        input.checkpointStarted(unalignedBarrier);  
+    }  
+    controller.triggerGlobalCheckpoint(unalignedBarrier);  
+    if (controller.allBarriersReceived()) {  
+        for (CheckpointableInput input : channelState.getInputs()) {  
+            input.checkpointStopped(unalignedBarrier.getId());  
         }  
+        return stopCheckpoint();  
     }  
+    return new AlternatingCollectingBarriersUnaligned(alternating, channelState);  
+}
+
+public void initInputsCheckpoint(CheckpointBarrier checkpointBarrier)  
+        throws CheckpointException {  
+    subTaskCheckpointCoordinator.initInputsCheckpoint(  
+            barrierId, checkpointBarrier.getCheckpointOptions());  
+}
+
+public void initInputsCheckpoint(long id, CheckpointOptions checkpointOptions)  
+        throws CheckpointException {  
+    if (checkpointOptions.isUnalignedCheckpoint()) {  
+        channelStateWriter.start(id, checkpointOptions);  
   
-    try {  
-        currentState = stateTransformer.apply(currentState);  
-    } catch (CheckpointException e) {  
-        abortInternal(currentCheckpointId, e);  
-    } catch (Exception e) {  
-        ExceptionUtils.rethrowIOException(e);  
-    }  
-  
-    if (alignedChannels.size() == targetChannelCount) {  
-        alignedChannels.clear();  
-        lastCancelledOrCompletedCheckpointId = currentCheckpointId;  
-        LOG.debug(  
-                "{}: All the channels are aligned for checkpoint {}.",  
-                taskName,  
-                currentCheckpointId);  
-        resetAlignmentTimer();  
-        allBarriersReceivedFuture.complete(null);  
+        prepareInflightDataSnapshot(id);  
+    } else if (checkpointOptions.isTimeoutable()) {  
+        // The output buffer may need to be snapshotted, so start the channelStateWriter here.  
+        channelStateWriter.start(id, checkpointOptions);  
+        channelStateWriter.finishInput(id);  
     }  
 }
 ```
+
+
+
+
+
+
 # 8. SQL
 ## 8.1 基础 API
 ### 7.1.1 创建 TableEnvironment

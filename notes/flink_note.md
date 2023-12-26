@@ -2983,8 +2983,8 @@ public void runMailboxLoop() throws Exception {
 - Flink 中有四种 Graph：
 	- **StreamGraph**：提交 Job 后生成的最初的 DAG 图
 	- **JobGraph**：经过算子链之后生成 `JobGrpah`
-	- **ExecutionGraph**：`JobMaster` 将 `StreamGraph` 根据并行度进行 SubTask 的拆分，并明确上下游算子间数据的传输方式，形成 `ExecutionGraph`
-	- **PhysicalGraph**：将 `ExecutionGraph` 发送给 `TaskManager` 后，TaskManager 根据图上的部署运行每个 SubTask，此时 SubTask 变为 Task，最终的物理执行流程称为 Physical Graph
+	- **ExecutionGraph**：`JobMaster` 将 `StreamGraph` 根据并行度进行 `SubTask` 的拆分，并明确上下游算子间数据的传输方式，形成 `ExecutionGraph`
+	- **PhysicalGraph**：将 `ExecutionGraph` 发送给 `TaskManager` 后，`TaskManager` 根据图上的部署运行每个 `SubTask`，此时 `SubTask` 变为 `Task`，最终的物理执行流程称为 `Physical Graph`
 ## 2.1 StreamGraph
 - **StreamNode**：代表 operator 的类，存在并发度、入边、出边等属性
 - **StreamEdge**：表示连接两个 `StreamNode` 的边
@@ -3276,10 +3276,9 @@ env.socketTextStream().flatMap().shuffle().filter().print()
 - 处理 Filter，创建节点和 FlatMap 相连，将分区信息写人 StreamEdge 中
 - 最后处理 Sink
 ## 2.2 JobGraph
-- **JobVertex**：多个 `StreamNode` 可能通过算子链组合起来形成一个 JobVertex，即一个 `JobVertex` 包括一个或多个 operator，`JobVertex` 的输入是 `JobEdge`，输出是 `IntermediateDataSet`
-- **IntermediateDataSet**：经过 operator 产生的数据集
+- **JobVertex**：多个 `StreamNode` 可能通过算子链组合起来形成一个 `JobVertex`，即一个 `JobVertex` 包括一个或多个 `operator`，`JobVertex` 的输入是 `JobEdge`，输出是 `IntermediateDataSet`
+- **IntermediateDataSet**：经过 `operator` 产生的数据集
 - **JobEdge**：代表 `JobGraph` 中的一条数据传输通道，数据通过 `IntermediateDataSet` 传向 `JobEdge`
-
 # 3. DataStream窗口
 ## 3.1 窗口的定义
 - 窗口
@@ -6053,6 +6052,7 @@ SET execution.savepoint.path='...' # 之前保存的路径
 		- shuffle：随机
 		- broadcast：广播
 		- global：全部发往下游第一个分区
+	- Sink
 ## 10.5 时间语义与窗口操作
 - 时间语义：事件、进入、处理
 - 事件时间：`Watermark`

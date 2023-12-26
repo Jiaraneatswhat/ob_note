@@ -5096,28 +5096,21 @@ private static SingleCheckpointBarrierHandler createBarrierHandler(
         CheckpointableInput[] inputs,  
         Clock clock,  
         int numberOfChannels) {  
-    boolean enableCheckpointAfterTasksFinished =  
-            config.getConfiguration()  
-                    .get(ExecutionCheckpointingOptions.ENABLE_CHECKPOINTS_AFTER_TASKS_FINISH);  
+ 
     if (config.isUnalignedCheckpointsEnabled()) {  
         return SingleCheckpointBarrierHandler.alternating(  
                 taskName,  
                 toNotifyOnCheckpoint,  
                 checkpointCoordinator,  
                 clock,  
-                numberOfChannels,  
-                BarrierAlignmentUtil.createRegisterTimerCallback(mailboxExecutor, timerService),  
-                enableCheckpointAfterTasksFinished,  
-                inputs);  
+                numberOfChannels, BarrierAlignmentUtil.createRegisterTimerCallback(mailboxExecutor, timerService), nableCheckpointAfterTasksFinished, inputs);  
     } else {  
         return SingleCheckpointBarrierHandler.aligned(  
                 taskName,  
                 toNotifyOnCheckpoint,  
                 clock,  
                 numberOfChannels,  
-                BarrierAlignmentUtil.createRegisterTimerCallback(mailboxExecutor, timerService),  
-                enableCheckpointAfterTasksFinished,  
-                inputs);  
+BarrierAlignmentUtil.createRegisterTimerCallback(mailboxExecutor, timerService), enableCheckpointAfterTasksFinished, inputs);  
     }  
 }
 ```

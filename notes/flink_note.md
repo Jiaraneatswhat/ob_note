@@ -6298,7 +6298,32 @@ SET execution.savepoint.path='...' # 之前保存的路径
 	- 一个 `CPU` `4G` 内存
 ## 9.2 状态及 Checkpoint 调优
 ### 9.2.1 RocksDB 大状态调优
-
+- `RocksDB` 是内存 + 内盘，可以存储大状态
+#### 9.2.1.1 开启 State 访问性能监控
+- 可以查看有状态算子的读写时间
+- 提交时使用参数 `-Dstate.backend.latency-track.keyed-state-enabled=true`
+#### 9.2.1.2 开启增量检查点和本地恢复
+- `RocksDB` 是目前唯一可用于支持有状态流处理应用程序增量检查点的状态后端
+- 开启参数
+	- `-Dstate.backend.incremental=true`
+	- `-Dstate.backend.local-recovery=true` 不去 `HDFS` 拉取数据，基于本地状态信息恢复任务
+	- `-Dstate.backend.latency-track.keyed-state-enabled=true`
+- 调整预定义选项
+	- 增大 `Block` 缓存
+		- `state.backend.rocksdb.block.cache-size 默认8m` 设置到 `64-256MB`
+	- 增大 `writeBuffer` 和 `level` 阈值大小
+		- 每个 `State` 使用一个列族，每个列族 `writeBuffer` 的大小为 `64MB`
+			- `state.backend.rocksdb.writebuffer.size`
+		- 调整 `Buffer` 需要适当增加 `L1` 的大小阈值，默认 `256MB`
+			- 太小会造成存放的 `SST` 文件过少，层级变多
+			- 太大会造成文件过多，合并困难
+			- `state.backend.rocksdb.compaction.level.max-size-level-base`
+	- 增大 `writeBuffer` 数量，L0 中表的个数，默认 2，可以调大到 5
+		- `state.backend.rocksdb.writebuffer.count`
+	- 增大后台线程数，默认 1，可以增大到 4
+		- `state.backend.rocksdb.thread.num`
+	- 增大 `writeBuffer` 合并数，默认 1，可以调成 3
+	- ``
 # 10. 复习
 ## 10.1 与 SparkStreaming 的对比
 - 本质

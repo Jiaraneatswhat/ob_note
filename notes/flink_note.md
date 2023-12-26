@@ -5114,9 +5114,82 @@ BarrierAlignmentUtil.createRegisterTimerCallback(mailboxExecutor, timerService),
     }  
 }
 ```
-#### 7.1.2.3 精准一次
+#### 7.1.2.3 对齐精准一次
 ```java
+public static SingleCheckpointBarrierHandler aligned(  
+        String taskName,  
+        CheckpointableTask toNotifyOnCheckpoint,  
+        Clock clock,  
+        int numOpenChannels,  
+        DelayableTimer registerTimer,  
+        boolean enableCheckpointAfterTasksFinished,  
+        CheckpointableInput... inputs) {  
+    return new SingleCheckpointBarrierHandler(  
+            taskName,  
+            toNotifyOnCheckpoint,  
+            null,  
+            clock,  
+            numOpenChannels,  
+            new WaitingForFirstBarrier(inputs),  
+            false,  
+            registerTimer,  
+            inputs,  
+            enableCheckpointAfterTasksFinished);  
+}
 
+public void processBarrier(  
+        CheckpointBarrier barrier, InputChannelInfo channelInfo, boolean isRpcTriggered)  
+        throws IOException {  
+    long barrierId = barrier.getId();  
+    // 检查是否为新的 ck
+    checkNewCheckpoint(barrier);  
+  
+    markCheckpointAlignedAndTransformState(  
+            channelInfo,  
+            barrier,  
+            state -> state.barrierReceived(context, channelInfo, barrier, !isRpcTriggered));  
+}
+
+protected void markCheckpointAlignedAndTransformState(  
+        InputChannelInfo alignedChannel,  
+        CheckpointBarrier barrier,  
+        FunctionWithException<BarrierHandlerState, BarrierHandlerState, Exception> stateTransformer)  
+        throws IOException {  
+    alignedChannels.add(alignedChannel);  
+    if (alignedChannels.size() == 1) {  
+        if (targetChannelCount == 1) {  
+            markAlignmentStartAndEnd(barrier.getId(), barrier.getTimestamp());  
+        } else {  
+            markAlignmentStart(barrier.getId(), barrier.getTimestamp());  
+        }  
+    }  
+  
+    // we must mark alignment end before calling currentState.barrierReceived which might  
+    // trigger a checkpoint with unfinished future for alignment duration    if (alignedChannels.size() == targetChannelCount) {  
+        if (targetChannelCount > 1) {  
+            markAlignmentEnd();  
+        }  
+    }  
+  
+    try {  
+        currentState = stateTransformer.apply(currentState);  
+    } catch (CheckpointException e) {  
+        abortInternal(currentCheckpointId, e);  
+    } catch (Exception e) {  
+        ExceptionUtils.rethrowIOException(e);  
+    }  
+  
+    if (alignedChannels.size() == targetChannelCount) {  
+        alignedChannels.clear();  
+        lastCancelledOrCompletedCheckpointId = currentCheckpointId;  
+        LOG.debug(  
+                "{}: All the channels are aligned for checkpoint {}.",  
+                taskName,  
+                currentCheckpointId);  
+        resetAlignmentTimer();  
+        allBarriersReceivedFuture.complete(null);  
+    }  
+}
 ```
 # 8. SQL
 ## 8.1 基础 API

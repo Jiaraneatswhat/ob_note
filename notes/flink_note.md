@@ -6168,7 +6168,7 @@ SET execution.savepoint.path='...' # 之前保存的路径
 			- 生成事务记录在状态中(`PendingCheckpoint`)
 			- 进行持久化存储，向 `coordinator` 发送 handle 回调
 			- 收到检查点完成的通知后，将所有结果一次性写入外部系统
-			- 成功写入所有数据后，内部更新 `PendingCheccpoint` 的状态，将确认信息持久化，真正完成 `ck`
+			- 成功写入所有数据后，内部更新 `PendingCheckpoint` 的状态，将确认信息持久化，真正完成 `ck`
 		- 缺点：最终确认信息时如果发生了故障，只能恢复到上个状态重新写，无法保证幂等性时会造成<font color='red'>重复写入</font>
 	- 2PC(2 Phase Commit) 提交
 		- `Flink` 中提供了抽象类 `TwoPhaseCommitSinkFunction` 以及新的 `TwoPhaseCommittingSink` 接口，实现类有 `KafkaSink`

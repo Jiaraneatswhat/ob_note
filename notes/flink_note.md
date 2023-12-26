@@ -1,4 +1,9 @@
 # 1. 提交 Job 流程
+
+- HDFS, Spark, Flink 提交对比
+
+![[submitJob.svg]]
+
 ![[flink_submit_job.svg]]
 ## 1.1 解析命令, 准备启动集群
 ### 1.1.1 flink 脚本

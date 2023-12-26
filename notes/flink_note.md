@@ -6253,6 +6253,20 @@ SET execution.savepoint.path='...' # 之前保存的路径
 # 直接提交sql，就会从之前的状态恢复
 ```
 # 9. 优化
+## 9.1 资源调优
+### 9.1.1 内存设置
+### 9.1.2 合理利用 CPU 资源
+- 容量调度器默认使用 `DefaultResourceCalculator`，只根据内存来调度资源，因此资源管理页面上每个容器的 vcore 数为 1
+- 可修改为 `DominantResourceCalculator`
+```xml
+<!-- capacity-scheduler.xml -->
+<property>
+ <name>yarn.scheduler.capacity.resource-calculator</name>
+ <value>org.apache.hadoop.yarn.util.resource.DominantResourceCalculator</value>
+</property>
+```
+
+
 # 10. 复习
 ## 10.1 与 SparkStreaming 的对比
 - 本质

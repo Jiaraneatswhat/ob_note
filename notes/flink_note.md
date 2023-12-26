@@ -5960,7 +5960,7 @@ SET execution.savepoint.path='...' # 之前保存的路径
 - 本质
 	- `Flink` 基于事件触发计算，真正意义上的流处理框架
 	- `SparkStreaming` 基于时间触发计算，根据批大小进行处理的微批次处理框架
-- 时间语义：`SparkStreaming` 处理时间
+- 时间语义：`SparkStreaming` 处理时间, `Flink` 有进入，事件，处理三种语义
 - 状态编程：
 	- `SparkStreaming` 只有一个有状态的算子
 	- `updateStateByKey`：当任务挂掉重启时，会将挂掉到当前为止的全部任务一次进行计算，会对内存造成很大负担

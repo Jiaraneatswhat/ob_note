@@ -2862,17 +2862,8 @@ public void deploy() throws JobException {
 
 public CompletableFuture<Acknowledge> submitTask(  
         TaskDeploymentDescriptor tdd, JobMasterId jobMasterId, Time timeout) {  
-  
-        Task task =  
-                new Task(...);  
-
+        Task task = new Task(...);  
 	boolean taskAdded;  
-  
-	try {  
-	    taskAdded = taskSlotTable.addTask(task);  
-	} catch (SlotNotFoundException | SlotNotActiveException e) {  
-	    throw new TaskSubmissionException("Could not submit task.", e);  
-	}  
 	  
 	if (taskAdded) {  
 	    task.startTaskThread();}
@@ -2892,7 +2883,6 @@ private void doRun() {
 	invokable =  
         loadAndInstantiateInvokable(  
                 userCodeClassLoader.asClassLoader(), nameOfInvokableClass, env);
-
 	// 调用StreamTask的invoke方法
 	restoreAndInvoke(invokable);
 }

@@ -6259,7 +6259,11 @@ SET execution.savepoint.path='...' # 之前保存的路径
 
 ![[JM_mem_model.svg]]
 
-
+- 进程内存= `Flink` 内存 + `JVM` 内存
+- `Flink` 内存 = 框架堆内堆外内存 + `Task` 堆内堆外内存 +  网络缓存内存 + 管理内存
+- `JVM Overhead = 总 mem * 0.1`
+- `Network = Flink内存 * 0.1`
+- `Managed Memory` 主要用于 `RocksDBStateBackend` 使用，可以适当调至 `0`
 ### 9.1.2 合理利用 CPU 资源
 - 容量调度器默认使用 `DefaultResourceCalculator`，只根据内存来调度资源，因此资源管理页面上每个容器的 `vcore` 数为 1
 - 每个 `TM` 中的 `Slot` 共用一个 `CPU`
@@ -6277,14 +6281,24 @@ SET execution.savepoint.path='...' # 之前保存的路径
 - 全局并行度
 	- 总 `QPS`(每秒查询率) / 单并行度处理能力 = 并行度
 	- 根据高峰时期 `QOS`，并行度 * 1.2 倍 
-- `Source` 对接 `Kafka`，并行度设置为 `Kafka` 对应 `Topic` 的分区数
+- Source 对接 `Kafka`，并行度设置为 `Kafka` 对应 `Topic` 的分区数
 - Transform
 	- `KeyBy` 前一般和 `Source` 保持一致
 	- `KeyBy` 后，并行度尽量设置为 2 的整数幂
 - Sink
-	- 写 Kafka：与分区数相同
-	- 写 Doris：批处理，3s 开窗聚合，数据量小，并行度足够
-	- 写 HBase：
+	- 写 `Kafka`：与分区数相同
+	- 写 `Doris`：批处理，3s 开窗聚合，数据量小，并行度足够
+	- 写 `HBase`：缓慢变化维(`SCD`)
+### 9.1.4 最终的资源配置
+- JobManager：1 `CPU` `2-4G`
+- TaskManager：
+	- 根据 `Kafka` 分区决定并行度(一个 `Slot` 共享组)，`Slot 数 = 并行度`
+	- 资源充足或数据量大 `cpu ; slot = 1 : 1`
+	- 反之 `cpu : slot = 1 : 2`
+	- 一个 `CPU` `4G` 内存
+## 9.2 状态及 Checkpoint 调优
+### 9.2.1 RocksDB 大状态调优
+
 # 10. 复习
 ## 10.1 与 SparkStreaming 的对比
 - 本质

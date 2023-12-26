@@ -8462,4 +8462,4 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 ### 6.50 Hadoop 怎么迁移
 ### 6.51 Hadoop 更改副本数
 ### 6.52 Hadoop 故障排错步骤
-### 6.53 yarn 日志哪四类
+### 6.53 Yarn 日志有哪四类

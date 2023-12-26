@@ -3585,6 +3585,35 @@ public TriggerResult onProcessingTime(long time, TimeWindow window, TriggerConte
     return TriggerResult.FIRE;  
 }
 ```
+- 窗口的划分
+```java
+public Collection<TimeWindow> assignWindows(  
+        Object element, long timestamp, WindowAssignerContext context) {  
+    if (timestamp > Long.MIN_VALUE) { 
+        // stagger v. 蹒跚，摇晃 
+        if (staggerOffset == null) {  
+            staggerOffset =  
+                    windowStagger.getStaggerOffset(context.getCurrentProcessingTime(), size);  
+        }  
+        // Long.MIN_VALUE is currently assigned when no timestamp is present  
+        long start =  
+                TimeWindow.getWindowStartWithOffset(  
+                        timestamp, (globalOffset + staggerOffset) % size, size);  
+		// end = start + size	
+        return Collections.singletonList(new TimeWindow(start, start + size));  
+    } 
+}
+
+public static long getWindowStartWithOffset(long timestamp, long offset, long windowSize) {  
+    final long remainder = (timestamp - offset) % windowSize;  
+    // handle both positive and negative cases  
+    if (remainder < 0) {  
+        return timestamp - (remainder + windowSize);  
+    } else {  
+        return timestamp - remainder;  
+    }  
+}
+```
 ### 3.2.4 窗口的聚合
 - 窗口的聚合分为滚动聚合和非滚动聚合
 - 滚动聚合的特征是每一个进入窗口的元素都会触发一次窗口的聚合函数，等到窗口关闭时再触发计算，将结果输出到下游，<font color='red'>时效性好</font>

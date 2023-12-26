@@ -8408,4 +8408,108 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 # 下载文件
 -get [-f] [-p] <src> <localdst>
 ```
+# 5. 面试
+### 5.1 如何检测 Hadoop 集群的健康状态，怎么检测 Namenode 是否健康
+### 5.2 Hadoop 高可用
+### 5.3 Hadoop 遇到的问题，集群多大
+### 5.4 Hadoop 的详细加载顺序
+### 5.5 NameNode 加载哪些信息，启动过程中，元数据信息保存在哪里
+### 5.6 Hadoop3 的纠删码，默认是 4+2 模式吗，纠删码的加速策略
 
+6.      Hadoop读写流程数据同步如何实现（要具体描述，写数据写三份怎么写的）
+
+7.      Hadoop是怎么进行数据校验的
+
+8.      Hadoop挂掉怎么处理
+
+9.      hadoop中的shuffle中反向溢写为什么不能设置成100%
+
+10.   hadoop中发生数据倾斜怎么解决
+
+11.   hadoop怎么保证副本数据一致性
+
+12.   日志放到Hadoop 怎么用
+
+13.   flume到Hadoop 有延迟吗
+
+14.   从官网把zip下载下来,放在hadoop的任意一台机器上,我需要修改什么,才能做到写个sql就可以执行
+
+15.   Hadoop和flink部署的时候，是安装在同一服务器吗
+
+16.   做部署的时候，hadoop和flink的版本有没有做兼容
+
+17.   hadoop节点退役
+
+18.   hdfs磁盘均衡
+
+19.   hdfs能不能并发写入？是如何解决并发问题的
+
+20.   为什么是文件块大小是128m？Hdfs中平均寻址的时间？
+
+21.   说下hdfs文件系统缺点3点
+
+22.   现在提交不同的应用到hdfs，有的要2副本，有的要3副本，怎么指定
+
+23.   HDFS安全模式，数据不一致会进入安全模式，问这种情况出现过吗，什么情况下会进入安全模式
+
+24.   HDFS的DataNode挂了怎么办
+
+25.   RocksDB和HDFs有什么区别
+
+26.   hdfs回收站
+
+27.   hdfs用哪种存储格式
+
+28.   HDFS修改文件名是不是一个原子性过程
+
+29.   Hdfs写过程中，某个namenode挂掉会发生什么？原来的传输通道会断掉，还是连着只是不传数据了
+
+30.   MR有没有遇到过没有只有Map没有Reduce的业务。详细说说
+
+31.   MR怎么实现去重，hql去重底层原理是什么
+
+32.   Yarn任务执行中，maptask已完成100%，reduce task完成60%，application master挂掉会发生什么
+
+33.   yarn三种引擎和三种调度器
+
+34.   Yarn资源配置
+
+35.   Yarn高可用配置了吗， 如何避免ResourceManager挂掉，挂掉之后如何处理
+
+36.   yarn可以调用GPU吗
+
+37.   yarn可以到达什么粒度的资源分配
+
+38.   yarn日志很长怎么定位error
+
+39.   在YARN分配资源的时候,因为资源不足,会杀死优先级低的任务,这个问题如何解决
+
+40.   大数据存储在hdfs的格式是什么？用parquet存储的话用presto有影响吗
+
+41.   hdfs 删除文件的过程？ namenode  datenode  详细是怎么操作的
+
+42.   调整HDFS的三个参数解决小文件问题,具体设置的参数是怎样的
+
+43.   HDFS满足CAP原则吗
+
+44.   HDFS的用户权限管理是怎么做的？文件夹权限744代表的是什么
+
+45.   mr也是有stage的？mr stage是什么
+
+46.   写一个脚本,杀掉yarn上正在运行的程序
+
+47.   下载HDFS上Yarn的错误日志该怎么做
+
+48.   hadoop相对mysql为什么可以做到分布式处理更大的数据量
+
+49.   hadoop高可用以及热备份和冷备份讲讲
+
+50.   hadoop怎么迁移
+
+51.   hadoop更改副本数
+
+52.   Hadoop故障排错步骤
+
+53.   Hadoop是怎样实现权限的管控和资源的隔离的
+
+yarn日志哪四类

@@ -4280,7 +4280,7 @@ private void startTriggeringCheckpoint(CheckpointTriggerRequest request) {
 	triggerCheckpointRequest(request, timestamp, checkpoint)
 }
 ```
-##### 6.1.1.2.1 triggerAndAcknowledgeAllCoordinatorCheckpointsWithCompletion()
+##### 7.1.1.2.1 triggerAndAcknowledgeAllCoordinatorCheckpointsWithCompletion()
 ```java
 public static CompletableFuture<Void>  
         triggerAndAcknowledgeAllCoordinatorCheckpointsWithCompletion(  
@@ -4357,7 +4357,7 @@ private void checkpointCoordinatorInternal(
     }
 }
 ```
-##### 6.1.1.2.2 triggerCheckpointRequest()
+##### 7.1.1.2.2 triggerCheckpointRequest()
 ```java
 private void triggerCheckpointRequest(  
         CheckpointTriggerRequest request, long timestamp, PendingCheckpoint checkpoint) {  
@@ -5219,14 +5219,8 @@ public BarrierHandlerState barrierReceived(
     for (CheckpointableInput input : channelState.getInputs()) {  
         input.checkpointStarted(unalignedBarrier);  
     }  
-    controller.triggerGlobalCheckpoint(unalignedBarrier);  
-    if (controller.allBarriersReceived()) {  
-        for (CheckpointableInput input : channelState.getInputs()) {  
-            input.checkpointStopped(unalignedBarrier.getId());  
-        }  
-        return stopCheckpoint();  
-    }  
-    return new AlternatingCollectingBarriersUnaligned(alternating, channelState);  
+    // 保存完之后触发 ck
+    controller.triggerGlobalCheckpoint(unalignedBarrier);
 }
 
 public void initInputsCheckpoint(CheckpointBarrier checkpointBarrier)  
@@ -5239,21 +5233,117 @@ public void initInputsCheckpoint(long id, CheckpointOptions checkpointOptions)
         throws CheckpointException {  
     if (checkpointOptions.isUnalignedCheckpoint()) {  
         channelStateWriter.start(id, checkpointOptions);  
-  
+        // 进行缓存数据
         prepareInflightDataSnapshot(id);  
-    } else if (checkpointOptions.isTimeoutable()) {  
-        // The output buffer may need to be snapshotted, so start the channelStateWriter here.  
-        channelStateWriter.start(id, checkpointOptions);  
-        channelStateWriter.finishInput(id);  
+    }
+}
+
+private void prepareInflightDataSnapshot(long checkpointId) throws CheckpointException {  
+    // prepareInputSnapshot 是 SubtaskCheckpointCoordinatorImpl 的属性
+	// StreamTask 初始化时会创建 SubtaskCheckpointCoordinatorImpl
+    prepareInputSnapshot  
+            .apply(channelStateWriter, checkpointId)  
+            .whenComplete(...);  
+}
+
+this.subtaskCheckpointCoordinator =  
+        new SubtaskCheckpointCoordinatorImpl(this::prepareInputSnapshot...)
+
+private CompletableFuture<Void> prepareInputSnapshot(  
+        ChannelStateWriter channelStateWriter, long checkpointId) throws CheckpointException {  
+    if (inputProcessor == null) {  
+        return FutureUtils.completedVoidFuture();  
     }  
+    return inputProcessor.prepareSnapshot(channelStateWriter, checkpointId);  
+}
+
+public CompletableFuture<Void> prepareSnapshot(  
+        ChannelStateWriter channelStateWriter, long checkpointId) throws CheckpointException {  
+        try {  
+	         // 将数据保存在 State
+            channelStateWriter.addInputData(  
+                    checkpointId,  
+                    e.getKey(),  
+                    ChannelStateWriter.SEQUENCE_NUMBER_UNKNOWN,  
+                    e.getValue().getUnconsumedBuffer());  
+        } 
+    }  
+    return checkpointedInputGate.getAllBarriersReceivedFuture(checkpointId);  
 }
 ```
+## 7.2 端到端精准一次
+- Source：可以多次重复读取数据
+		- 如果 `Source` 本身不能重复读取数据，结果仍然可能是不准确的
+- Flink：`Checkpoint` 精准一次
+- Sink：
+	- 幂等：
+		- 利用 `MySQL` 主键 `upsert`
+		- 利用 `hbase` 的 `rowkey` 唯一
+	- 事务：外部系统提供，2PC, 预写日志
+		- 用事务向外部写，与检查点绑定在一起
+		- 当 `SInk` 遇到 `Barrier` 时，开启保存状态的同时开启一个事务，接下来所有的数据写入都在这个事务中
+		- 等检查点保存完毕时，将事务提交，写入的数据就可以使用了
+		- 如果出现了问题，状态会回退到上一个 ck，而事务也会进行回滚
+		- 两阶段提交写 `Kafka`
+		- 两阶段提交写 `MySQL`
+	- 事务的特性
+		- `Atomicity`：事务中的操作要么全部完成，要么全部失败
+		- `Consistency`：事务按预期生效，数据是预期的状态
+		- `Isolation`：多个并发事务之间相互隔离
+		- `Durability`：提交事务产生的影响是永久性的
+	- WAL 事务提交
+		- `Flink` 中提供了接口 `GenericWriteAheadSink`，没有实现类
+		- 过程
+			- `Sink` 将数据的写出命令保存在日志中(`StreamStateHandle`)
+			- 生成事务记录在状态中(`PendingCheckpoint`)
+			- 进行持久化存储，向 `coordinator` 发送 handle 回调
+			- 收到检查点完成的通知后，将所有结果一次性写入外部系统
+			- 成功写入所有数据后，内部更新 `PendingCheckpoint` 的状态，将确认信息持久化，真正完成 `ck`
+		- 缺点：最终确认信息时如果发生了故障，只能恢复到上个状态重新写，无法保证幂等性时会造成<font color='red'>重复写入</font>
+	- 2PC(2 Phase Commit) 提交
+		- `Flink` 中提供了抽象类 `TwoPhaseCommitSinkFunction` 以及新的 `TwoPhaseCommittingSink` 接口，实现类有 `KafkaSink`
+		- 需要外部系统支持，`MySQL`, `Kafka` 都支持
+		- 过程
+			- 每批的第一条数据到达时，开启事务
+			- 数据直接输出到外部系统，此时是临时不可见数据(预提交)
+			- `ck` 完成后正式提交事务
+			- 收到响应更新状态
+			- 充分利用了 `ck` 的机制
+			- `Barrier` 的到来标志着开始一个新事务
+			- 收到 `JM` 的 `ck` 成功的消息，标志着提交事务
+		- 如果确认信息时挂了，第二次提交时存在事务 id，不会再进行重复提交，就是精准一次
+		- 隔离级别至少为读已提交
+- `MySQL` 的事务的隔离级别
+```sql
+BEGIN -- 开启事务
+COMMIT -- 提交事务
+ROLLBACK -- 回滚
 
+-- 查看隔离级别
+/*
+ * @x: 用户变量
+ * @@x: 系统变量
+*/
+select @@TX_ISOLATION
 
-
-
-
-
+-- 设置会话隔离级别
+set SESSION TRANSACTION ISOLATION LEVEL xxx
+```
+- 读未提交
+	- 任何操作<font color='red'>不加锁</font>
+	- 会出现脏读
+		- T1 修改某个值，T2 读取到后，T1 回滚，T2 的数据无效
+		- 一般针对于 `update`
+	- 会出现不可重复读
+		- 同一个事务内多次读取同一行数据，得到的结果可能不一致
+		- 可能有别的事务对其进行了修改
+	- 会出现幻读
+		- T1 读到了 T2 新插入的数据导致数据不一致
+- 读已提交
+	- <font color='red'>增删改会增加行锁</font>，读操作不加锁
+	- 出现不可重复读，幻读
+- 可重复读：出现幻读
+- 可串行化：不出现问题，读加<font color='red'>共享锁</font>，写加<font color='red'>排它锁</font>
 # 8. SQL
 ## 8.1 基础 API
 ### 7.1.1 创建 TableEnvironment
@@ -6329,79 +6419,12 @@ SET execution.savepoint.path='...' # 之前保存的路径
 			- `Barrier` 未到达的 `Task` 来数据时，正常计算输出，同时将数据本身进行缓存
 		- 所有 `Barrier` 都到达后，`ck` 标记完成
 		- 缺点：会造成状态过大
-- 端到端的精准一次
-	- Source：可以多次重复读取数据
-		- 如果 `Source` 本身不能重复读取数据，结果仍然可能是不准确的
-	- Flink：`Checkpoint` 精准一次
-	- Sink：
-		- 幂等：
-			- 利用 `MySQL` 主键 `upsert`
-			- 利用 `hbase` 的 `rowkey` 唯一
-		- 事务：外部系统提供，2PC, 预写日志
-			- 用事务向外部写，与检查点绑定在一起
-			- 当 `SInk` 遇到 `Barrier` 时，开启保存状态的同时开启一个事务，接下来所有的数据写入都在这个事务中
-			- 等检查点保存完毕时，将事务提交，写入的数据就可以使用了
-			- 如果出现了问题，状态会回退到上一个 ck，而事务也会进行回滚
-			- 两阶段提交写 `Kafka`
-			- 两阶段提交写 `MySQL`
-	- 事务的特性
-		- `Atomicity`：事务中的操作要么全部完成，要么全部失败
-		- `Consistency`：事务按预期生效，数据是预期的状态
-		- `Isolation`：多个并发事务之间相互隔离
-		- `Durability`：提交事务产生的影响是永久性的
-	- WAL 事务提交
-		- `Flink` 中提供了接口 `GenericWriteAheadSink`，没有实现类
-		- 过程
-			- `Sink` 将数据的写出命令保存在日志中(`StreamStateHandle`)
-			- 生成事务记录在状态中(`PendingCheckpoint`)
-			- 进行持久化存储，向 `coordinator` 发送 handle 回调
-			- 收到检查点完成的通知后，将所有结果一次性写入外部系统
-			- 成功写入所有数据后，内部更新 `PendingCheckpoint` 的状态，将确认信息持久化，真正完成 `ck`
-		- 缺点：最终确认信息时如果发生了故障，只能恢复到上个状态重新写，无法保证幂等性时会造成<font color='red'>重复写入</font>
-	- 2PC(2 Phase Commit) 提交
-		- `Flink` 中提供了抽象类 `TwoPhaseCommitSinkFunction` 以及新的 `TwoPhaseCommittingSink` 接口，实现类有 `KafkaSink`
-		- 需要外部系统支持，`MySQL`, `Kafka` 都支持
-		- 过程
-			- 每批的第一条数据到达时，开启事务
-			- 数据直接输出到外部系统，此时是临时不可见数据(预提交)
-			- `ck` 完成后正式提交事务
-			- 收到响应更新状态
-			- 充分利用了 `ck` 的机制
-			- `Barrier` 的到来标志着开始一个新事务
-			- 收到 `JM` 的 `ck` 成功的消息，标志着提交事务
-		- 如果确认信息时挂了，第二次提交时存在事务 id，不会再进行重复提交，就是精准一次
-		- 隔离级别至少为读已提交
-- `MySQL` 的事务的隔离级别
-```sql
-BEGIN -- 开启事务
-COMMIT -- 提交事务
-ROLLBACK -- 回滚
-
--- 查看隔离级别
-/*
- * @x: 用户变量
- * @@x: 系统变量
-*/
-select @@TX_ISOLATION
-
--- 设置会话隔离级别
-set SESSION TRANSACTION ISOLATION LEVEL xxx
-```
-- 读未提交
-	- 任何操作<font color='red'>不加锁</font>
-	- 会出现脏读
-		- T1 修改某个值，T2 读取到后，T1 回滚，T2 的数据无效
-		- 一般针对于 `update`
-	- 会出现不可重复读
-		- 同一个事务内多次读取同一行数据，得到的结果可能不一致
-		- 可能有别的事务对其进行了修改
-	- 会出现幻读
-		- T1 读到了 T2 新插入的数据导致数据不一致
-- 读已提交
-	- <font color='red'>增删改会增加行锁</font>，读操作不加锁
-	- 出现不可重复读，幻读
-- 可重复读：出现幻读
-- 可串行化：不出现问题，读加<font color='red'>共享锁</font>，写加<font color='red'>排它锁</font>
+	- 端到端精准一次
+		- Source：可重复读取数据
+		- Flink：精准一次 `checkpoint`
+		- Sink：
+			- 幂等
+			- 事务 2PC
 ## 10.7 FlinkSQL
 - 事件时间，处理时间的提取
 	- 建表时创建

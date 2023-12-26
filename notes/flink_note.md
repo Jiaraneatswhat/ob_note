@@ -5029,6 +5029,8 @@ public CompletableFuture<Acknowledge> confirmCheckpoint(
  */
 ```
 ### 7.1.2 非 Source 算子对 ck 的处理
+- 上游产生的数据通过 `ResultPartition` 的形式，通过 `InputGate` 中的 `InputChannel` 发往下一个 `Task
+- `CheckpointedInputGate` 通过 `CheckpointBarrierHandler` 处理 `InputGate` 中的 `Barrier`
 #### 7.1.2.1 下游接收数据
 ```java
 // StreamTask.java
@@ -5043,59 +5045,39 @@ protected void processInput(MailboxDefaultAction.Controller controller) throws E
 }
 
 public DataInputStatus processInput() throws Exception {  
-    DataInputStatus status = input.emitNext(output);  
-    
+    DataInputStatus status = input.emitNext(output);
     return status;  
 }
 
 public DataInputStatus emitNext(DataOutput<T> output) throws Exception {  
-  
     while (true) {  
-        // get the stream element from the deserializer  
-        if (currentRecordDeserializer != null) {  
-            RecordDeserializer.DeserializationResult result;  
-            try {  
-                result = currentRecordDeserializer.getNextRecord(deserializationDelegate);  
-            } catch (IOException e) {  
-                throw new IOException(  
-                        String.format("Can't get next record for channel %s", lastChannel), e);  
-            }  
-            if (result.isBufferConsumed()) {  
-                currentRecordDeserializer = null;  
-            }  
-  
-            if (result.isFullRecord()) {  
-                processElement(deserializationDelegate.getInstance(), output);  
-                if (canEmitBatchOfRecords.check()) {  
-                    continue;  
-                }  
-                return DataInputStatus.MORE_AVAILABLE;  
-            }  
-        }  
-  
+		// 从 checkpointedInputGate 中取出一个数据
         Optional<BufferOrEvent> bufferOrEvent = checkpointedInputGate.pollNext();  
-        if (bufferOrEvent.isPresent()) {  
-            // return to the mailbox after receiving a checkpoint barrier to avoid processing of  
-            // data after the barrier before checkpoint is performed for unaligned checkpoint            // mode            if (bufferOrEvent.get().isBuffer()) {  
-                processBuffer(bufferOrEvent.get());  
-            } else {  
-                DataInputStatus status = processEvent(bufferOrEvent.get());  
-                if (status == DataInputStatus.MORE_AVAILABLE && canEmitBatchOfRecords.check()) {  
-                    continue;  
-                }  
-                return status;  
-            }  
-        } else {  
-            if (checkpointedInputGate.isFinished()) {  
-                checkState(  
-                        checkpointedInputGate.getAvailableFuture().isDone(),  
-                        "Finished BarrierHandler should be available");  
-                return DataInputStatus.END_OF_INPUT;  
-            }  
-            return DataInputStatus.NOTHING_AVAILABLE;  
-        }  
     }  
 }
+
+public Optional<BufferOrEvent> pollNext() throws IOException, InterruptedException {  
+    Optional<BufferOrEvent> next = inputGate.pollNext();  
+  
+    BufferOrEvent bufferOrEvent = next.get();  
+  
+    if (bufferOrEvent.isEvent()) {  
+         // 判断是否为 Barrier
+        return handleEvent(bufferOrEvent);
+     }
+ }
+
+private Optional<BufferOrEvent> handleEvent(BufferOrEvent bufferOrEvent) throws IOException {  
+    Class<? extends AbstractEvent> eventClass = bufferOrEvent.getEvent().getClass();  
+    if (eventClass == CheckpointBarrier.class) {  
+        CheckpointBarrier checkpointBarrier = (CheckpointBarrier) bufferOrEvent.getEvent();  
+        // CheckpointBarrierHandler 处理 Barrier
+        barrierHandler.processBarrier(checkpointBarrier, bufferOrEvent.getChannelInfo(), false);
+}
+```
+#### 7.1.2.2 SingleCheckpointBarrierHandler
+```java
+
 ```
 # 8. SQL
 ## 8.1 基础 API

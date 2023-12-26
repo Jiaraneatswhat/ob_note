@@ -918,17 +918,6 @@ public DispatcherResourceManagerComponent create(
             configuration.getInteger(RestOptions.SERVER_THREAD_PRIORITY),
             "DispatcherRestEndpoint");
 
-        final long updateInterval =
-            configuration.getLong(MetricOptions.METRIC_FETCHER_UPDATE_INTERVAL);
-        final MetricFetcher metricFetcher =
-            updateInterval == 0
-            ? VoidMetricFetcher.INSTANCE
-            : MetricFetcherImpl.fromConfiguration(
-                configuration,
-                metricQueryServiceRetriever,
-                dispatcherGatewayRetriever,
-                executor);
-		
         // 通过SessionRestEndpointFactory创建一个DispatcherRestEndpoint
         // 开启rest endpoint
         webMonitorEndpoint =
@@ -992,7 +981,7 @@ public DispatcherResourceManagerComponent create(
             fatalErrorHandler,
             dispatcherOperationCaches);
 
-    } catch (Exception exception) {...}
+    }
 }	
 ```
 ### 1.3.1 webMonitorEndpoint.start()

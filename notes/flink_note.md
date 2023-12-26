@@ -5029,8 +5029,74 @@ public CompletableFuture<Acknowledge> confirmCheckpoint(
  */
 ```
 ### 7.1.2 非 Source 算子对 ck 的处理
-#### 7.1.2.1 下游接收到 Barrier
+#### 7.1.2.1 下游接收数据
+```java
+// StreamTask.java
+protected void processInput(MailboxDefaultAction.Controller controller) throws Exception {  
+    DataInputStatus status = inputProcessor.processInput();  
+    switch (status) {  
+        case MORE_AVAILABLE:  
+            if (taskIsAvailable()) {  
+                return;  
+            }  
+            break;
+}
 
+public DataInputStatus processInput() throws Exception {  
+    DataInputStatus status = input.emitNext(output);  
+    
+    return status;  
+}
+
+public DataInputStatus emitNext(DataOutput<T> output) throws Exception {  
+  
+    while (true) {  
+        // get the stream element from the deserializer  
+        if (currentRecordDeserializer != null) {  
+            RecordDeserializer.DeserializationResult result;  
+            try {  
+                result = currentRecordDeserializer.getNextRecord(deserializationDelegate);  
+            } catch (IOException e) {  
+                throw new IOException(  
+                        String.format("Can't get next record for channel %s", lastChannel), e);  
+            }  
+            if (result.isBufferConsumed()) {  
+                currentRecordDeserializer = null;  
+            }  
+  
+            if (result.isFullRecord()) {  
+                processElement(deserializationDelegate.getInstance(), output);  
+                if (canEmitBatchOfRecords.check()) {  
+                    continue;  
+                }  
+                return DataInputStatus.MORE_AVAILABLE;  
+            }  
+        }  
+  
+        Optional<BufferOrEvent> bufferOrEvent = checkpointedInputGate.pollNext();  
+        if (bufferOrEvent.isPresent()) {  
+            // return to the mailbox after receiving a checkpoint barrier to avoid processing of  
+            // data after the barrier before checkpoint is performed for unaligned checkpoint            // mode            if (bufferOrEvent.get().isBuffer()) {  
+                processBuffer(bufferOrEvent.get());  
+            } else {  
+                DataInputStatus status = processEvent(bufferOrEvent.get());  
+                if (status == DataInputStatus.MORE_AVAILABLE && canEmitBatchOfRecords.check()) {  
+                    continue;  
+                }  
+                return status;  
+            }  
+        } else {  
+            if (checkpointedInputGate.isFinished()) {  
+                checkState(  
+                        checkpointedInputGate.getAvailableFuture().isDone(),  
+                        "Finished BarrierHandler should be available");  
+                return DataInputStatus.END_OF_INPUT;  
+            }  
+            return DataInputStatus.NOTHING_AVAILABLE;  
+        }  
+    }  
+}
+```
 # 8. SQL
 ## 8.1 基础 API
 ### 7.1.1 创建 TableEnvironment

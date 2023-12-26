@@ -5847,18 +5847,14 @@ String joinSql = "select t1.id, t2.name " +
 ## 8.6 Catalog
 - Catalog 是库的上一级，用于区分相同库下相同的表名
 - Catalog 提供了元数据信息，例如数据库、表、分区、视图以及数据库或其他外部系统中存储的函数和信息
-```java
-/*
- * Catalog接口
- *   -> AbstractCatalog抽象类
- *       -> AbstractJdbcCatalog 
- *             -> JdbcCatalog
- *             -> MySqlCatalog
- *             -> PostgresCatalog
- *       -> GenericInMemoryCatalog
- *       -> HiveCatalog
-*/
-```
+- Catalog 接口
+	- `AbstractCatalog` 抽象类
+		- `AbstractJdbcCatalog` 
+			- `JdbcCatalog`
+			- `MySqlCatalog`
+			- `PostgresCatalog`
+		- `GenericInMemoryCatalog`
+		- `HiveCatalog`
 ### 8.6.1 默认 Catalog
 ```java
 // default_catalog

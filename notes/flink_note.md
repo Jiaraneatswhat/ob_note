@@ -6342,7 +6342,6 @@ SET execution.savepoint.path='...' # 之前保存的路径
 - 重启策略
 	- 默认间隔 1s 重试`INTEGER.MAX_VALUE` 次
 	- `setRestartStrategy()` 每隔 5s 重试 3 次
-
 ## 9.3 反压
 ### 9.3.1 现象
 - `WebUI` -> `BackPressure`
@@ -6451,10 +6450,35 @@ SET execution.savepoint.path='...' # 之前保存的路径
 	- `configuration.setString("table.exec.mini-batch.enabled", "true")`
 	- `configuration.setString("table.exec.mini-batch.allow-latency", "5 s")`
 	- `configuration.setString("table.exec.mini-batch.size", "20000")`
-- `LocalGlobal` 解决数据倾斜问题，需要和 `MiniBatch` 一起使用
-- `configuration.setString("table.optimizer.agg-phase-strategy", "TWO_PHASE")`
 
-- `Split Distinct`
+- LocalGlobal 解决数据倾斜问题，需要和 `MiniBatch` 一起使用
+	- `configuration.setString("table.optimizer.agg-phase-strategy", "TWO_PHASE")`
+- Split Distinct
+	- 加随机数打散再聚合
+	- 开启方式(结合 `MiniBatch`)
+		- `table.optimizer.distinct-agg.split.enabled`
+		- `table.optimizer.distinct-agg.split.bucket-num` 打散的 `bucket` 数量，默认 1024
+![[split distinct.png]]
+- count distinct 搭配 case when 时可以优化为 filter
+```sql
+SELECT
+ a,
+ COUNT(DISTINCT b) AS total_b,
+ COUNT(DISTINCT CASE WHEN c IN ('A', 'B') THEN b ELSE NULL END) AS AB_b,
+ COUNT(DISTINCT CASE WHEN c IN ('C', 'D') THEN b ELSE NULL END) AS CD_b
+FROM T
+GROUP BY a
+
+------>
+
+SELECT
+ a,
+ COUNT(DISTINCT b) AS total_b,
+ COUNT(DISTINCT b) FILTER (WHERE c IN ('A', 'B')) AS AB_b,
+ COUNT(DISTINCT b) FILTER (WHERE c IN ('C', 'D')) AS CD_b
+FROM T
+GROUP BY a
+```
 # 10. 复习
 ## 10.1 与 SparkStreaming 的对比
 - 本质

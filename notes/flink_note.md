@@ -6358,12 +6358,31 @@ SET execution.savepoint.path='...' # 之前保存的路径
 	- `floatingBuffersUsage`(1.9+)：接收端 `Floating Buffer` 的使用率
 	- `exclusiveBuffersUsage`(1.9+)：接收端 `Exclusive Buffer` 的使用率
 	- `inPoolUsage = floatingBuffersUsage + exclusiveBuffersUsage`
-	- 如果一个 SubTask 发送端 Buffer 占用过高，说明受到下游反压限速
-	- 
+	- 如果 `SubTask` 发送端 `Buffer` 占用过高，说明受到下游反压限速
+	- 如果 `SubTask` 接收端 `Buffer` 占用过高，说明传导反压至上游
+- 定位问题
+	- 禁用任务链
+	- 一般是反压的最后一个 `Task`
+	- 可以设置参数开启火焰图
+		- `-Drest.flamegraph.enabled=true`
+	- 也可以设置 JVM 参数，打印 GC 日志进行分析
+		- `-Denv.java.opts="-XX:+PrintGCDetails -XX:+PrintGCDateStamps`
 
-
-
-
+![[flame_graph.png]]
+### 9.3.2 危害
+- 延迟越来越高
+- 主动拉取的 `Source`：数据积压(`Kafka`)
+- 被动接收的 `Source`：`OOM`
+- 状态过大
+- `Checkpoint` 超时失败
+### 9.3.3 原因
+- 数据倾斜：有红有绿
+- 资源不足：全红且繁忙
+- 外部交互：全红不繁忙
+### 9.3.4 解决方法
+- 增加资源：内存，`CPU`，并行度
+- 旁路缓存，异步 `IO`
+## 9.4 数据倾斜
 
 
 

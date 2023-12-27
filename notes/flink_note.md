@@ -6383,7 +6383,15 @@ SET execution.savepoint.path='...' # 之前保存的路径
 - 增加资源：内存，`CPU`，并行度
 - 旁路缓存，异步 `IO`
 ## 9.4 数据倾斜
-
+- 反压且有红有绿一定是数据倾斜，数据倾斜不一定产生反压
+- `WebUI` -> `SubTasks` -> `SubtaskMetrics`
+	- 观察多个 `SubTask` 之间的 `Bytes Received`
+#### 9.4.1 keyBy 前
+- 上游数据分布的不均匀，有的算子处理的数据多
+- 需要通过重分区算子进行 `shuffle`
+- `Kafka` 按 `Key` 写入时可能造成数据倾斜(不按 `Key` 走黏性分区器不会造成倾斜)，`Upsert Kafka left join` 时指定了 `Key`
+#### 9.4.2 keyBy 后
+- 直接聚合
 
 
 

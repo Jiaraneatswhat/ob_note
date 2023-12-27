@@ -6337,6 +6337,7 @@ SET execution.savepoint.path='...' # 之前保存的路径
 - `Sink` 使用事务写出时，`ck` 的时间可设置为秒级或毫秒级
 - 超时时间
 - Barrier 的对齐(减少状态大小) + 超时时间，超时后转为非对齐
+	- setCheckpoint
 
 
 

@@ -1,0 +1,64 @@
+<mxfile host="Electron" modified="2023-12-27T11:46:05.074Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/21.2.8 Chrome/112.0.5615.165 Electron/24.2.0 Safari/537.36" etag="XPKghP8oaMH9fFmCCoBi" version="21.2.8" type="device">
+  <diagram name="Page-1" id="G8zUkWH1zO-NME-5j4UN">
+    <mxGraphModel dx="1100" dy="803" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="S-mwotM_cn-dGgrq2116-1" value="&lt;b&gt;&lt;font face=&quot;Verdana&quot; style=&quot;font-size: 16px;&quot;&gt;10&lt;/font&gt;&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#030303;" vertex="1" parent="1">
+          <mxGeometry x="199" y="510" width="50" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="S-mwotM_cn-dGgrq2116-2" value="&lt;b&gt;&lt;font face=&quot;Verdana&quot; style=&quot;font-size: 16px;&quot;&gt;16&lt;/font&gt;&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#030303;" vertex="1" parent="1">
+          <mxGeometry x="249" y="510" width="50" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="S-mwotM_cn-dGgrq2116-3" value="&lt;b&gt;&lt;font face=&quot;Verdana&quot; style=&quot;font-size: 16px;&quot;&gt;18&lt;/font&gt;&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#030303;" vertex="1" parent="1">
+          <mxGeometry x="299" y="510" width="50" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="S-mwotM_cn-dGgrq2116-4" value="&lt;b&gt;&lt;font face=&quot;Verdana&quot; style=&quot;font-size: 16px;&quot;&gt;20&lt;/font&gt;&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#030303;" vertex="1" parent="1">
+          <mxGeometry x="349" y="510" width="50" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="S-mwotM_cn-dGgrq2116-5" value="&lt;b&gt;&lt;font face=&quot;Verdana&quot; style=&quot;font-size: 16px;&quot;&gt;22&lt;/font&gt;&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#030303;" vertex="1" parent="1">
+          <mxGeometry x="469" y="510" width="50" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="S-mwotM_cn-dGgrq2116-6" value="" style="endArrow=classic;html=1;rounded=0;dashed=1;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="454" y="540" as="sourcePoint" />
+            <mxPoint x="414" y="540" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="S-mwotM_cn-dGgrq2116-7" value="&lt;b&gt;&lt;font face=&quot;Verdana&quot; style=&quot;font-size: 16px;&quot;&gt;10&lt;/font&gt;&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#030303;" vertex="1" parent="1">
+          <mxGeometry x="201" y="814" width="50" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="S-mwotM_cn-dGgrq2116-8" value="&lt;b&gt;&lt;font face=&quot;Verdana&quot; style=&quot;font-size: 16px;&quot;&gt;16&lt;/font&gt;&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#030303;" vertex="1" parent="1">
+          <mxGeometry x="251" y="814" width="50" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="S-mwotM_cn-dGgrq2116-9" value="&lt;b&gt;&lt;font face=&quot;Verdana&quot; style=&quot;font-size: 16px;&quot;&gt;18&lt;/font&gt;&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#030303;" vertex="1" parent="1">
+          <mxGeometry x="335" y="697" width="50" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="S-mwotM_cn-dGgrq2116-10" value="&lt;b&gt;&lt;font face=&quot;Verdana&quot; style=&quot;font-size: 16px;&quot;&gt;20&lt;/font&gt;&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#030303;" vertex="1" parent="1">
+          <mxGeometry x="419" y="814" width="50" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="S-mwotM_cn-dGgrq2116-11" value="&lt;b&gt;&lt;font face=&quot;Verdana&quot; style=&quot;font-size: 16px;&quot;&gt;22&lt;/font&gt;&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#030303;" vertex="1" parent="1">
+          <mxGeometry x="469" y="814" width="50" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="S-mwotM_cn-dGgrq2116-12" value="" style="endArrow=classic;html=1;rounded=0;dashed=1;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="360" y="609" as="sourcePoint" />
+            <mxPoint x="359.5" y="669" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="S-mwotM_cn-dGgrq2116-13" value="" style="endArrow=classic;html=1;rounded=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="S-mwotM_cn-dGgrq2116-9" target="S-mwotM_cn-dGgrq2116-8">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="460" y="749" as="sourcePoint" />
+            <mxPoint x="510" y="699" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="S-mwotM_cn-dGgrq2116-14" value="" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="S-mwotM_cn-dGgrq2116-9" target="S-mwotM_cn-dGgrq2116-11">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="460" y="749" as="sourcePoint" />
+            <mxPoint x="510" y="699" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

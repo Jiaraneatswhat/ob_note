@@ -6337,7 +6337,55 @@ SET execution.savepoint.path='...' # 之前保存的路径
 - `Sink` 使用事务写出时，`ck` 的时间可设置为秒级或毫秒级
 - 超时时间
 - Barrier 的对齐(减少状态大小) + 超时时间，超时后转为非对齐
-	- setCheckpoint
+	- `setCheckpointTimeout()`
+	- `enableUnalignedCheckpoints()`
+- 重启策略
+	- 默认间隔 1s 重试`INTEGER.MAX_VALUE` 次
+	- `setRestartStrategy()` 每隔 5s 重试 3 次
+
+## 9.3 反压
+### 9.3.1 现象
+- `WebUI` -> `BackPressure`
+	- 0 - 10% 绿
+	- 10 - 50% 黄
+	- 50% 以上 红
+	- 多个 SubTask 可能全红，也有可能有红有绿
+
+![[bkpressure.png]]
+- `WebUI` -> `Metrcis`
+	- `outPoolUsage`：发送端 `Buffer` 的使用率
+	- `inPoolUsage`：接收端 `Buffer` 的使用率
+	- `floatingBuffersUsage`(1.9+)：接收端 `Floating Buffer` 的使用率
+	- `exclusiveBuffersUsage`(1.9+)：接收端 `Exclusive Buffer` 的使用率
+	- `inPoolUsage = floatingBuffersUsage + exclusiveBuffersUsage`
+	- 如果一个 SubTask 发送端 Buffer 占用过高，说明受到下游反压限速
+	- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

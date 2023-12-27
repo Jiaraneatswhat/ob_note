@@ -6428,7 +6428,33 @@ SET execution.savepoint.path='...' # 之前保存的路径
 ### 9.5.1 使用 DataGenerator 造数据
 ### 9.5.2 指定算子的 UID
 - 指定方式 `.uid().name()`
-- checkpoint 后如果更改了业务逻辑，添加或者删除了算子，重启后状态和算子的映射在不指定 UID 时hui
+- `checkpoint` 后如果更改了业务逻辑，添加或者删除了算子，重启后状态和算子的映射在不指定 `UID` 时会无法建立，会导致任务无法重启
+### 9.5.3 测量链路延迟
+- 监测数据输入、计算和输出的及时性
+- 开启方式 
+	- `metrics.latency.interval: 30000`
+	- `metrics.latency.granularity: operator` 粒度，默认算子
+### 9.5.4 开启对象重用
+-  设置 `enableObjectReuse()`
+- 开启后 Flink 会省略深拷贝的步骤，同一个 Slot 中传输时只发送地址值而非对象
+- 适用于
+	- 一个对象只会被一个下游 Function 处理
+	- 所有下游 Function 都不会改变对象内部的值
+### 9.5.5 细粒度滑动窗口优化
+- 细粒度滑动窗口，指窗口长度远大于滑动步长，重叠的窗口过多，会产生重复计算
+- 可以将其转换为滚动窗口，之后进行在线存储和读时聚合
+
+## 9.6 SQL 优化
+- 设置 `ttl`
+- 开启 `MiniBatch` 攒批
+- ![[minibatch_agg.png]]
+	- `configuration.setString("table.exec.mini-batch.enabled", "true")`
+	- `configuration.setString("table.exec.mini-batch.allow-latency", "5 s")`
+	- `configuration.setString("table.exec.mini-batch.size", "20000")`
+- `LocalGlobal` 解决数据倾斜问题，需要和 `MiniBatch` 一起使用
+- `configuration.setString("table.optimizer.agg-phase-strategy", "TWO_PHASE")`
+
+- `Split Distinct`
 # 10. 复习
 ## 10.1 与 SparkStreaming 的对比
 - 本质

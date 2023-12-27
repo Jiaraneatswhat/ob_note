@@ -6308,6 +6308,12 @@ SET execution.savepoint.path='...' # 之前保存的路径
 	- `-Dstate.backend.incremental=true`
 	- `-Dstate.backend.local-recovery=true` 不去 `HDFS` 拉取数据，基于本地状态信息恢复任务
 	- `-Dstate.backend.latency-track.keyed-state-enabled=true`
+- 预定义选项：
+	- `DEFAULT`
+	- `SPINNING_DISK_OPTIMIZED`
+	- `SPINNING_DISK_OPTIMIZED_HIGH_MEM`
+	- `FLASH_SSD_OPTIMIZED`
+	- 预定义选项达不到预期后，可以调整下面的参数
 - 调整预定义选项
 	- 增大 `Block` 缓存
 		- `state.backend.rocksdb.block.cache-size 默认8m` 设置到 `64-256MB`
@@ -6323,7 +6329,17 @@ SET execution.savepoint.path='...' # 之前保存的路径
 	- 增大后台线程数，默认 1，可以增大到 4
 		- `state.backend.rocksdb.thread.num`
 	- 增大 `writeBuffer` 合并数，默认 1，可以调成 3
-	- ``
+		- `state.backend.rocksdb.writebuffer.number-to-merge`
+	- 开启分区索引
+		- `state.backend.rocksdb.memory.partitioned-index-filters: true`
+### 9.2.2 Checkpoint 设置
+- 间隔时间可以设置为分钟级别(`1 - 5min`)
+- `Sink` 使用事务写出时，`ck` 的时间可设置为秒级或毫秒级
+- 超时时间
+- Barrier 的对齐(减少状态大小) + 超时时间，超时后转为非对齐
+
+
+
 # 10. 复习
 ## 10.1 与 SparkStreaming 的对比
 - 本质

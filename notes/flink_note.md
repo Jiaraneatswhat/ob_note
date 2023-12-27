@@ -6392,7 +6392,9 @@ SET execution.savepoint.path='...' # 之前保存的路径
 - `Kafka` 按 `Key` 写入时可能造成数据倾斜(不按 `Key` 走黏性分区器不会造成倾斜)，`Upsert Kafka left join` 时指定了 `Key`
 #### 9.4.2 keyBy 后
 - 直接聚合
-
+	- 预聚合
+	- 加随机数双重聚合
+		- 会出现计算重复
 
 
 

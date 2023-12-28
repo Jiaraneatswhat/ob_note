@@ -126,6 +126,7 @@ B-树每个节点都存放着索引和数据，搜索可能在非叶子节点结
 ### 3.3.5 TreeMap 中的插入
 ```java
 private void fixAfterInsertion(Entry<K,V> x) {  
+    // 新插入的 node 是红色
     x.color = RED;  
   
     while (x != null && x != root && x.parent.color == RED) {  

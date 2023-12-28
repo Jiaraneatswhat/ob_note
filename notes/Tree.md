@@ -199,12 +199,82 @@ static <K,V> Entry<K,V> predecessor(Entry<K,V> t) {
 ```
 - TreeMap 中求后继节点
 ```java
-static <K,V> Entry<K,V> sucessor(Entry<K,V> t) { 
-	if(t == bn)
+static <K,V> Entry<K,V> successor(Entry<K,V> t) { 
+	if (t == null) {
+		return null;
+	}
+	else if (t.right != null) {
+		Entry<K,V> p = t.right;
+		while (p.left != null)
+			p = p.left;
+		return p;
+	} else {
+		Entry<K,V> p = t.parent;
+		Entyr<K,V> ch = t;
+		while (p != null && ch == p.right) {
+			ch = p;
+			p = p.parent;
+		}
+		return p;
+	}
+}
+```
+- TreeMap 中的删除
+```java
+private void deleteEntry(Entry<K,V> p) {  
+    modCount++;  
+    size--;  
+  
+    // If strictly internal, copy successor's element to p and then make p  
+    // point to successor.    
+    // 获取到后继节点
+    if (p.left != null && p.right != null) {  
+        Entry<K,V> s = successor(p);  
+        p.key = s.key;  
+        p.value = s.value;  
+        p = s;  
+    } // p has 2 children  
+  
+    // Start fixup at replacement node, if it exists.    
+    //后继节点不是叶子节点，有左子节点返回左子节点
+    Entry<K,V> replacement = (p.left != null ? p.left : p.right);  
+    // 用 replacement 替代 p
+    if (replacement != null) {  
+        // Link replacement to parent  
+        replacement.parent = p.parent;  
+        if (p.parent == null)  
+            root = replacement;  
+        else if (p == p.parent.left)  
+            p.parent.left  = replacement;  
+        else  
+            p.parent.right = replacement;  
+  
+        // Null out links so they are OK to use by fixAfterDeletion.  
+        // 删除掉之前的节点 p
+        p.left = p.right = p.parent = null;  
+
+		// 修正
+        // Fix replacement  
+        if (p.color == BLACK)  
+            fixAfterDeletion(replacement);  
+    } else if (p.parent == null) { // return if we are the only node.  
+        root = null;  
+    } else { //  No children. Use self as phantom replacement and unlink.  
+        if (p.color == BLACK)  
+            fixAfterDeletion(p);  
+  
+        if (p.parent != null) {  
+            if (p == p.parent.left)  
+                p.parent.left = null;  
+            else if (p == p.parent.right)  
+                p.parent.right = null;  
+            p.parent = null;  
+        }  
+    }  
+}
 ```
 ### 3.4.2 红黑树删除和 2-3-4 树的对应
 
 ![[rbtree_del_rb_to_234.svg]]
 
-- 
 

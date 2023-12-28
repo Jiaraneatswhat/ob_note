@@ -168,7 +168,41 @@ private void fixAfterInsertion(Entry<K,V> x) {
 }
 ```
 ## 3.4 红黑树的删除
-### 3.4.1 红黑树删除和 2-3-4 树的对应
+### 3.4.1 删除规则
+- 分三种情况
+	- 叶子节点直接删除
+	- 有一个子节点的结点，删除后用子节点替代父节点
+	- 有两个子节点的节点，找到前驱节点或后继节点，用 `kv` 值更新待删除的节点后删除，这样只用删除一次指针
+- TreeMap 中求前驱节点
+```java
+static <K,V> Entry<K,V> predecessor(Entry<K,V> t) {  
+    if (t == null)  
+        return null;  
+    // 从左边开始找
+    else if (t.left != null) {  
+        Entry<K,V> p = t.left; 
+        // 存在右子树则向右找 
+        while (p.right != null)  
+            p = p.right;  
+        return p;  
+    } else {  
+        Entry<K,V> p = t.parent;  
+        Entry<K,V> ch = t;  
+        while (p != null && ch == p.left) {  
+	        // 向上寻找父节点，直到第一个父节点的右孩子
+            ch = p;  
+            p = p.parent;  
+        }  
+        return p;  
+    }  
+}
+```
+- TreeMap 中求后继节点
+```java
+static <K,V> Entry<K,V> sucessor(Entry<K,V> t) { 
+	if(t == bn)
+```
+### 3.4.2 红黑树删除和 2-3-4 树的对应
 
 ![[rbtree_del_rb_to_234.svg]]
 

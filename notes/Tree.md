@@ -167,5 +167,8 @@ private void fixAfterInsertion(Entry<K,V> x) {
     root.color = BLACK;  
 }
 ```
+## 3.4 红黑树的删除
+
+
 
 

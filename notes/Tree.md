@@ -170,6 +170,7 @@ private void fixAfterInsertion(Entry<K,V> x) {
 ## 3.4 红黑树的删除
 ### 3.4.1 红黑树删除和 2-3-4 树的对应
 
+![[rbtree_del_rb_to_234.svg]]
 
-
+- 
 

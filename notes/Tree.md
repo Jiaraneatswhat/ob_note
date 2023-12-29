@@ -376,10 +376,13 @@ private void deleteEntry(Entry<K,V> p) {
 	- `sib` 和 `sib` 的左孩子变色
 	- `sib` 右旋后指向 `node` 的 `parent`
 - sib 有右孩子
-	- 处理情况同 `sib` 是 `4-节点` 的情况(<font color='red'>case 3</font>)
+	- 处理情况同 `sib` 是 `4-节点` 的情况(<font color='red'>case 2.2 </font>)
 	- 旋转后要让 sib 成为 parent，为了不破坏之前的平衡，让 `sib` 变为 `parent` 的颜色
 	- `parent` 变为黑色
 	- `sib` 的右孩子变为黑色
 	- `parent` 左旋
 - <font color='red'>case 2.2 </font> `sib` 是 `4-节点`
 
+![[sib_two_node.svg]]
+
+- <font color='red'>case 3 </font> sib 也是 2-节点

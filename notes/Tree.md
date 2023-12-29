@@ -1,4 +1,4 @@
-# 1. B-Tree
+# 1.B-Tree
 - 2-3 树是一种特殊的 B-树，它满足：
 	- `2-节点`有 {0, 2} 个子节点
 	- `3-节点`有 {0, 3} 个子节点
@@ -94,7 +94,8 @@ B-树每个节点都存放着索引和数据，搜索可能在非叶子节点结
 - 要删除的 `key` 是索引节点的 `key`，向兄弟节点借不到 `key` 时
 - 合并后删除父节点中的 `key`
 - B+树删除后索引节点中的 `key` 在叶子节点中不一定存在对应的记录
-# 3. 红黑树
+# 3.红黑树
+- 高效的自平衡树结构
 ## 3.1 红黑树的规则
 - 根节点为黑色
 - 每个叶子节点都是黑色的空节点(Nil)
@@ -389,4 +390,77 @@ private void deleteEntry(Entry<K,V> p) {
 
 ![[sib_no_node.svg]]
 
-yi
+①：`parent` 是红色时，为了平衡黑色节点个数，让 `sib` 变为黑色即可
+②：`parent` 不是红色时，让 `sib` 变为红色，进行递归
+	  如果 `parent` 不是红色，让 `sib` 变为红色，继续向上
+	  直到递归到红色节点，跳出 `while` 循环后让 `parent` 变为黑色
+- TreeMap 的调整
+```java
+private void fixAfterDeletion(Entry<K,V> x) {
+    // replacement 为黑色，需要调整
+    while (x != root && colorOf(x) == BLACK) {
+	    // 左右两种情况  
+        if (x == leftOf(parentOf(x))) {  
+            Entry<K,V> sib = rightOf(parentOf(x));  
+			// 修正 sib 节点
+            if (colorOf(sib) == RED) {  
+                setColor(sib, BLACK);  
+                setColor(parentOf(x), RED);  
+                rotateLeft(parentOf(x));  
+                sib = rightOf(parentOf(x));  
+            }  
+			// == BLACK 等价于 null
+			// case 3
+            if (colorOf(leftOf(sib))  == BLACK &&  
+                colorOf(rightOf(sib)) == BLACK) {  
+                setColor(sib, RED);  
+                // 向上递归
+                x = parentOf(x);  
+            } else {  
+	            // case 2.1 
+                if (colorOf(rightOf(sib)) == BLACK) {  
+                    setColor(leftOf(sib), BLACK);  
+                    setColor(sib, RED);  
+                    rotateRight(sib);  
+                    sib = rightOf(parentOf(x));  
+                }  
+                // case 2.2
+                setColor(sib, colorOf(parentOf(x)));  
+                setColor(parentOf(x), BLACK);  
+                setColor(rightOf(sib), BLACK);  
+                rotateLeft(parentOf(x));  
+                x = root;  
+            }  
+        } else { // symmetric  
+            Entry<K,V> sib = leftOf(parentOf(x));  
+  
+            if (colorOf(sib) == RED) {  
+                setColor(sib, BLACK);  
+                setColor(parentOf(x), RED);  
+                rotateRight(parentOf(x));  
+                sib = leftOf(parentOf(x));  
+            }  
+  
+            if (colorOf(rightOf(sib)) == BLACK &&  
+                colorOf(leftOf(sib)) == BLACK) {  
+                setColor(sib, RED);  
+                x = parentOf(x);  
+            } else {  
+                if (colorOf(leftOf(sib)) == BLACK) {  
+                    setColor(rightOf(sib), BLACK);  
+                    setColor(sib, RED);  
+                    rotateLeft(sib);  
+                    sib = leftOf(parentOf(x));  
+                }  
+                setColor(sib, colorOf(parentOf(x)));  
+                setColor(parentOf(x), BLACK);  
+                setColor(leftOf(sib), BLACK);  
+                rotateRight(parentOf(x));  
+                x = root;  
+            }  
+        }  
+    }  
+    // 跳出循环或 case1, 将节点变黑
+    setColor(x, BLACK);  
+}
+```

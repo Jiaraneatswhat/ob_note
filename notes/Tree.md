@@ -299,6 +299,15 @@ private void deleteEntry(Entry<K,V> p) {
 		- 兄弟节点也是 `2-节点`
 ### 3.4.3 删除后的调整
 
+- <font color='red'>case1. </font> 删除 `3-节点 / 4-节点` 中的黑色节点(B)时，替换的子节点一定是红色节点，变为黑色
 
 ![[rbtree_del1.svg]]
+
+- <font color='red'>case2. </font> 删除 `2-节点` 时，首先需要判断兄弟节点是否是 2-3-4 树的兄弟节点
+- <font color='red'>sib 为红色时，并不是 2-3-4 树上的兄弟节点</font>
+![[rbtree_del2.svg]]
+
+- sib 为黑色时，对应 2-3-4 树上的兄弟节点
+
+![[rbtree_del3.svg]]
 

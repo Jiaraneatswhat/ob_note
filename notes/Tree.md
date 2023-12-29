@@ -320,16 +320,19 @@ private void deleteEntry(Entry<K,V> p) {
 ②：将旋转点的右子树的左子树作为新节点的右子树
 ③：用旋转点的右子节点的值替换旋转节点的值(4 -> 6)
 ④：此时替换后的右子节点已经没用了，用右子节点的右子树作为旋转点的右子树
-⑤：用新节点作为
-
+⑤：用新节点作为旋转点的左子树
 - TreeMap 左旋
 ```java
 private void rotateLeft(Entry<K,V> p) {  
     if (p != null) {  
+        // 右子节点
         Entry<K,V> r = p.right;  
+        // 右子节点左子树指向旋转点
         p.right = r.left;  
+        // 不为空的话再让左子树指向旋转点
         if (r.left != null)  
-            r.left.parent = p;  
+            r.left.parent = p; 
+		// 右子节点的父节点作为旋转点的父节点()
         r.parent = p.parent;  
         if (p.parent == null)  
             root = r;  

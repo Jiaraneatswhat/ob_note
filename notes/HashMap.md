@@ -144,27 +144,14 @@ final Node<K,V>[] resize() {
     int oldThr = threshold; // oldThr: 12
     int newCap, newThr = 0;  
     if (oldCap > 0) {  
-        if (oldCap >= MAXIMUM_CAPACITY) {  
-            threshold = Integer.MAX_VALUE;  
-            return oldTab;  
-        }  
+        if (oldCap >= MAXIMUM_CAPACITY) {...}  
         else if ((newCap = oldCap << 1) < MAXIMUM_CAPACITY &&  
-                 oldCap >= DEFAULT_INITIAL_CAPACITY)  
-            newThr = oldThr << 1; // double threshold  
-    }  
-    else if (oldThr > 0) // initial capacity was placed in threshold  
-        newCap = oldThr;  
-    else {               // zero initial threshold signifies using defaults  
-        newCap = DEFAULT_INITIAL_CAPACITY;  
-        newThr = (int)(DEFAULT_LOAD_FACTOR * DEFAULT_INITIAL_CAPACITY);  
-    }  
-    if (newThr == 0) {  
-        float ft = (float)newCap * loadFactor;  
-        newThr = (newCap < MAXIMUM_CAPACITY && ft < (float)MAXIMUM_CAPACITY ?  
-                  (int)ft : Integer.MAX_VALUE);  
+                 oldCap >= DEFAULT_INITIAL_CAPACITY) 
+            // oldThr * 2 
+            newThr = oldThr << 1; // newThr = 24
     }  
     threshold = newThr;  
-    @SuppressWarnings({"rawtypes","unchecked"})  
+    // 将 bin 移动到新的 table 中  
     Node<K,V>[] newTab = (Node<K,V>[])new Node[newCap];  
     table = newTab;  
     if (oldTab != null) {  

@@ -30,4 +30,18 @@ static class Node<K,V> implements Map.Entry<K,V> {
     }
 }
 ```
-## 2.2 
+## 2.2 TreeNode
+```java
+// 继承了 LinkedHashMap 的 Entry
+// LinkedHashMap 的 Entry 又继承了 HashMap 的 Entry
+static final class TreeNode<K,V> extends LinkedHashMap.Entry<K,V> {  
+    TreeNode<K,V> parent;  // red-black tree links  
+    TreeNode<K,V> left;  
+    TreeNode<K,V> right;  
+    TreeNode<K,V> prev;    // needed to unlink next upon deletion  
+    boolean red;  
+    TreeNode(int hash, K key, V val, Node<K,V> next) {  
+        super(hash, key, val, next);  
+    }
+}
+```

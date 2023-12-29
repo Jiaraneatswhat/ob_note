@@ -67,19 +67,23 @@ final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
     Node<K,V>[] tab; Node<K,V> p; int n, i; 
     // 初始化 table 为 null，见 4.2
     if ((tab = table) == null || (n = tab.length) == 0)  
-        n = (tab = resize()).length;  
+        n = (tab = resize()).length;
+    // 如果 (n - 1) & hash 处有没有桶，即 table 中对应 key 的桶为 null
     if ((p = tab[i = (n - 1) & hash]) == null)  
         tab[i] = newNode(hash, key, value, null);  
     else {  
         Node<K,V> e; K k;  
+        // hash 值相同且 key 相同，将 i 处的节点 p 赋给新节点 e
         if (p.hash == hash &&  
             ((k = p.key) == key || (key != null && key.equals(k))))  
             e = p;  
         else if (p instanceof TreeNode)  
             e = ((TreeNode<K,V>)p).putTreeVal(this, tab, hash, key, value);  
-        else {  
+        else {
             for (int binCount = 0; ; ++binCount) {  
-                if ((e = p.next) == null) {  
+	            // 如果 p 是链表  
+                if ((e = p.next) == null) { 
+	                // 插入链表 
                     p.next = newNode(hash, key, value, null);  
                     if (binCount >= TREEIFY_THRESHOLD - 1) // -1 for 1st  
                         treeifyBin(tab, hash);  
@@ -91,6 +95,7 @@ final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
                 p = e;  
             }  
         }  
+        // 替换 value 的值
         if (e != null) { // existing mapping for key  
             V oldValue = e.value;  
             if (!onlyIfAbsent || oldValue == null)  

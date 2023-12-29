@@ -167,8 +167,57 @@ private void fixAfterInsertion(Entry<K,V> x) {
     root.color = BLACK;  
 }
 ```
-## 3.4 红黑树的删除
-### 3.4.1 删除规则
+## 3.4 红黑树的旋转
+- 左旋思路一
+
+![[rotate_left.svg]]
+
+①：用旋转点的值创建一个新节点，左旋要保留左子树，因此将旋转点的左子树作为新节点的左子树
+②：将旋转点的右子树的左子树作为新节点的右子树
+③：用旋转点的右子节点的值替换旋转节点的值(4 -> 6)
+④：此时替换后的右子节点已经没用了，用右子节点的右子树作为旋转点的右子树
+⑤：用新节点作为旋转点的左子树
+- 左旋思路二：TreeMap 的实现
+
+![[rotate_left2.svg]]
+
+①：用右子树的左子树替代旋转点的右子树
+	  如果右子树的左子树不为 `null`，让其指向旋转点，相当于删除
+②：旋转点的父节点作为旋转点右子树的父节点
+	  相当于将右子树旋转上来
+	  此时如果旋转点是其父节点的左子树
+	      ③：将右子树作为旋转点父节点的左子树
+	             将旋转点作为右子树的左子树
+	   如果旋转点是根节点，将右子树直接作为根节点
+	   如果旋转点是其父节点的右子树，同上
+```java
+private void rotateLeft(Entry<K,V> p) {  
+    if (p != null) {  
+        // 右子节点
+        Entry<K,V> r = p.right;  
+        // 右子节点左子树指向旋转点的右子节点
+        p.right = r.left;  
+        // 不为空的话再让左子树指向旋转点
+        if (r.left != null)  
+            r.left.parent = p; 
+		// 右子节点的父节点作为旋转点的父节点(即用右子节点替换了父节点的位置)
+        r.parent = p.parent;  
+        // 旋转点是根节点，是父节点的左节点或右节点
+        // 更改右子节点和父节点的指向
+        if (p.parent == null)  
+            root = r;  
+        else if (p.parent.left == p)  
+            p.parent.left = r;  
+        else  
+            p.parent.right = r;  
+	    // 连接旋转后的右子节点和旋转节点
+        r.left = p;  
+        p.parent = r;  
+    }  
+}
+```
+## 3.5 红黑树的删除
+### 3.5.1 删除规则
 - 分三种情况
 	- 叶子节点直接删除
 	- 有一个子节点的结点，删除后用子节点替代父节点
@@ -275,7 +324,7 @@ private void deleteEntry(Entry<K,V> p) {
     }  
 }
 ```
-### 3.4.2 红黑树删除和 2-3-4 树的对应
+### 3.5.2 红黑树删除和 2-3-4 树的对应
 
 ![[rbtree_del_rb_to_234.svg]]
 
@@ -297,7 +346,7 @@ private void deleteEntry(Entry<K,V> p) {
 	- 需要借节点（黑色的叶子节点）
 		- 兄弟节点是 `3-节点` 或 `4-节点`，父节点下移，兄弟节点上移后删除
 		- 兄弟节点也是 `2-节点`
-### 3.4.3 删除后的调整
+### 3.5.3 删除后的调整
 
 - <font color='red'>case1. </font> 删除 `3-节点 / 4-节点` 中的黑色节点(B)时，替换的子节点一定是红色节点，变为黑色
 
@@ -312,39 +361,3 @@ private void deleteEntry(Entry<K,V> p) {
 ![[rbtree_del3.svg]]
 
 - 首先需要将红色的 sib 转换为黑色的对应 2-3-4 树的 sib
-- 左旋思路一
-
-![[rotate_left.svg]]
-
-①：用旋转点的值创建一个新节点，左旋要保留左子树，因此将旋转点的左子树作为新节点的左子树
-②：将旋转点的右子树的左子树作为新节点的右子树
-③：用旋转点的右子节点的值替换旋转节点的值(4 -> 6)
-④：此时替换后的右子节点已经没用了，用右子节点的右子树作为旋转点的右子树
-⑤：用新节点作为旋转点的左子树
-- 左旋思路二：TreeMap 的实现
-```java
-private void rotateLeft(Entry<K,V> p) {  
-    if (p != null) {  
-        // 右子节点
-        Entry<K,V> r = p.right;  
-        // 右子节点左子树指向旋转点
-        p.right = r.left;  
-        // 不为空的话再让左子树指向旋转点
-        if (r.left != null)  
-            r.left.parent = p; 
-		// 右子节点的父节点作为旋转点的父节点(即用右子节点替换了父节点的位置)
-        r.parent = p.parent;  
-        // 旋转点是根节点，是父节点的左节点或右节点
-        // 更改右子节点和父节点的指向
-        if (p.parent == null)  
-            root = r;  
-        else if (p.parent.left == p)  
-            p.parent.left = r;  
-        else  
-            p.parent.right = r;  
-	    // 连接旋转后的右子节点和旋转节点
-        r.left = p;  
-        p.parent = r;  
-    }  
-}
-```

@@ -64,7 +64,8 @@ public HashMap(int initialCapacity, float loadFactor) {
 ```java
 final V putVal(int hash, K key, V value, boolean onlyIfAbsent,  
                boolean evict) {  
-    Node<K,V>[] tab; Node<K,V> p; int n, i;  
+    Node<K,V>[] tab; Node<K,V> p; int n, i; 
+    // 初始化 table 为 null，见 4.2
     if ((tab = table) == null || (n = tab.length) == 0)  
         n = (tab = resize()).length;  
     if ((p = tab[i = (n - 1) & hash]) == null)  
@@ -105,7 +106,25 @@ final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
     return null;  
 }
 ```
-## 4.2 resize()
+## 4.2 第一次 resize()
+- 第一次扩容，生成一个容量为 16，阈值为 12 的 HashMap
 ```java
-
+// 初始化扩容
+final Node<K,V>[] resize() {  
+    Node<K,V>[] oldTab = table; // null  
+    int oldCap = (oldTab == null) ? 0 : oldTab.length; // 0
+    int oldThr = threshold; // 0
+    int newCap, newThr = 0;  
+    else {               
+        // 默认 capacaty 16
+        newCap = DEFAULT_INITIAL_CAPACITY;  
+        // 默认 threshold 16 * 0.75 = 12
+        newThr = (int)(DEFAULT_LOAD_FACTOR * DEFAULT_INITIAL_CAPACITY);  
+    }  
+    threshold = newThr;  
+    @SuppressWarnings({"rawtypes","unchecked"})  
+    Node<K,V>[] newTab = (Node<K,V>[])new Node[newCap];  
+    table = newTab;  
+    return newTab;  
+}
 ```

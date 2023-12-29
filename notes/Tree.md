@@ -361,3 +361,7 @@ private void deleteEntry(Entry<K,V> p) {
 ![[rbtree_del3.svg]]
 
 - 首先需要将红色的 sib 转换为黑色的对应 2-3-4 树的 sib
+
+![[solve_red_sib.svg]]
+
+- `sib` 变为黑色，`parent` 变为红色，以 `parent` 为旋转点左旋

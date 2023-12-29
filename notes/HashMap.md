@@ -49,9 +49,18 @@ static final class TreeNode<K,V> extends LinkedHashMap.Entry<K,V> {
 
 # 3.构造器
 ```java
+public HashMap() {  
+    this.loadFactor = DEFAULT_LOAD_FACTOR; // all other fields defaulted  
+}
 
+public HashMap(int initialCapacity, float loadFactor) {  
+    this.loadFactor = loadFactor;  
+    // 计算出离初始 Capacity 最近的 2 次幂
+    this.threshold = tableSizeFor(initialCapacity);  
+}
 ```
 # 4.插入元素
+## 4.1 putVal()
 ```java
 final V putVal(int hash, K key, V value, boolean onlyIfAbsent,  
                boolean evict) {  
@@ -95,4 +104,8 @@ final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
     afterNodeInsertion(evict);  
     return null;  
 }
+```
+## 4.2 resize()
+```java
+
 ```

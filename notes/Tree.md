@@ -386,3 +386,7 @@ private void deleteEntry(Entry<K,V> p) {
 ![[sib_two_node.svg]]
 
 - <font color='red'>case 3 </font> sib 也是 2-节点
+
+![[sib_no_node.svg]]
+
+yi

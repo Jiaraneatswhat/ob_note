@@ -381,4 +381,5 @@ private void deleteEntry(Entry<K,V> p) {
 	- `parent` 变为黑色
 	- `sib` 的右孩子变为黑色
 	- `parent` 左旋
-- <font color='red'>case 2.2 </font> sib 是 r
+- <font color='red'>case 2.2 </font> `sib` 是 `4-节点`
+

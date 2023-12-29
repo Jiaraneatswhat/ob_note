@@ -352,7 +352,7 @@ private void deleteEntry(Entry<K,V> p) {
 
 ![[rbtree_del1.svg]]
 
-- <font color='red'>case2. </font> 删除 `2-节点` 时，首先需要判断兄弟节点是否是 2-3-4 树的兄弟节点
+- <font color='red'>case2 </font> 删除 `2-节点` 时，首先需要判断兄弟节点是否是 2-3-4 树的兄弟节点
 - <font color='red'>sib 为红色时，并不是 2-3-4 树上的兄弟节点</font>
 ![[rbtree_del2.svg]]
 
@@ -365,3 +365,7 @@ private void deleteEntry(Entry<K,V> p) {
 ![[solve_red_sib.svg]]
 
 - `sib` 变为黑色，`parent` 变为红色，以 `parent` 为旋转点左旋
+- 成功转换为能够对应到 2-3-4 树的情况
+- <font color='red'>case2.1 </font> sib 是 3-节点
+	- 需要让 `sib` 的 `child` 上去充当 `parent`
+	- 

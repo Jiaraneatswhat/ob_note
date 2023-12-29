@@ -368,4 +368,17 @@ private void deleteEntry(Entry<K,V> p) {
 - 成功转换为能够对应到 2-3-4 树的情况
 - <font color='red'>case2.1 </font> sib 是 3-节点
 	- 需要让 `sib` 的 `child` 上去充当 `parent`
-	- 
+
+![[sib_one_node.svg]]
+
+- sib 有左孩子
+	- `sib` 为黑色，其 `child` 必为红色
+	- `sib` 和 `sib` 的左孩子变色
+	- `sib` 右旋后指向 `node` 的 `parent`
+- sib 有右孩子
+	- 处理情况同 `sib` 是 `4-节点` 的情况(<font color='red'>case 3</font>)
+	- 旋转后要让 sib 成为 parent，为了不破坏之前的平衡，让 `sib` 变为 `parent` 的颜色
+	- `parent` 变为黑色
+	- `sib` 的右孩子变为黑色
+	- `parent` 左旋
+- <font color='red'>case 2.2 </font> sib 是 r

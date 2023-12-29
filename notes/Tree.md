@@ -312,7 +312,7 @@ private void deleteEntry(Entry<K,V> p) {
 ![[rbtree_del3.svg]]
 
 - 首先需要将红色的 sib 转换为黑色的对应 2-3-4 树的 sib
-- 左旋
+- 左旋思路一
 
 ![[rotate_left.svg]]
 
@@ -321,7 +321,7 @@ private void deleteEntry(Entry<K,V> p) {
 ③：用旋转点的右子节点的值替换旋转节点的值(4 -> 6)
 ④：此时替换后的右子节点已经没用了，用右子节点的右子树作为旋转点的右子树
 ⑤：用新节点作为旋转点的左子树
-- TreeMap 左旋
+- 左旋思路二：TreeMap 的实现
 ```java
 private void rotateLeft(Entry<K,V> p) {  
     if (p != null) {  
@@ -332,14 +332,17 @@ private void rotateLeft(Entry<K,V> p) {
         // 不为空的话再让左子树指向旋转点
         if (r.left != null)  
             r.left.parent = p; 
-		// 右子节点的父节点作为旋转点的父节点()
+		// 右子节点的父节点作为旋转点的父节点(即用右子节点替换了父节点的位置)
         r.parent = p.parent;  
+        // 旋转点是根节点，是父节点的左节点或右节点
+        // 更改右子节点和父节点的指向
         if (p.parent == null)  
             root = r;  
         else if (p.parent.left == p)  
             p.parent.left = r;  
         else  
             p.parent.right = r;  
+	    // 连接旋转后的右子节点和旋转节点
         r.left = p;  
         p.parent = r;  
     }  

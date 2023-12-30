@@ -1,4 +1,14 @@
-# 1.重要属性
+- 集合的继承关系
+
+
+
+
+# 1 ArrayList
+
+
+
+# 2 HashMap
+## 2.1 重要属性
 ```java
 // 初始容量
 static final int DEFAULT_INITIAL_CAPACITY = 1 << 4;
@@ -11,8 +21,8 @@ static final int UNTREEIFY_THRESHOLD = 6;
 // 桶的数量大于 64 时会转换
 static final int MIN_TREEIFY_CAPACITY = 64;
 ```
-# 2.数据结构
-## 2.1 Node
+## 2.2 数据结构
+### 2.2.1 Node
 - Node 相当于一个桶，Node 数组相当于一个 Hashtable
 ```java
 // 实现了 Map 接口中定义的 Entry 接口
@@ -30,7 +40,7 @@ static class Node<K,V> implements Map.Entry<K,V> {
     }
 }
 ```
-## 2.2 TreeNode
+### 2.2.2 TreeNode
 ```java
 // 继承了 LinkedHashMap 的 Entry
 // LinkedHashMap 的 Entry 又继承了 HashMap 的 Entry
@@ -47,7 +57,7 @@ static final class TreeNode<K,V> extends LinkedHashMap.Entry<K,V> {
 ```
 ![[hashMap.svg]] 
 
-# 3.构造器
+## 2.3 构造器
 ```java
 public HashMap() {  
     this.loadFactor = DEFAULT_LOAD_FACTOR; // all other fields defaulted  
@@ -59,8 +69,8 @@ public HashMap(int initialCapacity, float loadFactor) {
     this.threshold = tableSizeFor(initialCapacity);  
 }
 ```
-# 4.插入元素
-## 4.1 putVal()
+## 2.4 插入元素
+### 2.4.1 putVal()
 ```java
 final V putVal(int hash, K key, V value, boolean onlyIfAbsent,  
                boolean evict) {  
@@ -113,7 +123,7 @@ final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
     return null;  
 }
 ```
-## 4.2 首次 resize()
+### 2.4.2 首次 resize()
 - 第一次扩容，生成一个容量为 16，阈值为 12 的 HashMap
 ```java
 // 初始化扩容
@@ -135,7 +145,7 @@ final Node<K,V>[] resize() {
     return newTab;  
 }
 ```
-## 4.3 非首次 resize()
+### 2.4.3 非首次 resize()
 
 ![[hashmap_resize.svg]]
 
@@ -238,8 +248,8 @@ final Node<K,V>[] resize() {
 e.hash & oldCap == 0 说明前后索引位置一样
 e.hash & oldCap != 0 说明需要移动 oldCap 位置
 ```
-## 4.4 rbTree 扩容
-### 4.4.1 生成 rbNode 
+### 2.4.4 rbTree 扩容
+#### 2.4.4.1 生成 rbNode 
 ```java
 // putVal
 for (int binCount = 0; ; ++binCount) {  
@@ -281,7 +291,7 @@ TreeNode<K,V> replacementTreeNode(Node<K,V> p, Node<K,V> next) {
     return new TreeNode<>(p.hash, p.key, p.value, next);  
 }
 ```
-### 4.4.2 构建 rbTree
+#### 2.4.4.2 构建 rbTree
 ```java
 final void treeify(Node<K,V>[] tab) {  
     TreeNode<K,V> root = null;  
@@ -331,7 +341,7 @@ final void treeify(Node<K,V>[] tab) {
     moveRootToFront(tab, root);  
 }
 ```
-### 4.4.3 插入重平衡
+#### 2.4.4.3 插入重平衡
 ```java
 /*
  * @param x: hd
@@ -403,7 +413,7 @@ static <K,V> TreeNode<K,V> balanceInsertion(TreeNode<K,V> root,
     }  
 }
 ```
-### 4.4.4 扩容
+#### 2.4.4.4 扩容
 ```java
 if (oldTab != null) {  
     for (int j = 0; j < oldCap; ++j) {  
@@ -416,7 +426,7 @@ if (oldTab != null) {
 	}
 }
 
-// 分为两个链表，达到反树化阈值时变为
+// 分为两个链表，达到反树化阈值时变为链表
 final void split(HashMap<K,V> map, Node<K,V>[] tab, int index, int bit) {  
     TreeNode<K,V> b = this;  
     // Relink into lo and hi lists, preserving order  
@@ -450,6 +460,7 @@ final void split(HashMap<K,V> map, Node<K,V>[] tab, int index, int bit) {
         else {  
             tab[index] = loHead;  
             if (hiHead != null) // (else is already treeified)  
+		        // 再树化一次，整理节点顺序
                 loHead.treeify(tab);  
         }  
     }  
@@ -464,5 +475,6 @@ final void split(HashMap<K,V> map, Node<K,V>[] tab, int index, int bit) {
     }  
 }
 ```
+- `HashMap` 在 `resize()` 时，如果多个线程进行 `put()` 时，可能出现环形列表的情况，容易出现环形链表的情况，因此线程不安全
 
 

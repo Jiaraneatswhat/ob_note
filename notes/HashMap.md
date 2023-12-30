@@ -261,8 +261,9 @@ final void treeifyBin(Node<K,V>[] tab, int hash) {
 	    // 存在节点 
         TreeNode<K,V> hd = null, tl = null;  
         do {  
+		    // 转换为 treeNode
             TreeNode<K,V> p = replacementTreeNode(e, null);  
-            if (tl == null)  
+            if (tl == null)
                 hd = p;  
             else {  
                 p.prev = tl;  
@@ -271,6 +272,7 @@ final void treeifyBin(Node<K,V>[] tab, int hash) {
             tl = p;  
         } while ((e = e.next) != null);  
         if ((tab[index] = hd) != null)  
+	        // 树化每个 bin 后，树化 tab
             hd.treeify(tab);  
     }  
 }
@@ -278,8 +280,56 @@ final void treeifyBin(Node<K,V>[] tab, int hash) {
 TreeNode<K,V> replacementTreeNode(Node<K,V> p, Node<K,V> next) {  
     return new TreeNode<>(p.hash, p.key, p.value, next);  
 }
-
-
+```
+### 4.4.2 构建 rbTree
+```java
+final void treeify(Node<K,V>[] tab) {  
+    TreeNode<K,V> root = null;  
+    // this = head
+    for (TreeNode<K,V> x = this, next; x != null; x = next) {  
+        next = (TreeNode<K,V>)x.next;  
+        x.left = x.right = null;  
+        if (root == null) {  
+            x.parent = null;  
+            // 根节点为黑色
+            x.red = false;  
+            root = x;  
+        }  
+        else {  
+            K k = x.key;  
+            int h = x.hash;  
+            Class<?> kc = null; 
+            // 和 root 比较 hash 
+            for (TreeNode<K,V> p = root;;) {  
+                int dir, ph;  
+                K pk = p.key;  
+                if ((ph = p.hash) > h)  
+                    dir = -1;  
+                else if (ph < h)  
+                    dir = 1; 
+                // 不能比较的或比较结果相同的通过 native 方法比较大小 
+                else if ((kc == null &&  
+                          (kc = comparableClassFor(k)) == null) ||  
+                         (dir = compareComparables(kc, k, pk)) == 0)  
+                    dir = tieBreakOrder(k, pk);  
+                TreeNode<K,V> xp = p; 
+                // 比 root 小的作为左节点，否则是右节点 
+                if ((p = (dir <= 0) ? p.left : p.right) == null) {  
+                    x.parent = xp;  
+                    if (dir <= 0)  
+                        xp.left = x;  
+                    else  
+                        xp.right = x;  
+                    // 重平衡
+                    root = balanceInsertion(root, x);  
+                    break;  
+                }  
+            }  
+        }  
+    }  
+    // 确保 root 节点
+    moveRootToFront(tab, root);  
+}
 ```
 
 

@@ -327,8 +327,80 @@ final void treeify(Node<K,V>[] tab) {
             }  
         }  
     }  
-    // 确保 root 节点
+    // 确保 root 节点在 bin 的头部
     moveRootToFront(tab, root);  
+}
+```
+### 4.4.3 插入重平衡
+```java
+/*
+ * @param x: hd
+ * @param root
+ * @return root
+ */
+static <K,V> TreeNode<K,V> balanceInsertion(TreeNode<K,V> root,  
+                                            TreeNode<K,V> x) {  
+    // 插入红色节点
+    x.red = true;  
+    /*
+            xpp
+           /    \
+       xp(xppl)  xppr
+         /
+        x
+    */
+    for (TreeNode<K,V> xp, xpp, xppl, xppr;;) {  
+	    // 只有一个节点，转黑作为 root
+        if ((xp = x.parent) == null) {  
+            x.red = false;  
+            return x;  
+        }  
+        // 父节点是黑色不用处理
+        else if (!xp.red || (xpp = xp.parent) == null)  
+            return root;  
+        if (xp == (xppl = xpp.left)) {  
+            if ((xppr = xpp.right) != null && xppr.red) {  
+                xppr.red = false;  
+                xp.red = false;  
+                xpp.red = true;  
+                x = xpp;  
+            }  
+            else {  
+                if (x == xp.right) {  
+                    root = rotateLeft(root, x = xp);  
+                    xpp = (xp = x.parent) == null ? null : xp.parent;  
+                }  
+                if (xp != null) {  
+                    xp.red = false;  
+                    if (xpp != null) {  
+                        xpp.red = true;  
+                        root = rotateRight(root, xpp);  
+                    }  
+                }  
+            }  
+        }  
+        else {  
+            if (xppl != null && xppl.red) {  
+                xppl.red = false;  
+                xp.red = false;  
+                xpp.red = true;  
+                x = xpp;  
+            }  
+            else {  
+                if (x == xp.left) {  
+                    root = rotateRight(root, x = xp);  
+                    xpp = (xp = x.parent) == null ? null : xp.parent;  
+                }  
+                if (xp != null) {  
+                    xp.red = false;  
+                    if (xpp != null) {  
+                        xpp.red = true;  
+                        root = rotateLeft(root, xpp);  
+                    }  
+                }  
+            }  
+        }  
+    }  
 }
 ```
 

@@ -1,14 +1,63 @@
 - 集合的继承关系
+![[collection.svg]]
 
-
-
+![[map.svg]]
 
 # 1 ArrayList
+## 1.1 属性
+```java
+private static final int DEFAULT_CAPACITY = 10;
 
+// 空参构造器使用
+private static final Object[] DEFAULTCAPACITY_EMPTY_ELEMENTDATA = {};
 
+// 传入的 capacity 为 0 时使用
+private static final Object[] EMPTY_ELEMENTDATA = {};
+
+// 用于存储数据的 Object 数组
+transient Object[] elementData;
+
+private int size;
+```
+## 1.2 构造器
+```java
+public ArrayList() {
+	// 创建空的 Object 数组
+    this.elementData = DEFAULTCAPACITY_EMPTY_ELEMENTDATA;  
+}
+
+public ArrayList(int initialCapacity) { 
+	// 创建指定长度的 Object 数组
+    if (initialCapacity > 0) {  
+        this.elementData = new Object[initialCapacity];  
+    } else if (initialCapacity == 0) {  
+        this.elementData = EMPTY_ELEMENTDATA;  
+    } 
+}
+```
+## 1.3 扩容
+### 1.3.1 添加元素
+```java
+public boolean add(E e) {
+    ensureCapacityInternal(size + 1);  // Increments modCount!!  
+    elementData[size++] = e;  
+    return true;  
+}
+
+private void ensureCapacityInternal(int minCapacity) {  
+    ensureExplicitCapacity(calculateCapacity(elementData, minCapacity));  
+}
+
+private static int calculateCapacity(Object[] elementData, int minCapacity) {  
+    if (elementData == DEFAULTCAPACITY_EMPTY_ELEMENTDATA) {  
+        return Math.max(DEFAULT_CAPACITY, minCapacity);  
+    }  
+    return minCapacity;  
+}
+```
 
 # 2 HashMap
-## 2.1 重要属性
+## 2.1 属性
 ```java
 // 初始容量
 static final int DEFAULT_INITIAL_CAPACITY = 1 << 4;

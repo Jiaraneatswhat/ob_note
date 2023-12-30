@@ -136,6 +136,9 @@ final Node<K,V>[] resize() {
 }
 ```
 ## 4.3 第二次 resize()
+
+![[hashmap_resize.svg]]
+
 - table 中的 bin 个数达到 threshold 时，进行第二次扩容
 ```java
 final Node<K,V>[] resize() {  
@@ -158,8 +161,8 @@ final Node<K,V>[] resize() {
         for (int j = 0; j < oldCap; ++j) {  
             Node<K,V> e;  
             if ((e = oldTab[j]) != null) {  
-                oldTab[j] = null;  
-                if (e.next == null)  
+                oldTab[j] = null; // help gc  
+                if (e.next == null) // 只有一个元素
                     newTab[e.hash & (newCap - 1)] = e;  
                 else if (e instanceof TreeNode)  
                     ((TreeNode<K,V>)e).split(this, newTab, j, oldCap);  

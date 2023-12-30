@@ -36,7 +36,6 @@ public ArrayList(int initialCapacity) {
 }
 ```
 ## 1.3 扩容
-### 1.3.1 添加元素
 ```java
 public boolean add(E e) {
     ensureCapacityInternal(size + 1);  // Increments modCount!!  
@@ -48,14 +47,36 @@ private void ensureCapacityInternal(int minCapacity) {
     ensureExplicitCapacity(calculateCapacity(elementData, minCapacity));  
 }
 
-private static int calculateCapacity(Object[] elementData, int minCapacity) {  
+
+private static int calculateCapacity(Object[] elementData, int minCapacity) {
+	// 没有元素，即第一次插入时，取默认容量 10
+	// 如果此时已有 10 个元素， 返回 11
     if (elementData == DEFAULTCAPACITY_EMPTY_ELEMENTDATA) {  
         return Math.max(DEFAULT_CAPACITY, minCapacity);  
     }  
     return minCapacity;  
 }
-```
 
+private void ensureExplicitCapacity(int minCapacity) {  
+    modCount++;  
+    // overflow-conscious code  
+    if (minCapacity - elementData.length > 0)  
+        grow(minCapacity);  
+}
+
+// 第一次插入时创建长度为 10 的数组
+private void grow(int minCapacity) {  
+    // overflow-conscious code  
+    int oldCapacity = elementData.length; // 10
+    int newCapacity = oldCapacity + (oldCapacity >> 1); // 扩容为 1.5 倍  
+    if (newCapacity - minCapacity < 0)  
+        newCapacity = minCapacity;  
+    if (newCapacity - MAX_ARRAY_SIZE > 0)  
+        newCapacity = hugeCapacity(minCapacity);  
+    // minCapacity is usually close to size, so this is a win:  
+    elementData = Arrays.copyOf(elementData, newCapacity); 
+}
+```
 # 2 HashMap
 ## 2.1 属性
 ```java

@@ -4,7 +4,7 @@
 ![[map.svg]]
 
 # 1 ArrayList
-## 1.1 属性
+## 1.1 fields
 ```java
 private static final int DEFAULT_CAPACITY = 10;
 
@@ -19,7 +19,7 @@ transient Object[] elementData;
 
 private int size;
 ```
-## 1.2 构造器
+## 1.2 constructors
 ```java
 public ArrayList() {
 	// 创建空的 Object 数组
@@ -78,7 +78,7 @@ private void grow(int minCapacity) {
 }
 ```
 # 2 HashMap
-## 2.1 属性
+## 2.1 fields
 ```java
 // 初始容量
 static final int DEFAULT_INITIAL_CAPACITY = 1 << 4;
@@ -91,9 +91,9 @@ static final int UNTREEIFY_THRESHOLD = 6;
 // 桶的数量大于 64 时会转换
 static final int MIN_TREEIFY_CAPACITY = 64;
 ```
-## 2.2 数据结构
+## 2.2 InnerClass
 ### 2.2.1 Node
-- Node 相当于一个桶，Node 数组相当于一个 Hashtable
+- `Node` 相当于一个桶，`Node` 数组相当于一个 `Hashtable`
 ```java
 // 实现了 Map 接口中定义的 Entry 接口
 static class Node<K,V> implements Map.Entry<K,V> {  
@@ -127,7 +127,7 @@ static final class TreeNode<K,V> extends LinkedHashMap.Entry<K,V> {
 ```
 ![[hashMap.svg]] 
 
-## 2.3 构造器
+## 2.3 constructors
 ```java
 public HashMap() {  
     this.loadFactor = DEFAULT_LOAD_FACTOR; // all other fields defaulted  
@@ -194,7 +194,7 @@ final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
 }
 ```
 ### 2.4.2 首次 resize()
-- 第一次扩容，生成一个容量为 16，阈值为 12 的 HashMap
+- 第一次扩容，生成一个容量为 16，阈值为 12 的 `HashMap`
 ```java
 // 初始化扩容
 final Node<K,V>[] resize() {  
@@ -219,7 +219,7 @@ final Node<K,V>[] resize() {
 
 ![[hashmap_resize.svg]]
 
-- table 中的 bin 个数达到 threshold 时，进行第二次扩容
+- `table` 中的 `bin` 个数达到 `threshold` 时，进行第二次扩容
 	- jdk1.7 采用尾插法
 	- jdk1.8 采用头插法
 ```java
@@ -290,7 +290,7 @@ final Node<K,V>[] resize() {
     return newTab;  
 }
 ```
-- hash 计算新索引位置
+- `hash` 计算新索引位置
 ```java
      a.hash       0 0 0 0 0 1 0 1
       n - 1       0 0 0 0 1 1 1 1
@@ -546,5 +546,29 @@ final void split(HashMap<K,V> map, Node<K,V>[] tab, int index, int bit) {
 }
 ```
 - `HashMap` 在 `resize()` 时，如果多个线程进行 `put()` 时，可能出现环形列表的情况，容易出现环形链表的情况，因此线程不安全
+# 3 ConcurrentHashMap
+## 3.1 fields
+```java
+private static final int MAXIMUM_CAPACITY = 1 << 30;
+
+static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
+
+private static final int DEFAULT_CONCURRENCY_LEVEL = 16;
+
+// 与 HashMap 相同的属性
+static final int TREEIFY_THRESHOLD = 8;
+static final int UNTREEIFY_THRESHOLD = 6;
+static final int MIN_TREEIFY_CAPACITY = 64;
+private static final int DEFAULT_CAPACITY = 16;
+private static final float LOAD_FACTOR = 0.75f;
+
+
+
+```
+## 3.2 InnerClass
+### 3.2.1 
+```java
+
+```
 
 

@@ -181,7 +181,7 @@ final Node<K,V>[] resize() {
                         if ((e.hash & oldCap) == 0) {
 		                    // 第一次遍历 loTail 为 null  
                             if (loTail == null)  
-	                            // 设置头节点
+	                            // 将 e 设置为头节点
                                 loHead = e;  
                             else 
 		                        // 否则添加到 tail 后并设置为 tail 

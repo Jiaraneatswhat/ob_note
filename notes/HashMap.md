@@ -113,7 +113,7 @@ final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
     return null;  
 }
 ```
-## 4.2 第一次 resize()
+## 4.2 首次 resize()
 - 第一次扩容，生成一个容量为 16，阈值为 12 的 HashMap
 ```java
 // 初始化扩容
@@ -135,14 +135,13 @@ final Node<K,V>[] resize() {
     return newTab;  
 }
 ```
-## 4.3 第二次 resize()
+## 4.3 非首次 resize()
 
 ![[hashmap_resize.svg]]
 
 - table 中的 bin 个数达到 threshold 时，进行第二次扩容
-
-
-
+	- jdk1.7 采用尾插法
+	- jdk1.8 采用头插法
 ```java
 final Node<K,V>[] resize() {  
     Node<K,V>[] oldTab = table;  
@@ -176,8 +175,7 @@ final Node<K,V>[] resize() {
                     do {  
                         next = e.next;  
                         // 位置不变
-                        // 每次遍历时将新节点添加在头部
-                        // 最后将 tail 元素作为 head
+                        // 每次遍历时将新节点添加在尾部
                         if ((e.hash & oldCap) == 0) {
 		                    // 第一次遍历 loTail 为 null  
                             if (loTail == null)  
@@ -240,5 +238,48 @@ final Node<K,V>[] resize() {
 e.hash & oldCap == 0 说明前后索引位置一样
 e.hash & oldCap != 0 说明需要移动 oldCap 位置
 ```
-- 处理链表
-- 正向遍历，反向插入
+## 4.4 rbTree 扩容
+### 4.4.1 生成 rbNode 
+```java
+// putVal
+for (int binCount = 0; ; ++binCount) {  
+    if ((e = p.next) == null) {  
+        p.next = newNode(hash, key, value, null);  
+        if (binCount >= TREEIFY_THRESHOLD - 1) // -1 for 1st  
+            treeifyBin(tab, hash);  
+        break;  
+    }   
+}
+
+// 链表上的元素个数到达 8 个时，转换为 rbNode
+final void treeifyBin(Node<K,V>[] tab, int hash) {  
+    int n, index; Node<K,V> e;
+    // 数组大小未达到 64 时，不转树，扩容  
+    if (tab == null || (n = tab.length) < MIN_TREEIFY_CAPACITY)  
+        resize();  
+    else if ((e = tab[index = (n - 1) & hash]) != null) { 
+	    // 存在节点 
+        TreeNode<K,V> hd = null, tl = null;  
+        do {  
+            TreeNode<K,V> p = replacementTreeNode(e, null);  
+            if (tl == null)  
+                hd = p;  
+            else {  
+                p.prev = tl;  
+                tl.next = p;  
+            }  
+            tl = p;  
+        } while ((e = e.next) != null);  
+        if ((tab[index] = hd) != null)  
+            hd.treeify(tab);  
+    }  
+}
+
+TreeNode<K,V> replacementTreeNode(Node<K,V> p, Node<K,V> next) {  
+    return new TreeNode<>(p.hash, p.key, p.value, next);  
+}
+
+
+```
+
+

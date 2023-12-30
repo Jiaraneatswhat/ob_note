@@ -202,3 +202,4 @@ final Node<K,V>[] resize() {
     return newTab;  
 }
 ```
+- hash 计算新索引位置

@@ -140,6 +140,9 @@ final Node<K,V>[] resize() {
 ![[hashmap_resize.svg]]
 
 - table 中的 bin 个数达到 threshold 时，进行第二次扩容
+
+
+
 ```java
 final Node<K,V>[] resize() {  
     Node<K,V>[] oldTab = table;  
@@ -172,14 +175,21 @@ final Node<K,V>[] resize() {
                     Node<K,V> next;  
                     do {  
                         next = e.next;  
-                        if ((e.hash & oldCap) == 0) {  
+                        // 位置不变
+                        // 每次遍历时将新节点添加在头部
+                        // 最后将 tail 元素作为 head
+                        if ((e.hash & oldCap) == 0) {
+		                    // 第一次遍历 loTail 为 null  
                             if (loTail == null)  
+	                            // 设置头节点
                                 loHead = e;  
-                            else  
+                            else 
+		                        // 否则添加到 tail 后并设置为 tail 
                                 loTail.next = e;  
                             loTail = e;  
                         }  
-                        else {  
+                        else {
+	                        // 同上添加到 hi 链表中  
                             if (hiTail == null)  
                                 hiHead = e;  
                             else  
@@ -227,5 +237,8 @@ final Node<K,V>[] resize() {
 (n - 1) & b.hash   0 0 0 1 0 1 0 1
 
 新位置比旧位置大 16，即 oldCap
+e.hash & oldCap == 0 说明前后索引位置一样
+e.hash & oldCap != 0 说明需要移动 oldCap 位置
 ```
-- 
+- 处理链表
+- 正向遍历，反向插入

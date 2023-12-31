@@ -588,5 +588,118 @@ static final class TreeBin<K,V> extends Node<K,V> {
     static final int READER = 4; // increment value for setting read lock
 }
 ```
+### 3.2.2 ForwardingNode
+```java
+// 扩容时使用的特殊节点，k, v, hash 均为 null, 用一个 nextTable 指针引用新的 table 数组
+static final class ForwardingNode<K,V> extends Node<K,V> {  
+    final Node<K,V>[] nextTable;  
+    ForwardingNode(Node<K,V>[] tab) {  
+        super(MOVED, null, null, null);  
+        this.nextTable = tab;  
+    }
+}
+```
+## 3.3 CAS 操作
+```java
+// 从 tab 中通过索引获取 Node 
+static final <K,V> Node<K,V> tabAt(Node<K,V>[] tab, int i) {  
+    return (Node<K,V>)U.getObjectVolatile(tab, ((long)i << ASHIFT) + ABASE);  
+}
 
+// 通过 cas 操作更改索引位置的元素
+static final <K,V> boolean casTabAt(Node<K,V>[] tab, int i,  
+                                    Node<K,V> c, Node<K,V> v) {  
+    return U.compareAndSwapObject(tab, ((long)i << ASHIFT) + ABASE, c, v);  
+}
 
+static final <K,V> void setTabAt(Node<K,V>[] tab, int i, Node<K,V> v) {  
+    U.putObjectVolatile(tab, ((long)i << ASHIFT) + ABASE, v);  
+}
+```
+## 3.4 constructor
+```java
+public ConcurrentHashMap() {}
+
+public ConcurrentHashMap(int initialCapacity) {  
+    int cap = ((initialCapacity >= (MAXIMUM_CAPACITY >>> 1)) ?  
+               MAXIMUM_CAPACITY :  
+               tableSizeFor(initialCapacity + (initialCapacity >>> 1) + 1));  
+    this.sizeCtl = cap;  
+}
+
+public ConcurrentHashMap(int initialCapacity,  
+                         float loadFactor, int concurrencyLevel) {   
+    if (initialCapacity < concurrencyLevel)   // Use at least as many bins  
+        initialCapacity = concurrencyLevel;   // as estimated threads  
+    long size = (long)(1.0 + (long)initialCapacity / loadFactor);  
+    int cap = (size >= (long)MAXIMUM_CAPACITY) ?  
+        MAXIMUM_CAPACITY : tableSizeFor((int)size);  
+    this.sizeCtl = cap;  
+}
+```
+## 3.5 插入元素
+```java
+final V putVal(K key, V value, boolean onlyIfAbsent) {  
+    if (key == null || value == null) throw new NullPointerException();  
+    int hash = spread(key.hashCode());  
+    int binCount = 0;  
+    for (Node<K,V>[] tab = table;;) {  
+        Node<K,V> f; int n, i, fh;  
+        if (tab == null || (n = tab.length) == 0)  
+            tab = initTable();  
+        else if ((f = tabAt(tab, i = (n - 1) & hash)) == null) {  
+            if (casTabAt(tab, i, null,  
+                         new Node<K,V>(hash, key, value, null)))  
+                break;                   // no lock when adding to empty bin  
+        }  
+        else if ((fh = f.hash) == MOVED)  
+            tab = helpTransfer(tab, f);  
+        else {  
+            V oldVal = null;  
+            synchronized (f) {  
+                if (tabAt(tab, i) == f) {  
+                    if (fh >= 0) {  
+                        binCount = 1;  
+                        for (Node<K,V> e = f;; ++binCount) {  
+                            K ek;  
+                            if (e.hash == hash &&  
+                                ((ek = e.key) == key ||  
+                                 (ek != null && key.equals(ek)))) {  
+                                oldVal = e.val;  
+                                if (!onlyIfAbsent)  
+                                    e.val = value;  
+                                break;  
+                            }  
+                            Node<K,V> pred = e;  
+                            if ((e = e.next) == null) {  
+                                pred.next = new Node<K,V>(hash, key,  
+                                                          value, null);  
+                                break;  
+                            }  
+                        }  
+                    }  
+                    else if (f instanceof TreeBin) {  
+                        Node<K,V> p;  
+                        binCount = 2;  
+                        if ((p = ((TreeBin<K,V>)f).putTreeVal(hash, key,  
+                                                       value)) != null) {  
+                            oldVal = p.val;  
+                            if (!onlyIfAbsent)  
+                                p.val = value;  
+                        }  
+                    }  
+                }  
+            }  
+            if (binCount != 0) {  
+                if (binCount >= TREEIFY_THRESHOLD)  
+                    treeifyBin(tab, i);  
+                if (oldVal != null)  
+                    return oldVal;  
+                break;  
+            }  
+        }  
+    }  
+    addCount(1L, binCount);  
+    return null;  
+}
+```

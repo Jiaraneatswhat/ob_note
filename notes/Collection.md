@@ -562,8 +562,14 @@ static final int MIN_TREEIFY_CAPACITY = 64;
 private static final int DEFAULT_CAPACITY = 16;
 private static final float LOAD_FACTOR = 0.75f;
 
-
-
+// 存储数据的 Node 数组
+transient volatile Node<K,V>[] table;
+// 扩容时使用
+private transient volatile Node<K,V>[] nextTable;
+// 用于初始化和扩容
+private transient volatile int sizeCtl;
+// 提供一些 CAS 方法
+private static final sun.misc.Unsafe U;
 ```
 ## 3.2 InnerClass
 ### 3.2.1 

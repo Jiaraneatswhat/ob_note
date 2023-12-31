@@ -745,9 +745,11 @@ final Node<K,V>[] helpTransfer(Node<K,V>[] tab, Node<K,V> f) {
     Node<K,V>[] nextTab; int sc;  
     if (tab != null && (f instanceof ForwardingNode) &&  
         (nextTab = ((ForwardingNode<K,V>)f).nextTable) != null) {  
-        int rs = resizeStamp(tab.length) << RESIZE_STAMP_SHIFT;  
+        int rs = resizeStamp(tab.length) << RESIZE_STAMP_SHIFT;
+        // 三个条件均表示正在扩容中
         while (nextTab == nextTable && table == tab &&  
                (sc = sizeCtl) < 0) {  
+            // 不需要协助
             if (sc == rs + MAX_RESIZERS || sc == rs + 1 ||  
                 transferIndex <= 0)  
                 break;  
@@ -760,4 +762,6 @@ final Node<K,V>[] helpTransfer(Node<K,V>[] tab, Node<K,V> f) {
     }  
     return table;  
 }
+
+
 ```

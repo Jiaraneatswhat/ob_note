@@ -638,14 +638,17 @@ public ConcurrentHashMap(int initialCapacity,
 }
 ```
 ## 3.5 插入元素
+### 3.5.1 putVal()
 ```java
 final V putVal(K key, V value, boolean onlyIfAbsent) {  
     if (key == null || value == null) throw new NullPointerException();  
+    // 计算 hash 值
     int hash = spread(key.hashCode());  
     int binCount = 0;  
     for (Node<K,V>[] tab = table;;) {  
         Node<K,V> f; int n, i, fh;  
         if (tab == null || (n = tab.length) == 0)  
+		    // 第一次插入初始化 tab
             tab = initTable();  
         else if ((f = tabAt(tab, i = (n - 1) & hash)) == null) {  
             if (casTabAt(tab, i, null,  
@@ -701,5 +704,35 @@ final V putVal(K key, V value, boolean onlyIfAbsent) {
     }  
     addCount(1L, binCount);  
     return null;  
+}
+```
+### 3.5.2 initTable()
+```java
+private final Node<K,V>[] initTable() {  
+    Node<K,V>[] tab; int sc;  
+    while ((tab = table) == null || tab.length == 0) {  
+	    // sizeCtl = -1 时表示有线程正在初始化，让出时间片
+        if ((sc = sizeCtl) < 0)  
+            Thread.yield(); // lost initialization race; just spin  
+        // 将 sizeCtl 设置为 -1
+        else if (U.compareAndSwapInt(this, SIZECTL, sc, -1)) {  
+            try {  
+                if ((tab = table) == null || tab.length == 0) {
+	                // 初始化数组大小为 16  
+                    int n = (sc > 0) ? sc : DEFAULT_CAPACITY;  
+                    @SuppressWarnings("unchecked")  
+                    // 创建 Node 数组
+                    Node<K,V>[] nt = (Node<K,V>[])new Node<?,?>[n];  
+                    table = tab = nt;  
+                    sc = n - (n >>> 2);  
+                }  
+            } finally {  
+	            // 更新 sizeCtl
+                sizeCtl = sc;  
+            }  
+            break;  
+        }  
+    }  
+    return tab;  
 }
 ```

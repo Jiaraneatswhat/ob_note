@@ -573,9 +573,20 @@ private transient volatile int sizeCtl;
 private static final sun.misc.Unsafe U;
 ```
 ## 3.2 InnerClass
-### 3.2.1 
+### 3.2.1 TreeBin
 ```java
-
+// 在 Node 和 TreeNode 的基础上增加了 TreeBin
+// TreeBin 表示 TreeNode 的列表以及 root
+static final class TreeBin<K,V> extends Node<K,V> {  
+    TreeNode<K,V> root;  
+    volatile TreeNode<K,V> first;  
+    volatile Thread waiter;  
+    volatile int lockState;  
+    // values for lockState  
+    static final int WRITER = 1; // set while holding write lock  
+    static final int WAITER = 2; // set when waiting for write lock  
+    static final int READER = 4; // increment value for setting read lock
+}
 ```
 
 

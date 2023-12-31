@@ -569,6 +569,7 @@ private transient volatile Node<K,V>[] nextTable;
 // 用于初始化和扩容
 private transient volatile int sizeCtl;
 // 提供一些 CAS 方法
+// 通过 Unsafe 实现 CAS 汇编指令解决线程安全问题
 private static final sun.misc.Unsafe U;
 ```
 ## 3.2 InnerClass

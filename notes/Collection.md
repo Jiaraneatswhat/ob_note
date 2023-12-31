@@ -571,6 +571,9 @@ private transient volatile int sizeCtl;
 // 提供一些 CAS 方法
 // 通过 Unsafe 实现 CAS 汇编指令解决线程安全问题
 private static final sun.misc.Unsafe U;
+// 用于记录元素个数
+// 如果用一般的属性 size 记录元数个数，在保证线程安全时需要通过加锁或自旋
+private transient volatile CounterCell[] counterCells;
 ```
 ## 3.2 InnerClass
 ### 3.2.1 TreeBin
@@ -771,26 +774,13 @@ final Node<K,V>[] helpTransfer(Node<K,V>[] tab, Node<K,V> f) {
 ```java
 private final void addCount(long x, int check) {  
     CounterCell[] as; long b, s;  
-    if ((as = counterCells) != null ||  
-        !U.compareAndSwapLong(this, BASECOUNT, b = baseCount, s = b + x)) {  
-        CounterCell a; long v; int m;  
-        boolean uncontended = true;  
-        if (as == null || (m = as.length - 1) < 0 ||  
-            (a = as[ThreadLocalRandom.getProbe() & m]) == null ||  
-            !(uncontended =  
-              U.compareAndSwapLong(a, CELLVALUE, v = a.value, v + x))) {  
-            fullAddCount(x, uncontended);  
-            return;  
-        }  
-        if (check <= 1)  
-            return;  
-        s = sumCount();  
-    }  
     if (check >= 0) {  
         Node<K,V>[] tab, nt; int n, sc;  
+        // 集合元素个数达到 sizeCtl，长度没有达到 MAXIMUM_CAPACITY
         while (s >= (long)(sc = sizeCtl) && (tab = table) != null &&  
                (n = tab.length) < MAXIMUM_CAPACITY) {  
-            int rs = resizeStamp(n) << RESIZE_STAMP_SHIFT;  
+            int rs = resizeStamp(n) << RESIZE_STAMP_SHIFT; 
+            // 正在扩容中 
             if (sc < 0) {  
                 if (sc == rs + MAX_RESIZERS || sc == rs + 1 ||  
                     (nt = nextTable) == null || transferIndex <= 0)  

@@ -650,11 +650,14 @@ final V putVal(K key, V value, boolean onlyIfAbsent) {
         if (tab == null || (n = tab.length) == 0)  
 		    // 第一次插入初始化 tab
             tab = initTable();  
+        // 没有元素
         else if ((f = tabAt(tab, i = (n - 1) & hash)) == null) {  
             if (casTabAt(tab, i, null,  
-                         new Node<K,V>(hash, key, value, null)))  
+	                new Node<K,V>(hash, key, value, null)))  
                 break;                   // no lock when adding to empty bin  
         }  
+        // MOVED = -1
+        // 如果计算出 hash 为 - 1，说明该节点是 forwardingNode，有扩容操作正在进行
         else if ((fh = f.hash) == MOVED)  
             tab = helpTransfer(tab, f);  
         else {  
@@ -734,5 +737,27 @@ private final Node<K,V>[] initTable() {
         }  
     }  
     return tab;  
+}
+```
+### 3.5.3 helpTransfer()
+```java
+final Node<K,V>[] helpTransfer(Node<K,V>[] tab, Node<K,V> f) {  
+    Node<K,V>[] nextTab; int sc;  
+    if (tab != null && (f instanceof ForwardingNode) &&  
+        (nextTab = ((ForwardingNode<K,V>)f).nextTable) != null) {  
+        int rs = resizeStamp(tab.length) << RESIZE_STAMP_SHIFT;  
+        while (nextTab == nextTable && table == tab &&  
+               (sc = sizeCtl) < 0) {  
+            if (sc == rs + MAX_RESIZERS || sc == rs + 1 ||  
+                transferIndex <= 0)  
+                break;  
+            if (U.compareAndSwapInt(this, SIZECTL, sc, sc + 1)) {  
+                transfer(tab, nextTab);  
+                break;  
+            }  
+        }  
+        return nextTab;  
+    }  
+    return table;  
 }
 ```

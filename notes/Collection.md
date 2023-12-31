@@ -815,20 +815,25 @@ private final void transfer(Node<K,V>[] tab, Node<K,V>[] nextTab) {
         transferIndex = n;  
     }  
     int nextn = nextTab.length;  
-    // 新建一个 ForwardingNode，1: 表示正在扩容, 2: 
+    // 新建一个 ForwardingNode，1: 表示正在扩容, 2: 遇到查询操作时会转发
     ForwardingNode<K,V> fwd = new ForwardingNode<K,V>(nextTab);  
+    // 表示是否处理完当前的桶
     boolean advance = true;  
+    // 表示扩容是否结束
     boolean finishing = false; // to ensure sweep before committing nextTab  
     for (int i = 0, bound = 0;;) {  
         Node<K,V> f; int fh;  
         while (advance) {  
             int nextIndex, nextBound;  
+            // 每处理完一个 bin 后 --i
             if (--i >= bound || finishing)  
-                advance = false;  
+                advance = false;
+            // transferIndex <=0 说明数组的 bin 已经被线程分配完毕
             else if ((nextIndex = transferIndex) <= 0) {  
                 i = -1;  
                 advance = false;  
             }  
+            // 首次进入 for 循环时进入，设置 bound 和 i 的值
             else if (U.compareAndSwapInt  
                      (this, TRANSFERINDEX, nextIndex,  
                       nextBound = (nextIndex > stride ?  
@@ -838,6 +843,7 @@ private final void transfer(Node<K,V>[] tab, Node<K,V>[] nextTab) {
                 advance = false;  
             }  
         }  
+        // 扩容结束，将 nextTable 设置为 null
         if (i < 0 || i >= n || i + n >= nextn) {  
             int sc;  
             if (finishing) {  
@@ -846,13 +852,16 @@ private final void transfer(Node<K,V>[] tab, Node<K,V>[] nextTab) {
                 sizeCtl = (n << 1) - (n >>> 1);  
                 return;  
             }  
-            if (U.compareAndSwapInt(this, SIZECTL, sc = sizeCtl, sc - 1)) {  
+            // 每当一条线程扩容更新一次 sizeCtl，-1
+            if (U.compareAndSwapInt(this, SIZECTL, sc = sizeCtl, sc - 1)) { 
+	            // 最后一条扩容线程 
                 if ((sc - 2) != resizeStamp(n) << RESIZE_STAMP_SHIFT)  
                     return;  
                 finishing = advance = true;  
                 i = n; // recheck before commit  
             }  
         }  
+        // 未结束时，遇到空位设置一个 ForwardingNode
         else if ((f = tabAt(tab, i)) == null)  
             advance = casTabAt(tab, i, null, fwd);  
         else if ((fh = f.hash) == MOVED)  

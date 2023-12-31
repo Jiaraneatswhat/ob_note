@@ -668,6 +668,7 @@ final V putVal(K key, V value, boolean onlyIfAbsent) {
                         binCount = 1;  
                         for (Node<K,V> e = f;; ++binCount) {  
                             K ek;  
+                            // 替换 value
                             if (e.hash == hash &&  
                                 ((ek = e.key) == key ||  
                                  (ek != null && key.equals(ek)))) {  
@@ -676,6 +677,7 @@ final V putVal(K key, V value, boolean onlyIfAbsent) {
                                     e.val = value;  
                                 break;  
                             }  
+                            // 插入链表
                             Node<K,V> pred = e;  
                             if ((e = e.next) == null) {  
                                 pred.next = new Node<K,V>(hash, key,  
@@ -684,11 +686,12 @@ final V putVal(K key, V value, boolean onlyIfAbsent) {
                             }  
                         }  
                     }  
+                    // 插入到红黑树
                     else if (f instanceof TreeBin) {  
                         Node<K,V> p;  
                         binCount = 2;  
                         if ((p = ((TreeBin<K,V>)f).putTreeVal(hash, key,  
-                                                       value)) != null) {  
+                             value)) != null) {  
                             oldVal = p.val;  
                             if (!onlyIfAbsent)  
                                 p.val = value;  
@@ -705,6 +708,7 @@ final V putVal(K key, V value, boolean onlyIfAbsent) {
             }  
         }  
     }  
+    // 检查扩容
     addCount(1L, binCount);  
     return null;  
 }
@@ -762,6 +766,42 @@ final Node<K,V>[] helpTransfer(Node<K,V>[] tab, Node<K,V> f) {
     }  
     return table;  
 }
-
-
+```
+## 3.6 扩容
+```java
+private final void addCount(long x, int check) {  
+    CounterCell[] as; long b, s;  
+    if ((as = counterCells) != null ||  
+        !U.compareAndSwapLong(this, BASECOUNT, b = baseCount, s = b + x)) {  
+        CounterCell a; long v; int m;  
+        boolean uncontended = true;  
+        if (as == null || (m = as.length - 1) < 0 ||  
+            (a = as[ThreadLocalRandom.getProbe() & m]) == null ||  
+            !(uncontended =  
+              U.compareAndSwapLong(a, CELLVALUE, v = a.value, v + x))) {  
+            fullAddCount(x, uncontended);  
+            return;  
+        }  
+        if (check <= 1)  
+            return;  
+        s = sumCount();  
+    }  
+    if (check >= 0) {  
+        Node<K,V>[] tab, nt; int n, sc;  
+        while (s >= (long)(sc = sizeCtl) && (tab = table) != null &&  
+               (n = tab.length) < MAXIMUM_CAPACITY) {  
+            int rs = resizeStamp(n) << RESIZE_STAMP_SHIFT;  
+            if (sc < 0) {  
+                if (sc == rs + MAX_RESIZERS || sc == rs + 1 ||  
+                    (nt = nextTable) == null || transferIndex <= 0)  
+                    break;  
+                if (U.compareAndSwapInt(this, SIZECTL, sc, sc + 1))  
+                    transfer(tab, nt);  
+            }  
+            else if (U.compareAndSwapInt(this, SIZECTL, sc, rs + 2))  
+                transfer(tab, null);  
+            s = sumCount();  
+        }  
+    }  
+}
 ```

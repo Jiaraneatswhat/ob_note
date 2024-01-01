@@ -1941,6 +1941,7 @@ def startup(): Unit = {
 }
 ```
 ### 2.3.1 已过期的副本移除 isr 列表
+#### 2.3.1.1 判断 isr 是否过期
 ```java
 private def maybeShrinkIsr(): Unit = {  
   trace("Evaluating ISR list of partitions to see which replicas can be removed from the ISR")  
@@ -1953,34 +1954,102 @@ private def maybeShrinkIsr(): Unit = {
 
 // Partition.scala
 def maybeShrinkIsr(): Unit = {  
-  val needsIsrUpdate = !isrState.isInflight && inReadLock(leaderIsrUpdateLock) {  
-    needsShrinkIsr()  
-  }  
   val leaderHWIncremented = needsIsrUpdate && inWriteLock(leaderIsrUpdateLock) {  
     leaderLogIfLocal.exists { leaderLog =>  
+      // 获取过期的 isr
       val outOfSyncReplicaIds = getOutOfSyncReplicas(replicaLagTimeMaxMs)  
       if (outOfSyncReplicaIds.nonEmpty) {  
-        val outOfSyncReplicaLog = outOfSyncReplicaIds.map { replicaId =>  
-          s"(brokerId: $replicaId, endOffset: ${getReplicaOrException(replicaId).logEndOffset})"  
-        }.mkString(" ")  
-        val newIsrLog = (isrState.isr -- outOfSyncReplicaIds).mkString(",")  
-        info(s"Shrinking ISR from ${isrState.isr.mkString(",")} to $newIsrLog. " +  
-             s"Leader: (highWatermark: ${leaderLog.highWatermark}, endOffset: ${leaderLog.logEndOffset}). " +  
-             s"Out of sync replicas: $outOfSyncReplicaLog.")  
-  
         shrinkIsr(outOfSyncReplicaIds)  
-  
         // we may need to increment high watermark since ISR could be down to 1  
+        // 检查 HW 是否需要更新
         maybeIncrementLeaderHW(leaderLog)  
-      } else {  
-        false  
-      }  
+      }
     }  
   }  
+}
+
+def getOutOfSyncReplicas(maxLagMs: Long): Set[Int] = {  
+  val current = isrState  
+  if (!current.isInflight) {  
+    // LEO
+    val leaderEndOffset = localLogOrException.logEndOffset  
+    candidateReplicaIds.filter(replicaId => isFollowerOutOfSync(replicaId, leaderEndOffset, currentTimeMs, maxLagMs))  
+  }
+}
+
+private def isFollowerOutOfSync(replicaId: Int,  
+                                leaderEndOffset: Long,  
+                                currentTimeMs: Long,  
+                                maxLagMs: Long): Boolean = {  
+  val followerReplica = getReplicaOrException(replicaId)  
+  // LEO 与 Leader 不同，且上次更新时间超过阈值(10s)
+  followerReplica.logEndOffset != leaderEndOffset &&  
+    (currentTimeMs - followerReplica.lastCaughtUpTimeMs) > maxLagMs  
+}
+
+```
+#### 2.3.1.2 移除过期的 isr
+```java
+// 移除
+private[cluster] def shrinkIsr(outOfSyncReplicas: Set[Int]): Unit = {  
+	// 从 Set 中移除过期的 isr
+    shrinkIsrWithZk(isrState.isr -- outOfSyncReplicas)  
+  }  
+}
+
+private def shrinkIsrWithZk(newIsr: Set[Int]): Unit = {  
+  val newLeaderAndIsr = new LeaderAndIsr(localBrokerId, leaderEpoch, newIsr.toList, zkVersion)  
+  val zkVersionOpt = stateStore.shrinkIsr(controllerEpoch, newLeaderAndIsr)  
+  if (zkVersionOpt.isDefined) {  
+    isrChangeListener.markShrink()  
+  }  
+  maybeUpdateIsrAndVersionWithZk(newIsr, zkVersionOpt)  
+}
+
+private def maybeUpdateIsrAndVersionWithZk(isr: Set[Int], zkVersionOpt: Option[Int]): Unit = {  
+  zkVersionOpt match {  
+    case Some(newVersion) =>  
+      isrState = CommittedIsr(isr)  
+      zkVersion = newVersion  
+      info("ISR updated to [%s] and zkVersion updated to [%d]".format(isr.mkString(","), zkVersion))  
+  }  
+}
+```
+#### 2.3.1.3 判断是否需要更新 HW
+```java
+// 需要更新的情况: isr 变化或副本的 LEO 变化
+private def maybeIncrementLeaderHW(leaderLog: Log, curTime: Long = time.milliseconds): Boolean = {  
+  inReadLock(leaderIsrUpdateLock) {  
+    // maybeIncrementLeaderHW is in the hot path, the following code is written to  
+    // avoid unnecessary collection generation    
+    var newHighWatermark = leaderLog.logEndOffsetMetadata  
+    remoteReplicasMap.values.foreach { replica =>  
+      // Note here we are using the "maximal", see explanation above  
+      if (replica.logEndOffsetMetadata.messageOffset < newHighWatermark.messageOffset &&  
+        (curTime - replica.lastCaughtUpTimeMs <= replicaLagTimeMaxMs || isrState.maximalIsr.contains(replica.brokerId))) {  
+        newHighWatermark = replica.logEndOffsetMetadata  
+      }  
+    }  
   
-  // some delayed operations may be unblocked after HW changed  
-  if (leaderHWIncremented)  
-    tryCompleteDelayedRequests()  
+    leaderLog.maybeIncrementHighWatermark(newHighWatermark) match {  
+      case Some(oldHighWatermark) =>  
+        debug(s"High watermark updated from $oldHighWatermark to $newHighWatermark")  
+        true  
+  
+      case None =>  
+        def logEndOffsetString: ((Int, LogOffsetMetadata)) => String = {  
+          case (brokerId, logEndOffsetMetadata) => s"replica $brokerId: $logEndOffsetMetadata"  
+        }  
+  
+        if (isTraceEnabled) {  
+          val replicaInfo = remoteReplicas.map(replica => (replica.brokerId, replica.logEndOffsetMetadata)).toSet  
+          val localLogInfo = (localBrokerId, localLogOrException.logEndOffsetMetadata)  
+          trace(s"Skipping update high watermark since new hw $newHighWatermark is not larger than old value. " +  
+            s"All current LEOs are ${(replicaInfo + localLogInfo).map(logEndOffsetString)}")  
+        }  
+        false  
+    }  
+  }  
 }
 ```
 # 3 Consumer

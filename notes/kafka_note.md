@@ -1,4 +1,4 @@
-# 1. Producer
+# 1 Producer
 
 -  `Producer` 在生产过程中主要使用以下组件：`ProducerMetadata` 用于 `Producer` 与 `Broker` 通讯获取元数据，`ProducerConfig` 用于设置 `Producer` 的参数，`NetworkClient` 用于网络通信，`RecordAccumlator` 用于缓存 `Batch`，`Sender` 用于发送消息，`ProducerInterceptors` 用于处理拦截器逻辑(可选)
 
@@ -1379,7 +1379,7 @@ private int nextValue(String topic) {
 ```java
 
 ```
-# 2. Broker
+# 2 Broker
 - 基本组件
 
 ![[broker_framework.svg]]
@@ -1928,8 +1928,29 @@ public void create(
     cnxn.queuePacket(h, r, request, response, cb, clientPath, serverPath, ctx, null);  
 }
 ```
-# 3. Consumer
-# 4. 复习
+## 2.3 启动 ReplicaManager
+```java
+def startup(): Unit = {  
+  // start ISR expiration thread  
+  // A follower can lag behind leader for up to config.replicaLagTimeMaxMs x 1.5 before it is removed from ISR  
+  scheduler.schedule("isr-expiration", maybeShrinkIsr _, period = config.replicaLagTimeMaxMs / 2, unit = TimeUnit.MILLISECONDS)  
+  // If using AlterIsr, we don't need the znode ISR propagation  
+  if (!config.interBrokerProtocolVersion.isAlterIsrSupported) {  
+    scheduler.schedule("isr-change-propagation", maybePropagateIsrChanges _,  
+      period = isrChangeNotificationConfig.checkIntervalMs, unit = TimeUnit.MILLISECONDS)  
+  } else {  
+    alterIsrManager.start()  
+  }  
+  scheduler.schedule("shutdown-idle-replica-alter-log-dirs-thread", shutdownIdleReplicaAlterLogDirsThread _, period = 10000L, unit = TimeUnit.MILLISECONDS)  
+  
+  // If inter-broker protocol (IBP) < 1.0, the controller will send LeaderAndIsrRequest V0 which does not include isNew field.  
+  // In this case, the broker receiving the request cannot determine whether it is safe to create a partition if a log directory has failed.  // Thus, we choose to halt the broker on any log diretory failure if IBP < 1.0  val haltBrokerOnFailure = config.interBrokerProtocolVersion < KAFKA_1_0_IV0  
+  logDirFailureHandler = new LogDirFailureHandler("LogDirFailureHandler", haltBrokerOnFailure)  
+  logDirFailureHandler.start()  
+}
+```
+# 3 Consumer
+# 4 复习
 ## 4.1 基本信息
 ### 4.1.1 生产流程
 - 两个线程：`main`， `sender`

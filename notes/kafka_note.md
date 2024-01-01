@@ -2061,7 +2061,74 @@ protected def createReplicaFetcherManager(metrics: Metrics, time: Time, threadNa
   new ReplicaFetcherManager(config, this, metrics, time, threadNamePrefix, quotaManager)  
 }
 
-// ReplicaFetcherManager 中定义了 fetchMessages
+// ReplicaFetcherManager 中定义了 ReplicaFetcherThread 对象
+// 调用 ReplicaManager 中的 fetchMessages 方法
+def fetchMessages(...): Unit = {  
+  val isFromFollower = Request.isValidBrokerId(replicaId)  
+  
+  val fetchOnlyFromLeader = isFromFollower || (isFromConsumer && clientMetadata.isEmpty)  
+  def readFromLog(): Seq[(TopicPartition, LogReadResult)] = {  
+    val result = readFromLocalLog(...)
+    // 如果是 Follower 的 fetch 请求, 更新远程的状态  
+    if (isFromFollower) updateFollowerFetchState(replicaId, result)  
+    else result  
+  }  
+}
+
+private def updateFollowerFetchState(followerId: Int,  
+                                     readResults: Seq[(TopicPartition, LogReadResult)]): Seq[(TopicPartition, LogReadResult)] = {
+	 
+  nonOfflinePartition(topicPartition) match {  
+	case Some(partition) =>  
+	  if (partition.updateFollowerFetchState(followerId,  
+		followerFetchOffsetMetadata = readResult.info.fetchOffsetMetadata,  
+		followerStartOffset = readResult.followerLogStartOffset,  
+		followerFetchTimeMs = readResult.fetchTimeMs,  
+		leaderEndOffset = readResult.leaderLogEndOffset)) {  
+		readResult  
+		}
+	 }
+}
+
+// Partition.scala
+def updateFollowerFetchState(followerId: Int,  
+		followerFetchOffsetMetadata: LogOffsetMetadata,  
+		 followerStartOffset: Long,  
+		 followerFetchTimeMs: Long,  
+		 leaderEndOffset: Long): Boolean = {  
+  getReplica(followerId) match {  
+    case Some(followerReplica) =>  
+      val oldLeaderLW = if (delayedOperations.numDelayedDelete > 0) lowWatermarkIfLeader else -1L  
+      val prevFollowerEndOffset = followerReplica.logEndOffset  
+      followerReplica.updateFetchState(  
+        followerFetchOffsetMetadata,  
+        followerStartOffset,  
+        followerFetchTimeMs,  
+        leaderEndOffset)  
+  
+      val newLeaderLW = if (delayedOperations.numDelayedDelete > 0) lowWatermarkIfLeader else -1L  
+ 
+      maybeExpandIsr(followerReplica, followerFetchTimeMs)  
+  
+      // check if the HW of the partition can now be incremented  
+      // since the replica may already be in the ISR and its LEO has just incremented      val leaderHWIncremented = if (prevFollowerEndOffset != followerReplica.logEndOffset) {  
+        leaderLogIfLocal.exists(leaderLog => maybeIncrementLeaderHW(leaderLog, followerFetchTimeMs))  
+      } else {  
+        false  
+      }  
+  
+      // some delayed operations may be unblocked after HW or LW changed  
+      if (leaderLWIncremented || leaderHWIncremented)  
+        tryCompleteDelayedRequests()  
+  
+      debug(s"Recorded replica $followerId log end offset (LEO) position " +  
+        s"${followerFetchOffsetMetadata.messageOffset} and log start offset $followerStartOffset.")  
+      true  
+  
+    case None =>  
+      false  
+  }  
+}
 ```
 ### 2.3.3 广播 isr 变化
 ```java

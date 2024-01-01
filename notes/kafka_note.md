@@ -2000,7 +2000,8 @@ private[cluster] def shrinkIsr(outOfSyncReplicas: Set[Int]): Unit = {
 private def shrinkIsrWithZk(newIsr: Set[Int]): Unit = {  
   val newLeaderAndIsr = new LeaderAndIsr(localBrokerId, leaderEpoch, newIsr.toList, zkVersion)  
   val zkVersionOpt = stateStore.shrinkIsr(controllerEpoch, newLeaderAndIsr)  
-  if (zkVersionOpt.isDefined) {  
+  if (zkVersionOpt.isDefined) { 
+	// 记录 shrink 的操作 
     isrChangeListener.markShrink()  
   }  
   maybeUpdateIsrAndVersionWithZk(newIsr, zkVersionOpt)  
@@ -2023,6 +2024,7 @@ private def maybeIncrementLeaderHW(leaderLog: Log, curTime: Long = time.millisec
     // maybeIncrementLeaderHW is in the hot path, the following code is written to  
     // avoid unnecessary collection generation    
     var newHighWatermark = leaderLog.logEndOffsetMetadata  
+    // 比较 leader 和 每个副本的 leo 的大小，计算出一个新的 HW
     remoteReplicasMap.values.foreach { replica =>  
       // Note here we are using the "maximal", see explanation above  
       if (replica.logEndOffsetMetadata.messageOffset < newHighWatermark.messageOffset &&  
@@ -2031,26 +2033,30 @@ private def maybeIncrementLeaderHW(leaderLog: Log, curTime: Long = time.millisec
       }  
     }  
   
-    leaderLog.maybeIncrementHighWatermark(newHighWatermark) match {  
+    leaderLog.maybeIncrementHighWatermark(newHighWatermark) match { 
+      // 更改成功后的回调 
       case Some(oldHighWatermark) =>  
         debug(s"High watermark updated from $oldHighWatermark to $newHighWatermark")  
         true  
-  
-      case None =>  
-        def logEndOffsetString: ((Int, LogOffsetMetadata)) => String = {  
-          case (brokerId, logEndOffsetMetadata) => s"replica $brokerId: $logEndOffsetMetadata"  
-        }  
-  
-        if (isTraceEnabled) {  
-          val replicaInfo = remoteReplicas.map(replica => (replica.brokerId, replica.logEndOffsetMetadata)).toSet  
-          val localLogInfo = (localBrokerId, localLogOrException.logEndOffsetMetadata)  
-          trace(s"Skipping update high watermark since new hw $newHighWatermark is not larger than old value. " +  
-            s"All current LEOs are ${(replicaInfo + localLogInfo).map(logEndOffsetString)}")  
-        }  
-        false  
     }  
   }  
 }
+
+def maybeIncrementHighWatermark(newHighWatermark: LogOffsetMetadata): Option[LogOffsetMetadata] = {   
+  lock.synchronized {  
+    val oldHighWatermark = fetchHighWatermarkMetadata  
+   
+    if (oldHighWatermark.messageOffset < newHighWatermark.messageOffset ||  
+      (oldHighWatermark.messageOffset == newHighWatermark.messageOffset && oldHighWatermark.onOlderSegment(newHighWatermark))) {  
+      updateHighWatermarkMetadata(newHighWatermark)  
+      Some(oldHighWatermark)  
+    }
+  }  
+}
+```
+### 2.3.2 广播 isr 变化
+```java
+
 ```
 # 3 Consumer
 # 4 复习

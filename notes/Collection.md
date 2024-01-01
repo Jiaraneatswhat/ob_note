@@ -863,7 +863,8 @@ private final void transfer(Node<K,V>[] tab, Node<K,V>[] nextTab) {
         }  
         // 未结束时，遇到空位设置一个 ForwardingNode
         else if ((f = tabAt(tab, i)) == null)  
-            advance = casTabAt(tab, i, null, fwd);  
+            advance = casTabAt(tab, i, null, fwd);
+        // 如果遇到 ForwardingNode，说明已经处理过
         else if ((fh = f.hash) == MOVED)  
             advance = true; // already processed  
         else {  
@@ -873,7 +874,7 @@ private final void transfer(Node<K,V>[] tab, Node<K,V>[] nextTab) {
                     if (fh >= 0) {  
                         int runBit = fh & n;  
                         Node<K,V> lastRun = f;  
-                        for (Node<K,V> p = f.next; p != null; p = p.next) {  
+                        for (Node<K,V> p = f.next; p != null; p = p.next) { 
                             int b = p.hash & n;  
                             if (b != runBit) {  
                                 runBit = b;  

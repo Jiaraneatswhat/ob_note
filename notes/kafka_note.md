@@ -1930,23 +1930,57 @@ public void create(
 ```
 ## 2.3 启动 ReplicaManager
 ```java
+// 开启两个定时任务：一个管理 isr 的过期情况(5s)，另一个广播 isr 的变化(2.5s)
 def startup(): Unit = {  
-  // start ISR expiration thread  
-  // A follower can lag behind leader for up to config.replicaLagTimeMaxMs x 1.5 before it is removed from ISR  
   scheduler.schedule("isr-expiration", maybeShrinkIsr _, period = config.replicaLagTimeMaxMs / 2, unit = TimeUnit.MILLISECONDS)  
   // If using AlterIsr, we don't need the znode ISR propagation  
   if (!config.interBrokerProtocolVersion.isAlterIsrSupported) {  
     scheduler.schedule("isr-change-propagation", maybePropagateIsrChanges _,  
       period = isrChangeNotificationConfig.checkIntervalMs, unit = TimeUnit.MILLISECONDS)  
-  } else {  
-    alterIsrManager.start()  
-  }  
-  scheduler.schedule("shutdown-idle-replica-alter-log-dirs-thread", shutdownIdleReplicaAlterLogDirsThread _, period = 10000L, unit = TimeUnit.MILLISECONDS)  
+  } 
+}
+```
+### 2.3.1 已过期的副本移除 isr 列表
+```java
+private def maybeShrinkIsr(): Unit = {  
+  trace("Evaluating ISR list of partitions to see which replicas can be removed from the ISR")  
   
-  // If inter-broker protocol (IBP) < 1.0, the controller will send LeaderAndIsrRequest V0 which does not include isNew field.  
-  // In this case, the broker receiving the request cannot determine whether it is safe to create a partition if a log directory has failed.  // Thus, we choose to halt the broker on any log diretory failure if IBP < 1.0  val haltBrokerOnFailure = config.interBrokerProtocolVersion < KAFKA_1_0_IV0  
-  logDirFailureHandler = new LogDirFailureHandler("LogDirFailureHandler", haltBrokerOnFailure)  
-  logDirFailureHandler.start()  
+  // Shrink ISRs for non offline partitions  
+  allPartitions.keys.foreach { topicPartition =>  
+    nonOfflinePartition(topicPartition).foreach(_.maybeShrinkIsr())  
+  }  
+}
+
+// Partition.scala
+def maybeShrinkIsr(): Unit = {  
+  val needsIsrUpdate = !isrState.isInflight && inReadLock(leaderIsrUpdateLock) {  
+    needsShrinkIsr()  
+  }  
+  val leaderHWIncremented = needsIsrUpdate && inWriteLock(leaderIsrUpdateLock) {  
+    leaderLogIfLocal.exists { leaderLog =>  
+      val outOfSyncReplicaIds = getOutOfSyncReplicas(replicaLagTimeMaxMs)  
+      if (outOfSyncReplicaIds.nonEmpty) {  
+        val outOfSyncReplicaLog = outOfSyncReplicaIds.map { replicaId =>  
+          s"(brokerId: $replicaId, endOffset: ${getReplicaOrException(replicaId).logEndOffset})"  
+        }.mkString(" ")  
+        val newIsrLog = (isrState.isr -- outOfSyncReplicaIds).mkString(",")  
+        info(s"Shrinking ISR from ${isrState.isr.mkString(",")} to $newIsrLog. " +  
+             s"Leader: (highWatermark: ${leaderLog.highWatermark}, endOffset: ${leaderLog.logEndOffset}). " +  
+             s"Out of sync replicas: $outOfSyncReplicaLog.")  
+  
+        shrinkIsr(outOfSyncReplicaIds)  
+  
+        // we may need to increment high watermark since ISR could be down to 1  
+        maybeIncrementLeaderHW(leaderLog)  
+      } else {  
+        false  
+      }  
+    }  
+  }  
+  
+  // some delayed operations may be unblocked after HW changed  
+  if (leaderHWIncremented)  
+    tryCompleteDelayedRequests()  
 }
 ```
 # 3 Consumer

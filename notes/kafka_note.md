@@ -2054,9 +2054,50 @@ def maybeIncrementHighWatermark(newHighWatermark: LogOffsetMetadata): Option[Log
   }  
 }
 ```
-### 2.3.2 广播 isr 变化
+### 2.3.2 有新的 follower 时，更新 isr 集合
 ```java
+// ReplicaManager 中定义了 ReplicaFetcherManager
+protected def createReplicaFetcherManager(metrics: Metrics, time: Time, threadNamePrefix: Option[String], quotaManager: ReplicationQuotaManager) = {  
+  new ReplicaFetcherManager(config, this, metrics, time, threadNamePrefix, quotaManager)  
+}
 
+// ReplicaFetcherManager 中定义了 fetchMessages
+```
+### 2.3.3 广播 isr 变化
+```java
+def maybePropagateIsrChanges(): Unit = {  
+  val now = time.milliseconds()  
+  isrChangeSet synchronized {  
+    if (isrChangeSet.nonEmpty &&  
+      (lastIsrChangeMs.get() + isrChangeNotificationConfig.lingerMs < now ||  
+        lastIsrPropagationMs.get() + isrChangeNotificationConfig.maxDelayMs < now)) {  
+      // 非空则广播变化
+      zkClient.propagateIsrChanges(isrChangeSet)  
+      isrChangeSet.clear()  
+      lastIsrPropagationMs.set(now)  
+    }  
+  }  
+}
+```
+#### 2.3.3.1 shrink 操作
+```java
+// 2.3.1.2
+// 通知 ReplicaManager isr 的 shrink
+override def markShrink(): Unit = {  
+  replicaManager.recordIsrChange(topicPartition)  
+  replicaManager.isrShrinkRate.mark()  
+}
+
+def recordIsrChange(topicPartition: TopicPartition): Unit = {  
+  if (!config.interBrokerProtocolVersion.isAlterIsrSupported) {  
+    isrChangeSet synchronized {  
+      // 加入到 isrChangeSet 中
+      isrChangeSet += topicPartition  
+      // 更新变更时间
+      lastIsrChangeMs.set(time.milliseconds())  
+    }  
+  }  
+}
 ```
 # 3 Consumer
 # 4 复习

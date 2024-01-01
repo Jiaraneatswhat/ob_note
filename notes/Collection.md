@@ -1,4 +1,5 @@
 - 集合的继承关系
+
 ![[collection.svg]]
 
 ![[map.svg]]

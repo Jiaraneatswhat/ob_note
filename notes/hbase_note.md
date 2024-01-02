@@ -2441,6 +2441,8 @@ public StoreScanner(HStore store, ScanInfo scanInfo, Scan scan, NavigableSet<byt
   
     // 每个 Scanner 遍历寻找 start key
     seekScanners(scanners, matcher.getStartKey(), explicitColumnQuery && lazySeekEnabledGlobally, parallelSeekEnabled);  
+    // 构建 heap
+	resetKVHeap(scanners, comparator);
   }   
 }
 ```
@@ -2556,7 +2558,7 @@ public boolean shouldUseScanner(Scan scan, HStore store, long oldestUnexpiredTS)
       .passesKeyRangeFilter(scan) && reader.passesBloomFilter(scan, scan.getFamilyMap().get(cf));  
 }
 ```
-## 6.7 Scanners 构建 heap
+## 6.7 筛选 Scanners 
 ```java
 // 通过给定的 key 寻找特定的 Scanner
 protected void seekScanners(List<? extends KeyValueScanner> scanners, Cell seekKey, boolean isLazy, boolean isParallelSeek)  
@@ -2603,28 +2605,44 @@ private boolean generalizedSeek(boolean isLazy, Cell seekKey,
         current = pollRealKV();  
         return current != null;  
       }  
-  
-      boolean seekResult;  
-      if (isLazy && heap.size() > 0) {  
-        // If there is only one scanner left, we don't do lazy seek.  
-        seekResult = scanner.requestSeek(seekKey, forward, useBloom);  
+    }
+  }
+}
+```
+## 6.8 Scanner 构建 heap
+```java
+protected void resetKVHeap(List<? extends KeyValueScanner> scanners,  
+    CellComparator comparator) throws IOException {  
+  // Combine all seeked scanners with a heap  
+  heap = newKVHeap(scanners, comparator);  
+}
+
+protected KeyValueHeap newKVHeap(List<? extends KeyValueScanner> scanners,  
+    CellComparator comparator) throws IOException {  
+  return new KeyValueHeap(scanners, comparator);  
+}
+
+public KeyValueHeap(List<? extends KeyValueScanner> scanners,  
+    CellComparator comparator) throws IOException {  
+  this(scanners, new KVScannerComparator(comparator));  
+}
+
+// 创建一个优先级队列，从小到大排序
+KeyValueHeap(List<? extends KeyValueScanner> scanners,  
+    KVScannerComparator comparator) throws IOException {  
+  this.comparator = comparator;  
+  this.scannersForDelayedClose = new ArrayList<>(scanners.size());  
+  if (!scanners.isEmpty()) {  
+    this.heap = new PriorityQueue<>(scanners.size(), this.comparator);  
+    for (KeyValueScanner scanner : scanners) {  
+      if (scanner.peek() != null) {  
+        this.heap.add(scanner);  
       } else {  
-        seekResult = NonLazyKeyValueScanner.doRealSeek(scanner, seekKey,forward);  
-      }  
-  
-      if (!seekResult) {  
         this.scannersForDelayedClose.add(scanner);  
-      } else {  
-        heap.add(scanner);  
-      }  
-      scanner = heap.poll();  
-      if (scanner == null) {  
-        current = null;  
       }  
     }  
-  } 
-  // Heap is returning empty, scanner is done  
-  return false;  
+    this.current = pollRealKV();  
+  }  
 }
 ```
 # 7.

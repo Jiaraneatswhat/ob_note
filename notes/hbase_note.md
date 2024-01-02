@@ -2337,6 +2337,16 @@ private Result get(Get get, HRegion region, RegionScannersCloseCallBack closeCal
 }
 ```
 ## 6.3 创建 RegionScannerImpl
+- Scanner 的构建流程
+
+![[scanner.svg]]
+
+- `RegionScanner` 由多个 `StoreScanner` 组成，一张表有多少个列族就有多少个 `StoreScanner`，每个 `StoreScanner` 负责对应 `Store` 的数据查找
+- 一个 `StoreScanner` 由 `MemStoreScanner` 和 `StoreFileScanner` 组成
+- `StoreScanner` 会为当前 `Store` 中每个 `HFile` 创建一个 `StoreFileScanner`，用于执行对应文件的检索，也会为 `MemStore` 生成一个 `MemStoreScanner` 用于执行该 `MemStore` 的数据检索
+- 当创建完所有的 `Scanner` 后，需要通过 `key` 来过滤掉一些不满足查询条件的 `Scanner`
+- 每个 `Scanner` 去寻找 `startKey`
+- 最后将该 `Store` 中的所有 `Scanner` 合并成一个 `heap`
 ```java
 public RegionScannerImpl getScanner(Scan scan) throws IOException {  
  return getScanner(scan, null);  
@@ -2407,7 +2417,7 @@ protected void initializeScanners(Scan scan, List<KeyValueScanner> additionalSca
   }
 }
 ```
-## 6.4 创建 StoreScanner
+### 6.3.1 创建 StoreScanner
 ```java
 public KeyValueScanner getScanner(Scan scan, final NavigableSet<byte[]> targetCols, long readPt)  
     throws IOException {  
@@ -2446,7 +2456,7 @@ public StoreScanner(HStore store, ScanInfo scanInfo, Scan scan, NavigableSet<byt
   }   
 }
 ```
-## 6.5 创建 StoreFileScanner 和 KeyValueScanner(扫描 MemStore)
+### 6.3.2 创建 StoreFileScanner 和 KeyValueScanner(扫描 MemStore)
 ```java
 public List<KeyValueScanner> getScanners(boolean cacheBlocks, boolean usePread,  
     boolean isCompaction, ScanQueryMatcher matcher, byte[] startRow, boolean includeStartRow,  
@@ -2475,7 +2485,7 @@ public List<KeyValueScanner> getScanners(boolean cacheBlocks, boolean usePread,
   return scanners;  
 }
 ```
-### 6.5.1 创建 KeyValueScanner
+### 6.3.3 创建 KeyValueScanner
 ```java
 public List<KeyValueScanner> getScanners(long readPt) throws IOException {  
   List<KeyValueScanner> list = new ArrayList<>();  
@@ -2486,7 +2496,7 @@ public List<KeyValueScanner> getScanners(long readPt) throws IOException {
   return list;  
 }
 ```
-### 6.5.2 创建 StoreFileScanner
+### 6.3.4 创建 StoreFileScanner
 ```java
 public static List<StoreFileScanner> getScannersForStoreFiles(Collection<HStoreFile> files,  
     boolean cacheBlocks, boolean usePread, boolean isCompaction, boolean canUseDrop,  
@@ -2523,7 +2533,7 @@ public static List<StoreFileScanner> getScannersForStoreFiles(Collection<HStoreF
   return scanners;  
 }
 ```
-## 6.6 判断 Scanner 是否符合查询条件
+### 6.3.5 判断 Scanner 是否符合查询条件
 ```java
 // StoreScanner.java
 protected List<KeyValueScanner> selectScannersFrom(HStore store,  
@@ -2558,7 +2568,7 @@ public boolean shouldUseScanner(Scan scan, HStore store, long oldestUnexpiredTS)
       .passesKeyRangeFilter(scan) && reader.passesBloomFilter(scan, scan.getFamilyMap().get(cf));  
 }
 ```
-## 6.7 筛选 Scanners 
+### 6.3.6 筛选 Scanners 
 ```java
 // 通过给定的 key 寻找特定的 Scanner
 protected void seekScanners(List<? extends KeyValueScanner> scanners, Cell seekKey, boolean isLazy, boolean isParallelSeek)  
@@ -2609,7 +2619,7 @@ private boolean generalizedSeek(boolean isLazy, Cell seekKey,
   }
 }
 ```
-## 6.8 Scanner 构建 heap
+### 6.3.7 Scanner 构建 heap
 ```java
 protected void resetKVHeap(List<? extends KeyValueScanner> scanners,  
     CellComparator comparator) throws IOException {  
@@ -2643,6 +2653,63 @@ KeyValueHeap(List<? extends KeyValueScanner> scanners,
     }  
     this.current = pollRealKV();  
   }  
+}
+```
+## 6.4 返回 get 方法读取数据
+```java
+// 6.2 scanner.next()
+public synchronized boolean next(List<Cell> outResults, ScannerContext scannerContext)  
+throws IOException {   
+  startRegionOperation(Operation.SCAN);  
+  try {  
+    return nextRaw(outResults, scannerContext);  
+  } finally {  
+    closeRegionOperation(Operation.SCAN);  
+  }  
+}
+
+public boolean nextRaw(List<Cell> outResults, ScannerContext scannerContext)  
+    throws IOException {  
+
+  boolean moreValues = false;  
+  if (outResults.isEmpty()) {  
+    // Usually outResults is empty. This is true when next is called  
+    // to handle scan or get operation.   
+     moreValues = nextInternal(outResults, scannerContext);  
+  }
+  return moreValues;  
+}
+
+private boolean nextInternal(List<Cell> results, ScannerContext scannerContext)  
+    throws IOException {
+
+	while (true) {
+	// 获取一个 Cell
+	Cell current = this.storeHeap.peek();
+	// 判断是否到 stopRow
+	boolean shouldStop = shouldStop(current);
+	if (joinedContinuationRow == null) {
+		// 向 result 中写数据
+		populateResult(results, this.storeHeap, scannerContext, current);
+		// 取下一个 Cell 
+		Cell nextKv = this.storeHeap.peek();  
+		// 判断是否要停止
+		shouldStop = shouldStop(nextKv);
+		}
+	}
+}
+
+// c = 0, 到了stopRow时，返回 false，向下执行写入结果后
+// 第二次进入时返回 false 停止
+protected boolean shouldStop(Cell currentRowCell) {  
+  if (currentRowCell == null) {  
+    return true;  
+  }  
+  if (stopRow == null || Bytes.equals(stopRow, HConstants.EMPTY_END_ROW)) {  
+    return false;  
+  }  
+  int c = comparator.compareRows(currentRowCell, stopRow, 0, stopRow.length);  
+  return c > 0 || (c == 0 && !includeStopRow);  
 }
 ```
 # 7.

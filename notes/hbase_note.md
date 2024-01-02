@@ -2439,8 +2439,7 @@ public StoreScanner(HStore store, ScanInfo scanInfo, Scan scan, NavigableSet<byt
     List<KeyValueScanner> scanners = selectScannersFrom(store,  
       store.getScanners(cacheBlocks, scanUsePread, false, matcher, scan.getStartRow(), scan.includeStartRow(), scan.getStopRow(), scan.includeStopRow(), this.readPt));  
   
-    // Seek all scanners to the start of the Row (or if the exact matching row  
-    // key does not exist, then to the start of the next matching Row).   
+    // 每个 Scanner 遍历寻找 start key
     seekScanners(scanners, matcher.getStartKey(), explicitColumnQuery && lazySeekEnabledGlobally, parallelSeekEnabled);  
   }   
 }
@@ -2545,7 +2544,88 @@ public boolean shouldUseScanner(Scan scan, HStore store, long oldestUnexpiredTS)
   return getSegment().shouldSeek(scan.getColumnFamilyTimeRange()  .getOrDefault(store.getColumnFamilyDescriptor().getName(), scan.getTimeRange()), oldestUnexpiredTS);  
 }
 
+// StoreFileScanner.java
+public boolean shouldUseScanner(Scan scan, HStore store, long oldestUnexpiredTS) {  
+  // if the file has no entries, no need to validate or create a scanner.  
+  byte[] cf = store.getColumnFamilyDescriptor().getName();  
+  TimeRange timeRange = scan.getColumnFamilyTimeRange().get(cf);  
+  if (timeRange == null) {  
+    timeRange = scan.getTimeRange();  
+  }  
+  return reader.passesTimerangeFilter(timeRange, oldestUnexpiredTS) && reader  
+      .passesKeyRangeFilter(scan) && reader.passesBloomFilter(scan, scan.getFamilyMap().get(cf));  
+}
+```
+## 6.7 Scanners 构建 heap
+```java
+// 通过给定的 key 寻找特定的 Scanner
+protected void seekScanners(List<? extends KeyValueScanner> scanners, Cell seekKey, boolean isLazy, boolean isParallelSeek)  
+    throws IOException {  
+  if (isLazy) {  
+    for (KeyValueScanner scanner : scanners) {  
+      scanner.requestSeek(seekKey, false, true);  
+    }  
+  } else {  
+    if (!isParallelSeek) {  
+      long totalScannersSoughtBytes = 0;  
+      for (KeyValueScanner scanner : scanners) {  
+        if (matcher.isUserScan() && totalScannersSoughtBytes >= maxRowSize) {    
+        scanner.seek(seekKey);  
+        Cell c = scanner.peek();  
+        if (c != null) {  
+          totalScannersSoughtBytes += PrivateCellUtil.estimatedSerializedSizeOf(c);  
+        }  
+      }  
+    } else {  
+      parallelSeek(scanners, seekKey);  
+    }  
+  }  
+}
 
+// 最终都会调用 KeyValueHeap 的 seek 方法
+public boolean seek(Cell seekKey) throws IOException {  
+  return generalizedSeek(false,    // This is not a lazy seek  
+      seekKey,  
+      false,    // forward (false: this is not a reseek)  
+      false);   // Not using Bloom filters  
+}
+
+private boolean generalizedSeek(boolean isLazy, Cell seekKey,  
+    boolean forward, boolean useBloom) throws IOException {  
+  KeyValueScanner scanner = current;  
+  try {  
+    while (scanner != null) {  
+      Cell topKey = scanner.peek();  
+      // 要找的 key <= topKey
+      if (comparator.getComparator().compare(seekKey, topKey) <= 0) {  
+        heap.add(scanner);  
+        scanner = null;  
+        current = pollRealKV();  
+        return current != null;  
+      }  
+  
+      boolean seekResult;  
+      if (isLazy && heap.size() > 0) {  
+        // If there is only one scanner left, we don't do lazy seek.  
+        seekResult = scanner.requestSeek(seekKey, forward, useBloom);  
+      } else {  
+        seekResult = NonLazyKeyValueScanner.doRealSeek(scanner, seekKey,forward);  
+      }  
+  
+      if (!seekResult) {  
+        this.scannersForDelayedClose.add(scanner);  
+      } else {  
+        heap.add(scanner);  
+      }  
+      scanner = heap.poll();  
+      if (scanner == null) {  
+        current = null;  
+      }  
+    }  
+  } 
+  // Heap is returning empty, scanner is done  
+  return false;  
+}
 ```
 # 7.
 # 8.

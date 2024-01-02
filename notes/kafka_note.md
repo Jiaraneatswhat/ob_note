@@ -2024,7 +2024,7 @@ private def maybeIncrementLeaderHW(leaderLog: Log, curTime: Long = time.millisec
     // maybeIncrementLeaderHW is in the hot path, the following code is written to  
     // avoid unnecessary collection generation    
     var newHighWatermark = leaderLog.logEndOffsetMetadata  
-    // 比较 leader 和 每个副本的 leo 的大小，计算出一个新的 HW
+    // 比较 leader 和 每个副本的 leo 的大小，计算出最小的作为新的 HW
     remoteReplicasMap.values.foreach { replica =>  
       // Note here we are using the "maximal", see explanation above  
       if (replica.logEndOffsetMetadata.messageOffset < newHighWatermark.messageOffset &&  
@@ -2095,38 +2095,38 @@ def updateFollowerFetchState(followerId: Int,
 		followerFetchOffsetMetadata: LogOffsetMetadata,  
 		 followerStartOffset: Long,  
 		 followerFetchTimeMs: Long,  
-		 leaderEndOffset: Long): Boolean = {  
-  getReplica(followerId) match {  
-    case Some(followerReplica) =>  
-      val oldLeaderLW = if (delayedOperations.numDelayedDelete > 0) lowWatermarkIfLeader else -1L  
-      val prevFollowerEndOffset = followerReplica.logEndOffset  
-      followerReplica.updateFetchState(  
-        followerFetchOffsetMetadata,  
-        followerStartOffset,  
-        followerFetchTimeMs,  
-        leaderEndOffset)  
-  
-      val newLeaderLW = if (delayedOperations.numDelayedDelete > 0) lowWatermarkIfLeader else -1L  
- 
-      maybeExpandIsr(followerReplica, followerFetchTimeMs)  
-  
-      // check if the HW of the partition can now be incremented  
-      // since the replica may already be in the ISR and its LEO has just incremented      val leaderHWIncremented = if (prevFollowerEndOffset != followerReplica.logEndOffset) {  
-        leaderLogIfLocal.exists(leaderLog => maybeIncrementLeaderHW(leaderLog, followerFetchTimeMs))  
-      } else {  
-        false  
+		 leaderEndOffset: Long): Boolean = { 
+      maybeExpandIsr(followerReplica, followerFetchTimeMs) 
+}
+
+private def maybeExpandIsr(followerReplica: Replica, followerFetchTimeMs: Long): Unit = {  
+  if (needsIsrUpdate) {  
+    inWriteLock(leaderIsrUpdateLock) {  
+      // check if this replica needs to be added to the ISR  
+      if (needsExpandIsr(followerReplica)) {  
+        expandIsr(followerReplica.brokerId)  
       }  
-  
-      // some delayed operations may be unblocked after HW or LW changed  
-      if (leaderLWIncremented || leaderHWIncremented)  
-        tryCompleteDelayedRequests()  
-  
-      debug(s"Recorded replica $followerId log end offset (LEO) position " +  
-        s"${followerFetchOffsetMetadata.messageOffset} and log start offset $followerStartOffset.")  
-      true  
-  
-    case None =>  
-      false  
+    }  
+  }  
+}
+
+// LEO >= HW
+private def needsExpandIsr(followerReplica: Replica): Boolean = {  
+  canAddReplicaToIsr(followerReplica.brokerId) && isFollowerAtHighwatermark(followerReplica)  
+}
+
+private def isFollowerAtHighwatermark(followerReplica: Replica): Boolean = {  
+  leaderLogIfLocal.exists { leaderLog =>  
+    val followerEndOffset = followerReplica.logEndOffset  
+    followerEndOffset >= leaderLog.highWatermark && leaderEpochStartOffsetOpt.exists(followerEndOffset >= _)  
+  }  
+}
+
+private[cluster] def expandIsr(newInSyncReplica: Int): Unit = {  
+  if (useAlterIsr) {  
+    expandIsrWithAlterIsr(newInSyncReplica)  
+  } else {  
+    expandIsrWithZk(newInSyncReplica)  
   }  
 }
 ```
@@ -2166,6 +2166,15 @@ def recordIsrChange(topicPartition: TopicPartition): Unit = {
   }  
 }
 ```
+#### 2.3.3.2 expand 操作
+```java
+override def markExpand(): Unit = {  
+  replicaManager.recordIsrChange(topicPartition)  
+  replicaManager.isrExpandRate.mark()  
+}
+```
+## 2.4 启动 LogManager
+
 # 3 Consumer
 # 4 复习
 ## 4.1 基本信息

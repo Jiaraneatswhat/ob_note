@@ -2220,99 +2220,146 @@ class LogManager(logDirs: Seq[File],
 ```java
 private def loadLogs(): Unit = {  
   val threadPools = ArrayBuffer.empty[ExecutorService]
-  //   
+  // 遍历 liveLogDirs，每一个 dir 产生一个线程池
   for (dir <- liveLogDirs) {  
     val logDirAbsolutePath = dir.getAbsolutePath  
     try {  
+      // 添加到池中
       val pool = Executors.newFixedThreadPool(numRecoveryThreadsPerDataDir)  
       threadPools.append(pool)  
-  
-      val cleanShutdownFile = new File(dir, Log.CleanShutdownFile)  
-      if (cleanShutdownFile.exists) {  
-        info(s"Skipping recovery for all logs in $logDirAbsolutePath since clean shutdown file was found")  
-      } else {  
-        // log recovery itself is being performed by `Log` class during initialization  
-        info(s"Attempting recovery for all logs in $logDirAbsolutePath since no clean shutdown file was found")  
-        brokerState.newState(RecoveringFromUncleanShutdown)  
-      }  
-  
-      var recoveryPoints = Map[TopicPartition, Long]()  
-      try {  
-        recoveryPoints = this.recoveryPointCheckpoints(dir).read()  
-      } catch {  
-        case e: Exception =>  
-          warn(s"Error occurred while reading recovery-point-offset-checkpoint file of directory " +  
-            s"$logDirAbsolutePath, resetting the recovery checkpoint to 0", e)  
-      }  
-  
-      var logStartOffsets = Map[TopicPartition, Long]()  
-      try {  
-        logStartOffsets = this.logStartOffsetCheckpoints(dir).read()  
-      } catch {  
-        case e: Exception =>  
-          warn(s"Error occurred while reading log-start-offset-checkpoint file of directory " +  
-            s"$logDirAbsolutePath, resetting to the base offset of the first segment", e)  
-      }  
-  
-      val logsToLoad = Option(dir.listFiles).getOrElse(Array.empty).filter(_.isDirectory)  
-      val numLogsLoaded = new AtomicInteger(0)  
-      numTotalLogs += logsToLoad.length  
-  
       val jobsForDir = logsToLoad.map { logDir =>  
         val runnable: Runnable = () => {  
           try {  
-            debug(s"Loading log $logDir")  
   
             val logLoadStartMs = time.hiResClockMs()  
+            // 加载 log
             val log = loadLog(logDir, recoveryPoints, logStartOffsets)  
-            val logLoadDurationMs = time.hiResClockMs() - logLoadStartMs  
-            val currentNumLoaded = numLogsLoaded.incrementAndGet()  
-  
-            info(s"Completed load of $log with ${log.numberOfSegments} segments in ${logLoadDurationMs}ms " +  
-              s"($currentNumLoaded/${logsToLoad.length} loaded in $logDirAbsolutePath)")  
-          } catch {  
-            case e: IOException =>  
-              offlineDirs.add((logDirAbsolutePath, e))  
-              error(s"Error while loading log dir $logDirAbsolutePath", e)  
           }  
         }  
         runnable  
       }  
-  
+	  // 向线程池提交执行 Runable 对象
       jobs(cleanShutdownFile) = jobsForDir.map(pool.submit)  
-    } catch {  
-      case e: IOException =>  
-        offlineDirs.add((logDirAbsolutePath, e))  
-        error(s"Error while loading log dir $logDirAbsolutePath", e)  
+    }
+  }  
+}
+
+private def loadLog(logDir: File,  
+                    recoveryPoints: Map[TopicPartition, Long], 
+                    logStartOffsets: Map[TopicPartition, Long]): Log = { 
+  // 从目录路径可以解析出主题分区信息                   
+  val topicPartition = Log.parseTopicPartitionName(logDir)  
+  // 创建 Log 对象
+  val log = Log(...)  
+  log  
+}
+
+def apply(dir: File,  
+          config: LogConfig,  
+          logStartOffset: Long,  
+          recoveryPoint: Long,  
+          scheduler: Scheduler,  
+          brokerTopicStats: BrokerTopicStats,  
+          time: Time = Time.SYSTEM,  
+          maxProducerIdExpirationMs: Int,  
+          producerIdExpirationCheckIntervalMs: Int,  
+          logDirFailureChannel: LogDirFailureChannel): Log = {  
+  val topicPartition = Log.parseTopicPartitionName(dir)  
+  val producerStateManager = new ProducerStateManager(topicPartition, dir, maxProducerIdExpirationMs)  
+  new Log(...)  
+}
+
+class Log(...) extends Logging with KafkaMetricsGroup {
+	locally {  
+  // 加载 Segment
+  val nextOffset = loadSegments()
+	}
+}
+
+private def loadSegments(): Long = {  
+  // 首先移除交换文件 
+  val swapFiles = removeTempFilesAndCollectSwapFiles()  
+  
+  // 二次读取
+  retryOnOffsetOverflow {     
+    logSegments.foreach(_.close())  
+    segments.clear()  
+    loadSegmentFiles()  
+  }  
+}
+
+private def loadSegmentFiles(): Unit = {  
+  // load segments in ascending order because transactional data from one segment may depend on the  
+  // segments that come before it  
+  for (file <- dir.listFiles.sortBy(_.getName) if file.isFile) { 
+    // .index
+    if (isIndexFile(file)) {  
+      // if it is an index file, make sure it has a corresponding .log file  
+      val offset = offsetFromFile(file)  
+      val logFile = Log.logFile(dir, offset)   
+    } else if (isLogFile(file)) {  
+      // if it's a log file, load the corresponding log segment  
+      val baseOffset = offsetFromFile(file)  
+      val timeIndexFileNewlyCreated = !Log.timeIndexFile(dir, baseOffset).exists()  
+      val segment = LogSegment.open(dir = dir,  
+        baseOffset = baseOffset,  
+        config,  
+        time = time,  
+        fileAlreadyExists = true)  
+      // 添加到 ConcurrentSkipListMap 中
+      addSegment(segment)  
     }  
   }  
-  
-  try {  
-    for ((cleanShutdownFile, dirJobs) <- jobs) {  
-      dirJobs.foreach(_.get)  
-      try {  
-        cleanShutdownFile.delete()  
-      } catch {  
-        case e: IOException =>  
-          offlineDirs.add((cleanShutdownFile.getParent, e))  
-          error(s"Error while deleting the clean shutdown file $cleanShutdownFile", e)  
-      }  
-    }  
-  
-    offlineDirs.foreach { case (dir, e) =>  
-      logDirFailureChannel.maybeAddOfflineLogDir(dir, s"Error while deleting the clean shutdown file in dir $dir", e)  
-    }  
-  } catch {  
-    case e: ExecutionException =>  
-      error(s"There was an error in one of the threads during logs loading: ${e.getCause}")  
-      throw e.getCause  
-  } finally {  
-    threadPools.foreach(_.shutdown())  
-  }  
-  
-  info(s"Loaded $numTotalLogs logs in ${time.hiResClockMs() - startMs}ms.")  
 }
 ```
+### 2.4.3 载入 LogSegment
+```java
+// LogSegment.scala
+def open(dir: File, baseOffset: Long, config: LogConfig, time: Time, fileAlreadyExists: Boolean = false,  
+         initFileSize: Int = 0, preallocate: Boolean = false, fileSuffix: String = ""): LogSegment = {  
+  new LogSegment(...)  
+}
+
+// LogSegment 在调用 append 方法时，会判断是否需要 roll
+private def append(records: MemoryRecords,  
+                   origin: AppendOrigin,  
+                   interBrokerProtocolVersion: ApiVersion,  
+                   assignOffsets: Boolean,  
+                   leaderEpoch: Int,  
+                   ignoreRecordSize: Boolean): LogAppendInfo = {
+	lock synchronized {
+		val segment = maybeRoll(validRecords.sizeInBytes, appendInfo)
+	}
+}
+
+private def maybeRoll(messagesSize: Int, appendInfo: LogAppendInfo): LogSegment = {  
+  val segment = activeSegment  
+  val now = time.milliseconds  
+  
+  val maxTimestampInMessages = appendInfo.maxTimestamp  
+  val maxOffsetInMessages = appendInfo.lastOffset  
+  
+  if (segment.shouldRoll(RollParams(config, appendInfo, messagesSize, now))) {  
+		appendInfo.firstOffset match {  
+	      case Some(firstOffset) => roll(Some(firstOffset))  
+	      case None => roll(Some(maxOffsetInMessages - Integer.MAX_VALUE))  
+    }  
+  } else {  
+    segment  
+  }  
+}
+
+def shouldRoll(rollParams: RollParams): Boolean = {  
+  val reachedRollMs = timeWaitedForRoll(rollParams.now, rollParams.maxTimestampInMessages) > rollParams.maxSegmentMs - rollJitterMs  
+  size > rollParams.maxSegmentBytes - rollParams.messagesSize ||  
+    (size > 0 && reachedRollMs) ||  
+    offsetIndex.isFull || timeIndex.isFull || !canConvertToRelativeOffset(rollParams.maxOffsetInMessages)  
+}
+
+
+```
+
+
 
 ```java
 def startup(): Unit = {  

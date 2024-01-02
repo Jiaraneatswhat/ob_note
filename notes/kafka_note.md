@@ -2173,7 +2173,7 @@ override def markExpand(): Unit = {
   replicaManager.isrExpandRate.mark()  
 }
 ```
-## 2.4 启动 LogManager
+## 2.4 创建启动 LogManager
 - LogManager 负责日志的创建、检索、清理
 - Kafka 中的日志对应多个 Segment
 - 每个 Segment 对应
@@ -2190,6 +2190,130 @@ override def markExpand(): Unit = {
 		- 根据偏移量去偏移量索引中找到不大于该值的最大偏移量对应的物理文件位置
 		- 去物理文件中找对应消息
 	- 根据偏移量
+### 2.4.1 创建 LogManager
+```java
+logManager = LogManager(...)
+
+class LogManager(logDirs: Seq[File],  
+                 initialOfflineDirs: Seq[File],  
+                 val topicConfigs: Map[String, LogConfig], // note that this doesn't get updated after creation  
+                 val initialDefaultConfig: LogConfig,  
+                 val cleanerConfig: CleanerConfig,  
+                 recoveryThreadsPerDataDir: Int,  
+                 val flushCheckMs: Long,  
+                 val flushRecoveryOffsetCheckpointMs: Long,  
+                 val flushStartOffsetCheckpointMs: Long,  
+                 val retentionCheckMs: Long,  
+                 val maxPidExpirationMs: Int,  
+                 scheduler: Scheduler,  
+                 val brokerState: BrokerState,  
+                 brokerTopicStats: BrokerTopicStats,  
+                 logDirFailureChannel: LogDirFailureChannel,  
+                 time: Time) extends Logging with KafkaMetricsGroup { 
+  // 创建有效的 log 目录
+  private val _liveLogDirs: ConcurrentLinkedQueue[File] = createAndValidateLogDirs(logDirs, initialOfflineDirs)  
+	//恢复并且载入所给定目录的log对象，如果有子目录，子目录中的文件就是Segment
+    loadLogs()
+}
+```
+### 2.4.2 载入 log
+```java
+private def loadLogs(): Unit = {  
+  val threadPools = ArrayBuffer.empty[ExecutorService]
+  //   
+  for (dir <- liveLogDirs) {  
+    val logDirAbsolutePath = dir.getAbsolutePath  
+    try {  
+      val pool = Executors.newFixedThreadPool(numRecoveryThreadsPerDataDir)  
+      threadPools.append(pool)  
+  
+      val cleanShutdownFile = new File(dir, Log.CleanShutdownFile)  
+      if (cleanShutdownFile.exists) {  
+        info(s"Skipping recovery for all logs in $logDirAbsolutePath since clean shutdown file was found")  
+      } else {  
+        // log recovery itself is being performed by `Log` class during initialization  
+        info(s"Attempting recovery for all logs in $logDirAbsolutePath since no clean shutdown file was found")  
+        brokerState.newState(RecoveringFromUncleanShutdown)  
+      }  
+  
+      var recoveryPoints = Map[TopicPartition, Long]()  
+      try {  
+        recoveryPoints = this.recoveryPointCheckpoints(dir).read()  
+      } catch {  
+        case e: Exception =>  
+          warn(s"Error occurred while reading recovery-point-offset-checkpoint file of directory " +  
+            s"$logDirAbsolutePath, resetting the recovery checkpoint to 0", e)  
+      }  
+  
+      var logStartOffsets = Map[TopicPartition, Long]()  
+      try {  
+        logStartOffsets = this.logStartOffsetCheckpoints(dir).read()  
+      } catch {  
+        case e: Exception =>  
+          warn(s"Error occurred while reading log-start-offset-checkpoint file of directory " +  
+            s"$logDirAbsolutePath, resetting to the base offset of the first segment", e)  
+      }  
+  
+      val logsToLoad = Option(dir.listFiles).getOrElse(Array.empty).filter(_.isDirectory)  
+      val numLogsLoaded = new AtomicInteger(0)  
+      numTotalLogs += logsToLoad.length  
+  
+      val jobsForDir = logsToLoad.map { logDir =>  
+        val runnable: Runnable = () => {  
+          try {  
+            debug(s"Loading log $logDir")  
+  
+            val logLoadStartMs = time.hiResClockMs()  
+            val log = loadLog(logDir, recoveryPoints, logStartOffsets)  
+            val logLoadDurationMs = time.hiResClockMs() - logLoadStartMs  
+            val currentNumLoaded = numLogsLoaded.incrementAndGet()  
+  
+            info(s"Completed load of $log with ${log.numberOfSegments} segments in ${logLoadDurationMs}ms " +  
+              s"($currentNumLoaded/${logsToLoad.length} loaded in $logDirAbsolutePath)")  
+          } catch {  
+            case e: IOException =>  
+              offlineDirs.add((logDirAbsolutePath, e))  
+              error(s"Error while loading log dir $logDirAbsolutePath", e)  
+          }  
+        }  
+        runnable  
+      }  
+  
+      jobs(cleanShutdownFile) = jobsForDir.map(pool.submit)  
+    } catch {  
+      case e: IOException =>  
+        offlineDirs.add((logDirAbsolutePath, e))  
+        error(s"Error while loading log dir $logDirAbsolutePath", e)  
+    }  
+  }  
+  
+  try {  
+    for ((cleanShutdownFile, dirJobs) <- jobs) {  
+      dirJobs.foreach(_.get)  
+      try {  
+        cleanShutdownFile.delete()  
+      } catch {  
+        case e: IOException =>  
+          offlineDirs.add((cleanShutdownFile.getParent, e))  
+          error(s"Error while deleting the clean shutdown file $cleanShutdownFile", e)  
+      }  
+    }  
+  
+    offlineDirs.foreach { case (dir, e) =>  
+      logDirFailureChannel.maybeAddOfflineLogDir(dir, s"Error while deleting the clean shutdown file in dir $dir", e)  
+    }  
+  } catch {  
+    case e: ExecutionException =>  
+      error(s"There was an error in one of the threads during logs loading: ${e.getCause}")  
+      throw e.getCause  
+  } finally {  
+    threadPools.foreach(_.shutdown())  
+  }  
+  
+  info(s"Loaded $numTotalLogs logs in ${time.hiResClockMs() - startMs}ms.")  
+}
+```
+
 ```java
 def startup(): Unit = {  
   /* Schedule the cleanup task to delete old logs */  
@@ -2226,11 +2350,10 @@ def startup(): Unit = {
     cleaner.startup()  
 }
 ```
-### 2.4.1 清理旧日志
+### 2.4.1 清理日志
 ```java
 def cleanupLogs(): Unit = {  
   debug("Beginning log cleanup...")  
-  
   try {  
     deletableLogs.foreach {  
       case (topicPartition, log) =>  
@@ -2251,7 +2374,7 @@ def deleteOldSegments(): Int = {
     deleteLogStartOffsetBreachedSegments()  
   }
 }
-
+// Log.scala
 // 删除超过 retention.ms 的日志
 private def deleteRetentionMsBreachedSegments(): Int = {  
   val startMs = time.milliseconds  
@@ -2263,6 +2386,7 @@ private def deleteRetentionMsBreachedSegments(): Int = {
   deleteOldSegments(shouldDelete, RetentionMsBreach)  
 }
 
+// 删除超过 retention.bytes 的日志
 private def deleteRetentionSizeBreachedSegments(): Int = {  
   var diff = size - config.retentionSize  
   def shouldDelete(segment: LogSegment, nextSegmentOpt: Option[LogSegment]): Boolean = {  
@@ -2273,9 +2397,44 @@ private def deleteRetentionSizeBreachedSegments(): Int = {
       false  
     }  
   }  
-  
   deleteOldSegments(shouldDelete, RetentionSizeBreach)  
 }
+
+// delete any log segments that are before the log start offset
+private def deleteLogStartOffsetBreachedSegments(): Int = {  
+  def shouldDelete(segment: LogSegment, nextSegmentOpt: Option[LogSegment]): Boolean = {  
+    nextSegmentOpt.exists(_.baseOffset <= logStartOffset)  
+  }  
+  deleteOldSegments(shouldDelete, StartOffsetBreach)  
+}
+```
+### 2.4.2 刷写日志
+```java
+private def flushDirtyLogs(): Unit = {  
+  
+  for ((topicPartition, log) <- currentLogs.toList ++ futureLogs.toList) {  
+    try {  
+      val timeSinceLastFlush = time.milliseconds - log.lastFlushTime  
+	  // 超过 flush.ms 则刷写
+      if(timeSinceLastFlush >= log.config.flushMs)  
+        log.flush()  
+    } 
+  }  
+}
+
+// Log.scala
+def flush(): Unit = flush(this.logEndOffset)
+
+def flush(offset: Long): Unit = {  
+  maybeHandleIOException(s"Error while flushing log for $topicPartition in dir ${dir.getParent} with offset $offset") {  
+	// 调用 Segment 的 flush 方法
+    for (segment <- logSegments(this.recoveryPoint, offset))  
+      segment.flush()  
+    }  
+}
+
+
+
 ```
 # 3 Consumer
 # 4 复习

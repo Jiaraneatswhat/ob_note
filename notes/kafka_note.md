@@ -2175,6 +2175,21 @@ override def markExpand(): Unit = {
 ```
 ## 2.4 启动 LogManager
 - LogManager 负责日志的创建、检索、清理
+- Kafka 中的日志对应多个 Segment
+- 每个 Segment 对应
+	- 一个 .log 文件
+	- 一个 .index 文件
+	- 一个 .timeindex 文件
+- Segment 分段时机
+	- `Segment` 中消息的最大时间戳与当前系统的时间戳的差值 > `log.roll.ms` 或 `log.roll.ms`
+	- 当 `Segment` 的大小超过了 `log.segment.bytes` 默认 `1G`
+	- 偏移量索引文件或时间戳索引文件的大小达到了 `log.index.size.max.bytes 默认 10MB`
+- 日志查找步骤
+	- 根据时间戳
+		- 先去 timeindex 文件中找不大于时间戳的最大偏移量
+		- 根据偏移量去偏移量索引中找到不大于该值的最大偏移量对应的物理文件位置
+		- 去物理文件中找对应消息
+	- 根据偏移量
 ```java
 def startup(): Unit = {  
   /* Schedule the cleanup task to delete old logs */  
@@ -2211,7 +2226,57 @@ def startup(): Unit = {
     cleaner.startup()  
 }
 ```
+### 2.4.1 清理旧日志
+```java
+def cleanupLogs(): Unit = {  
+  debug("Beginning log cleanup...")  
+  
+  try {  
+    deletableLogs.foreach {  
+      case (topicPartition, log) =>  
+        debug(s"Garbage collecting '${log.name}'")  
+        // 通过 deleteOldSegments 删除日志
+        total += log.deleteOldSegments()  
+    }  
+  }  
+}
 
+def deleteOldSegments(): Int = {  
+  if (config.delete) {  
+     // 删除到达保存时间阈值的
+    deleteRetentionMsBreachedSegments() +    
+    // 删除到达保存大小阈值的
+    deleteRetentionSizeBreachedSegments() + 
+    // 删除到达 offset 阈值的
+    deleteLogStartOffsetBreachedSegments()  
+  }
+}
+
+// 删除超过 retention.ms 的日志
+private def deleteRetentionMsBreachedSegments(): Int = {  
+  val startMs = time.milliseconds  
+  
+  def shouldDelete(segment: LogSegment, nextSegmentOpt: Option[LogSegment]): Boolean = {  
+    startMs - segment.largestTimestamp > config.retentionMs  
+  }  
+  
+  deleteOldSegments(shouldDelete, RetentionMsBreach)  
+}
+
+private def deleteRetentionSizeBreachedSegments(): Int = {  
+  var diff = size - config.retentionSize  
+  def shouldDelete(segment: LogSegment, nextSegmentOpt: Option[LogSegment]): Boolean = {  
+    if (diff - segment.size >= 0) {  
+      diff -= segment.size  
+      true  
+    } else {  
+      false  
+    }  
+  }  
+  
+  deleteOldSegments(shouldDelete, RetentionSizeBreach)  
+}
+```
 # 3 Consumer
 # 4 复习
 ## 4.1 基本信息

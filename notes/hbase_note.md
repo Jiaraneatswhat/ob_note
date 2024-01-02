@@ -2531,9 +2531,6 @@ public void initReader() throws IOException {
 }
 
 private void open() throws IOException {  
-  if (this.reader != null) {  
-    throw new IllegalAccessError("Already open");  
-  }  
   
   // Open the StoreFile.Reader  
   this.reader = fileInfo.open(this.fs, this.cacheConf, false, noReadahead ? 0L : -1L,  

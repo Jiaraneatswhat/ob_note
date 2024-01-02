@@ -2328,6 +2328,7 @@ private Result get(Get get, HRegion region, RegionScannersCloseCallBack closeCal
   Scan scan = new Scan(get);  
   RegionScannerImpl scanner = null;  
   try {  
+	// RegionScanner
     scanner = region.getScanner(scan);  
     scanner.next(results);  
   } 
@@ -2426,6 +2427,7 @@ protected KeyValueScanner createScanner(Scan scan, ScanInfo scanInfo,
       : new StoreScanner(this, scanInfo, scan, targetCols, readPt);  
 }
 
+// StoreScanner.java
 public StoreScanner(HStore store, ScanInfo scanInfo, Scan scan, NavigableSet<byte[]> columns,  
     long readPt) throws IOException {  
   // 构造器创建 StoreScanner
@@ -2520,110 +2522,30 @@ public static List<StoreFileScanner> getScannersForStoreFiles(Collection<HStoreF
   return scanners;  
 }
 ```
-## 6.6 初始化 Reader
+## 6.6 判断 Scanner 是否符合查询条件
 ```java
-public void initReader() throws IOException {  
-  if (reader == null) {  
-    try {  
-      open();  
+// StoreScanner.java
+protected List<KeyValueScanner> selectScannersFrom(HStore store,  
+    List<? extends KeyValueScanner> allScanners) {  
+  
+  List<KeyValueScanner> scanners = new ArrayList<>(allScanners.size());  
+  
+  for (KeyValueScanner kvs : allScanners) {  
+    boolean isFile = kvs.isFileScanner();  
+  
+    if (kvs.shouldUseScanner(scan, store, expiredTimestampCutoff)) {  
+      scanners.add(kvs);  
     }
   }  
+  return scanners;  
 }
 
-private void open() throws IOException {  
-  
-  // Open the StoreFile.Reader  
-  this.reader = fileInfo.open(this.fs, this.cacheConf, false, noReadahead ? 0L : -1L,  
-    primaryReplica, refCount, true);  
-  
-  // Load up indices and fileinfo. This also loads Bloom filter type.  
-  metadataMap = Collections.unmodifiableMap(this.reader.loadFileInfo());  
-  
-  // Read in our metadata.  
-  byte [] b = metadataMap.get(MAX_SEQ_ID_KEY);  
-  if (b != null) {  
-    // By convention, if halfhfile, top half has a sequence number > bottom  
-    // half. Thats why we add one in below. Its done for case the two halves    // are ever merged back together --rare.  Without it, on open of store,    // since store files are distinguished by sequence id, the one half would    // subsume the other.    this.sequenceid = Bytes.toLong(b);  
-    if (fileInfo.isTopReference()) {  
-      this.sequenceid += 1;  
-    }  
-  }  
-  
-  if (isBulkLoadResult()){  
-    // generate the sequenceId from the fileName  
-    // fileName is of the form <randomName>_SeqId_<id-when-loaded>_    String fileName = this.getPath().getName();  
-    // Use lastIndexOf() to get the last, most recent bulk load seqId.  
-    int startPos = fileName.lastIndexOf("SeqId_");  
-    if (startPos != -1) {  
-      this.sequenceid = Long.parseLong(fileName.substring(startPos + 6,  
-          fileName.indexOf('_', startPos + 6)));  
-      // Handle reference files as done above.  
-      if (fileInfo.isTopReference()) {  
-        this.sequenceid += 1;  
-      }  
-    }  
-    // SKIP_RESET_SEQ_ID only works in bulk loaded file.  
-    // In mob compaction, the hfile where the cells contain the path of a new mob file is bulk    // loaded to hbase, these cells have the same seqIds with the old ones. We do not want    // to reset new seqIds for them since this might make a mess of the visibility of cells that    // have the same row key but different seqIds.    boolean skipResetSeqId = isSkipResetSeqId(metadataMap.get(SKIP_RESET_SEQ_ID));  
-    if (skipResetSeqId) {  
-      // increase the seqId when it is a bulk loaded file from mob compaction.  
-      this.sequenceid += 1;  
-    }  
-    this.reader.setSkipResetSeqId(skipResetSeqId);  
-    this.reader.setBulkLoaded(true);  
-  }  
-  this.reader.setSequenceID(this.sequenceid);  
-  
-  b = metadataMap.get(HFile.Writer.MAX_MEMSTORE_TS_KEY);  
-  if (b != null) {  
-    this.maxMemstoreTS = Bytes.toLong(b);  
-  }  
-  
-  b = metadataMap.get(MAJOR_COMPACTION_KEY);  
-  if (b != null) {  
-    boolean mc = Bytes.toBoolean(b);  
-    if (this.majorCompaction == null) {  
-      this.majorCompaction = new AtomicBoolean(mc);  
-    } else {  
-      this.majorCompaction.set(mc);  
-    }  
-  } else {  
-    // Presume it is not major compacted if it doesn't explicity say so  
-    // HFileOutputFormat explicitly sets the major compacted key.    this.majorCompaction = new AtomicBoolean(false);  
-  }  
-  
-  b = metadataMap.get(EXCLUDE_FROM_MINOR_COMPACTION_KEY);  
-  this.excludeFromMinorCompaction = (b != null && Bytes.toBoolean(b));  
-  
-  BloomType hfileBloomType = reader.getBloomFilterType();  
-  if (cfBloomType != BloomType.NONE) {  
-    reader.loadBloomfilter(BlockType.GENERAL_BLOOM_META);  
-    if (hfileBloomType != cfBloomType) {  
-      LOG.info("HFile Bloom filter type for "  
-          + reader.getHFileReader().getName() + ": " + hfileBloomType  
-          + ", but " + cfBloomType + " specified in column family "  
-          + "configuration");  
-    }  
-  } else if (hfileBloomType != BloomType.NONE) {  
-    LOG.info("Bloom filter turned off by CF config for "  
-        + reader.getHFileReader().getName());  
-  }  
-  
-  // load delete family bloom filter  
-  reader.loadBloomfilter(BlockType.DELETE_FAMILY_BLOOM_META);  
-  
-  try {  
-    byte[] data = metadataMap.get(TIMERANGE_KEY);  
-    this.reader.timeRange = data == null ? null : TimeRangeTracker.parseFrom(data).toTimeRange();  
-  } catch (IllegalArgumentException e) {  
-    LOG.error("Error reading timestamp range data from meta -- " +  
-        "proceeding without", e);  
-    this.reader.timeRange = null;  
-  }  
-  // initialize so we can reuse them after reader closed.  
-  firstKey = reader.getFirstKey();  
-  lastKey = reader.getLastKey();  
-  comparator = reader.getComparator();  
+// SegmentScanner.java
+public boolean shouldUseScanner(Scan scan, HStore store, long oldestUnexpiredTS) {  
+  return getSegment().shouldSeek(scan.getColumnFamilyTimeRange()  .getOrDefault(store.getColumnFamilyDescriptor().getName(), scan.getTimeRange()), oldestUnexpiredTS);  
 }
+
+
 ```
 # 7.
 # 8.

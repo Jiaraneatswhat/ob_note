@@ -1,0 +1,14 @@
+- kafka：
+	- logManager
+	- 页缓存
+	- 零拷贝
+	- partition 选举
+	- 消费者
+	- 事务
+	- 幂等
+- spark
+	- context 初始化
+	- 任务切分
+- juc jvm
+- 简单算法
+- pytorch

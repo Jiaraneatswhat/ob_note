@@ -1,4 +1,4 @@
-# 1. HDFS
+# 1 HDFS
 - HDFS 的架构
 ![[hdfs.svg]]
 ## 1.1 HDFS 的启动
@@ -3503,7 +3503,7 @@ private synchronized void removeLease(Lease lease, long inodeId) {
   }
 }
 ```
-# 2. MR
+# 2 MR
 ## 2.1 提交 Job
 ### 2.1.1 waitForCompletion()
 ```java
@@ -5975,7 +5975,7 @@ public void write(K key, V value) throws IOException, InterruptedException {
       outputRecordCounter.increment(1);
 }
 ```
-# 3. Yarn
+# 3 Yarn
 - 基本架构
 - `Yarn` 主要由 `ResourceManager`，`NodeManager`，`AppMaster` 以及 `Container` 组成
 -  `ResourceManager` 是全局的资源管理器，负责整个系统的资源管理和分配
@@ -8392,7 +8392,7 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 });
 }
 ```
-# 4. Shell 操作
+# 4 Shell 操作
 - `hadoop fs` 或 `hdfs dfs`
 ```shell
 # 追加数据到文件
@@ -8408,8 +8408,8 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 # 下载文件
 -get [-f] [-p] <src> <localdst>
 ```
-# 5.复习
-# 6. 面试
+# 5 复习
+# 6 面试
 ### 6.1 如何检测 Hadoop 集群的健康状态，怎么检测 Namenode 是否健康
 ### 6.2 Hadoop 高可用
 ### 6.3 Hadoop 遇到的问题，集群多大

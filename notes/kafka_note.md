@@ -2174,6 +2174,43 @@ override def markExpand(): Unit = {
 }
 ```
 ## 2.4 启动 LogManager
+- LogManager 负责日志的创建、检索、清理
+```java
+def startup(): Unit = {  
+  /* Schedule the cleanup task to delete old logs */  
+  if (scheduler != null) {  
+    // 定时清理过期的日志，维护日志大小
+    scheduler.schedule("kafka-log-retention",  
+                       cleanupLogs _,  
+                       delay = InitialTaskDelayMs,  
+                       period = retentionCheckMs,  
+                       TimeUnit.MILLISECONDS)  
+    // 定时刷写还没有写到磁盘上的日志
+    scheduler.schedule("kafka-log-flusher",  
+                       flushDirtyLogs _,  
+                       delay = InitialTaskDelayMs,  
+                       period = flushCheckMs,  
+                       TimeUnit.MILLISECONDS)  
+    scheduler.schedule("kafka-recovery-point-checkpoint",  
+                       checkpointLogRecoveryOffsets _,  
+                       delay = InitialTaskDelayMs,  
+                       period = flushRecoveryOffsetCheckpointMs,  
+                       TimeUnit.MILLISECONDS)  
+    scheduler.schedule("kafka-log-start-offset-checkpoint",  
+                       checkpointLogStartOffsets _,  
+                       delay = InitialTaskDelayMs,  
+                       period = flushStartOffsetCheckpointMs,  
+                       TimeUnit.MILLISECONDS)  
+    // 定时删除标记为 delete 的日志文件
+    scheduler.schedule("kafka-delete-logs", // will be rescheduled after each delete logs with a dynamic period  
+                       deleteLogs _,  
+                       delay = InitialTaskDelayMs,  
+                       unit = TimeUnit.MILLISECONDS)  
+  }  
+  if (cleanerConfig.enableCleaner)  
+    cleaner.startup()  
+}
+```
 
 # 3 Consumer
 # 4 复习

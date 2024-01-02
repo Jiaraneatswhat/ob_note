@@ -1,4 +1,4 @@
-# 1. 启动
+# 1 启动
 ## 1.1 脚本
 ### 1.1.1 start-hbase.sh
 ```shell
@@ -302,7 +302,7 @@ protected void handleReportForDutyResponse(final RegionServerStartupResponse c)
   }
 
 ```
-# 2. 存储结构
+# 2 存储结构
 ## 2.1 逻辑结构
 
 ![[HbaseLogic.svg]]
@@ -326,7 +326,7 @@ protected void handleReportForDutyResponse(final RegionServerStartupResponse c)
 ## 2.3 HFlie 结构
 
 ![[HFile.svg]]
-# 3. RegionServer 架构
+# 3 RegionServer 架构
 
 ![[RegionServer_framework.svg]]
 ## 3.1 BlockCache
@@ -1139,7 +1139,7 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
     	List<HStoreFile> hStoreFiles = loadStoreFiles();
 }
 ```
-# 4. 写流程
+# 4 写流程
 ## 4.1 客户端发起 put 请求
 
 ![[write1.svg]]
@@ -1998,7 +1998,7 @@ protected void internalAdd(Cell cell, boolean mslabUsed, MemStoreSizing memstore
   updateMetaInfo(cell, succ, mslabUsed, memstoreSizing);  
 }
 ```
-# 5. MemStore 的 flush
+# 5 MemStore 的 flush
 ## 5.1 MemStore 级别
 ### 5.1.1 checkResources()
 ```java
@@ -2267,7 +2267,7 @@ byte[][] findRegionsToForceFlush() throws IOException {
 ```
 ## 5.6 Flush 写出 HFile
 
-# 6. 读流程
+# 6 读流程
 ## 6.1 RPC 发送 get 请求
 ```java
 private Result get(Get get, final boolean checkExistenceOnly) throws IOException {  
@@ -2332,7 +2332,8 @@ private Result get(Get get, HRegion region, RegionScannersCloseCallBack closeCal
     scanner = region.getScanner(scan);  
     scanner.next(results);  
   } 
-  
+
+  // 创建 Result 对象
   return Result.create(results, get.isCheckExistenceOnly() ? !results.isEmpty() : null, stale);  
 }
 ```
@@ -2689,7 +2690,7 @@ private boolean nextInternal(List<Cell> results, ScannerContext scannerContext)
 	// 判断是否到 stopRow
 	boolean shouldStop = shouldStop(current);
 	if (joinedContinuationRow == null) {
-		// 向 result 中写数据
+		// 判断有没有产生数据
 		populateResult(results, this.storeHeap, scannerContext, current);
 		// 取下一个 Cell 
 		Cell nextKv = this.storeHeap.peek();  
@@ -2712,9 +2713,9 @@ protected boolean shouldStop(Cell currentRowCell) {
   return c > 0 || (c == 0 && !includeStopRow);  
 }
 ```
-# 7.
-# 8.
-# 9. 复习
+# 7 Disruptor
+# 8 Shell 操作
+# 9 复习
 ## 9.1 架构
 - 外部：`ZK`,  `HDFS`
 - 内部：

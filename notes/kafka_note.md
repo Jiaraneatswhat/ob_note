@@ -2740,7 +2740,12 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
 	private List<ConsumerPartitionAssignor> assignors
 }
 ```
+## 3.2 初始化
+```java
+KafkaConsumer(ConsumerConfig config, Deserializer<K> keyDeserializer, Deserializer<V> valueDeserializer) {  
+    try {
 
+```
 
 # 4 复习
 ## 4.1 基本信息

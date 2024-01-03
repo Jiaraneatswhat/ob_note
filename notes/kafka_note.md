@@ -2588,6 +2588,10 @@ zkClient.createTopicPartitionStatesRaw(leaderIsrAndControllerEpochs, controllerC
   successfulInitializations  
 }
 ```
+### 2.5.4 leader 宕机重选举
+```java
+
+```
 # 3 Consumer
 # 4 复习
 ## 4.1 基本信息

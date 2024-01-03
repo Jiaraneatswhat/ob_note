@@ -2894,7 +2894,7 @@ def handleFindCoordinatorRequest(request: RequestChannel.Request): Unit = {
     // get metadata (and create the topic if necessary)  
     val (partition, topicMetadata) = CoordinatorType.forId(findCoordinatorRequest.data.keyType) match {  
       case CoordinatorType.GROUP =>  
-	    // 确定哪个 Broker 做 GroupCoordinator
+	    // 确定 GroupCoordinator 在哪个 Broker
         val partition = groupCoordinator.partitionFor(findCoordinatorRequest.data.key)  
         // 获取对应的元数据
         val metadata = getOrCreateInternalTopic(GROUP_METADATA_TOPIC_NAME, request.context.listenerName)  
@@ -2906,8 +2906,11 @@ def handleFindCoordinatorRequest(request: RequestChannel.Request): Unit = {
             new FindCoordinatorResponseData()  
               .setErrorCode(error.code)  
               .setErrorMessage(error.message)  
+              // 返回 node.id
               .setNodeId(node.id)  
+              // 返回 node.host
               .setHost(node.host)  
+              // 返回 node.port
               .setPort(node.port)  
               .setThrottleTimeMs(requestThrottleMs))  
       }  
@@ -2923,17 +2926,134 @@ def handleFindCoordinatorRequest(request: RequestChannel.Request): Unit = {
   
         coordinatorEndpoint match {  
           case Some(endpoint) =>  
+            // 调用上面定义的方法
             createFindCoordinatorResponse(Errors.NONE, endpoint)  
           case _ =>  
             createFindCoordinatorResponse(Errors.COORDINATOR_NOT_AVAILABLE, Node.noNode)  
         }  
-      }  
-      trace("Sending FindCoordinator response %s for correlation id %d to client %s."  
-        .format(responseBody, request.header.correlationId, request.header.clientId))  
+      }   
       responseBody  
     }  
     sendResponseMaybeThrottle(request, createResponse)  
   }  
+}
+
+def partitionFor(group: String): Int = groupManager.partitionFor(group)
+// groupId 的 hash 值 % __cousumer_offsets 的分区数(50)
+def partitionFor(groupId: String): Int = Utils.abs(groupId.hashCode) % groupMetadataTopicPartitionCount
+```
+### 3.3.4 Consumer 回调
+```java
+// lookupCoordinator() 最后调用 compose()
+// 传入 FindCoordinatorResponseHandler
+public <S> RequestFuture<S> compose(final RequestFutureAdapter<T, S> adapter) {  
+    final RequestFuture<S> adapted = new RequestFuture<>();  
+    addListener(new RequestFutureListener<T>() {  
+        @Override  
+        public void onSuccess(T value) {  
+            adapter.onSuccess(value, adapted);  
+        }  
+    });  
+    return adapted;  
+}
+
+public void onSuccess(ClientResponse resp, RequestFuture<Void> future) {  
+    log.debug("Received FindCoordinator response {}", resp);  
+    
+    if (error == Errors.NONE) {  
+        synchronized (AbstractCoordinator.this) {  
+            AbstractCoordinator.this.coordinator = new Node(  
+                    coordinatorConnectionId,  
+                    coordinatorData.host(),  
+                    coordinatorData.port());  
+            // 建立连接
+            client.tryConnect(coordinator);  
+            heartbeat.resetSessionTimeout();  
+        }  
+        future.complete(null);  
+    }   
+}
+```
+### 3.3.4 Consumer 发起 JoinGroupRequest
+```java
+// ensureActiveGroup() 返回 joinGroupIfNeeded()
+boolean joinGroupIfNeeded(final Timer timer) {  
+    while (rejoinNeededOrPending()) {  
+        if (!ensureCoordinatorReady(timer)) {  
+            return false;  
+        }  
+  
+        // call onJoinPrepare if needed. We set a flag to make sure that we do not call it a second  
+        // time if the client is woken up before a pending rebalance completes. This must be called        // on each iteration of the loop because an event requiring a rebalance (such as a metadata        // refresh which changes the matched subscription set) can occur while another rebalance is        // still in progress.        if (needsJoinPrepare) {  
+            // need to set the flag before calling onJoinPrepare since the user callback may throw  
+            // exception, in which case upon retry we should not retry onJoinPrepare either.            needsJoinPrepare = false;  
+            // return false when onJoinPrepare is waiting for committing offset  
+            if (!onJoinPrepare(timer, generation.generationId, generation.memberId)) {  
+                needsJoinPrepare = true;  
+                //should not initiateJoinGroup if needsJoinPrepare still is true  
+                return false;  
+            }  
+        }  
+  
+        final RequestFuture<ByteBuffer> future = initiateJoinGroup();  
+        client.poll(future, timer);  
+        if (!future.isDone()) {  
+            // we ran out of time  
+            return false;  
+        }  
+  
+        if (future.succeeded()) {  
+            Generation generationSnapshot;  
+            MemberState stateSnapshot;  
+  
+            // Generation data maybe concurrently cleared by Heartbeat thread.  
+            // Can't use synchronized for {@code onJoinComplete}, because it can be long enough            // and shouldn't block heartbeat thread.            // See {@link PlaintextConsumerTest#testMaxPollIntervalMsDelayInAssignment}            synchronized (AbstractCoordinator.this) {  
+                generationSnapshot = this.generation;  
+                stateSnapshot = this.state;  
+            }  
+  
+            if (!hasGenerationReset(generationSnapshot) && stateSnapshot == MemberState.STABLE) {  
+                // Duplicate the buffer in case `onJoinComplete` does not complete and needs to be retried.  
+                ByteBuffer memberAssignment = future.value().duplicate();  
+  
+                onJoinComplete(generationSnapshot.generationId, generationSnapshot.memberId, generationSnapshot.protocolName, memberAssignment);  
+  
+                // Generally speaking we should always resetJoinGroupFuture once the future is done, but here  
+                // we can only reset the join group future after the completion callback returns. This ensures                // that if the callback is woken up, we will retry it on the next joinGroupIfNeeded.                // And because of that we should explicitly trigger resetJoinGroupFuture in other conditions below.                resetJoinGroupFuture();  
+                needsJoinPrepare = true;  
+            } else {  
+                final String reason = String.format("rebalance failed since the generation/state was " +  
+                        "modified by heartbeat thread to %s/%s before the rebalance callback triggered",  
+                        generationSnapshot, stateSnapshot);  
+  
+                resetStateAndRejoin(reason, true);  
+                resetJoinGroupFuture();  
+            }  
+        } else {  
+            final RuntimeException exception = future.exception();  
+  
+            resetJoinGroupFuture();  
+            synchronized (AbstractCoordinator.this) {  
+                final String simpleName = exception.getClass().getSimpleName();  
+                final String shortReason = String.format("rebalance failed due to %s", simpleName);  
+                final String fullReason = String.format("rebalance failed due to '%s' (%s)",  
+                    exception.getMessage(),  
+                    simpleName);  
+                requestRejoin(shortReason, fullReason);  
+            }  
+  
+            if (exception instanceof UnknownMemberIdException ||  
+                exception instanceof IllegalGenerationException ||  
+                exception instanceof RebalanceInProgressException ||  
+                exception instanceof MemberIdRequiredException)  
+                continue;  
+            else if (!future.isRetriable())  
+                throw exception;  
+  
+            timer.sleep(rebalanceConfig.retryBackoffMs);  
+        }  
+    }  
+    return true;  
 }
 ```
 # 4 复习

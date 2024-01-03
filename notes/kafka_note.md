@@ -2815,7 +2815,36 @@ private[group] case object Dead extends GroupState {
   val validPreviousStates: Set[GroupState] = Set(Stable, PreparingRebalance, CompletingRebalance, Empty, Dead)  
 }
 ```
-### 3.3.2 
+### 3.3.2 ConsumerCoordinator 寻找 GroupCoordinator
+```java
+// ConsumerCoordinator.java
+public boolean poll(Timer timer, boolean waitForJoinGroup) {  
+
+// 判断是否为订阅Topic或者订阅pattern模式
+    if (subscriptions.hasAutoAssignedPartitions()) {  
+	    // 检查心跳
+		pollHeartbeat(timer.currentTimeMs());  
+		// 检查是否需要加入消费者组
+        if (rejoinNeededOrPending()) {  
+			// 确保消费者组处于 active
+            if (!ensureActiveGroup(waitForJoinGroup ? timer : time.timer(0L))) {  
+                return false;  
+            }  
+        }  
+    }
+    return true;  
+}
+
+boolean ensureActiveGroup(final Timer timer) {   
+    if (!ensureCoordinatorReady(timer)) {  
+        return false;  
+    }  
+    startHeartbeatThreadIfNeeded();  
+    return joinGroupIfNeeded(timer);  
+}
+
+
+```
 # 4 复习
 ## 4.1 基本信息
 ### 4.1.1 生产流程

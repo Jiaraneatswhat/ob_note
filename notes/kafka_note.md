@@ -2576,14 +2576,14 @@ private def doHandleStateChanges(
 private def initializeLeaderAndIsrForPartitions(partitions: Seq[TopicPartition]): Seq[TopicPartition] = {  
   
   val leaderIsrAndControllerEpochs = partitionsWithLiveReplicas.map { case (partition, liveReplicas) =>  
-    // liveReplicas 的第一个作为 leader，
+    // liveReplicas 的第一个作为 leader，liveReplicas 作为 isr
     val leaderAndIsr = LeaderAndIsr(liveReplicas.head, liveReplicas.toList)  
     val leaderIsrAndControllerEpoch = LeaderIsrAndControllerEpoch(leaderAndIsr, controllerContext.epoch)  
     partition -> leaderIsrAndControllerEpoch  
   }.toMap  
-// 写入 zk 节点中
+// 写入 zk 节点中 /brokers/topics/{topic_name}/partitions/{partition_num}/state
   val createResponses = try {  
-    zkClient.createTopicPartitionStatesRaw(leaderIsrAndControllerEpochs, controllerContext.epochZkVersion)  
+zkClient.createTopicPartitionStatesRaw(leaderIsrAndControllerEpochs, controllerContext.epochZkVersion)  
   }  
   successfulInitializations  
 }

@@ -2675,9 +2675,46 @@ private def electLeaderForPartitions(
   finishedElections.toMap  
 }
 
+private def doElectLeaderForPartitions(...) = {
+	// 去 zk 获取当前 partition 的 isr 和 leader 信息，封装进validLeaderAndIsrs
+	val getDataResponses = try {  
+  zkClient.getTopicPartitionStatesRaw(partitions)
+  }
+	val (partitionsWithoutLeaders, partitionsWithLeaders) = partitionLeaderElectionStrategy match {  
+  case ControlledShutdownPartitionLeaderElectionStrategy =>  
+    leaderForControlledShutdown(controllerContext, validLeaderAndIsrs).partition(_.leaderAndIsr.isEmpty)  
+}
 
+def leaderForControlledShutdown(controllerContext: ControllerContext,  
+	leaderAndIsrs: Seq[(TopicPartition, LeaderAndIsr)]): 
+	Seq[ElectionResult] = {  
+	
+  leaderAndIsrs.map { case (partition, leaderAndIsr) =>  
+    leaderForControlledShutdown(partition, leaderAndIsr, shuttingDownBrokerIds, controllerContext)  
+  }  
+}
+
+private def leaderForControlledShutdown(partition: TopicPartition,  
+	leaderAndIsr: LeaderAndIsr,  
+	shuttingDownBrokerIds: Set[Int],  
+	controllerContext: ControllerContext): ElectionResult = {  
+	  
+	  val isr = leaderAndIsr.isr  
+	  val leaderOpt = PartitionLeaderElectionAlgorithms.controlledShutdownPartitionLeaderElection(assignment, 
+	  isr,
+	  liveOrShuttingDownReplicas.toSet, shuttingDownBrokerIds)  
+  val newIsr = isr.filter(replica => !shuttingDownBrokerIds.contains(replica))  
+  val newLeaderAndIsrOpt = leaderOpt.map(leader => leaderAndIsr.newLeaderAndIsr(leader, newIsr))  
+  ElectionResult(partition, newLeaderAndIsrOpt, liveOrShuttingDownReplicas)  
+}
+
+// 找到第一个在 AR 中且在 isr 中的 partition 作为 leader
+def controlledShutdownPartitionLeaderElection(assignment: Seq[Int], isr: Seq[Int], liveReplicas: Set[Int], shuttingDownBrokers: Set[Int]): Option[Int] = {  
+  assignment.find(id => liveReplicas.contains(id) && isr.contains(id) && !shuttingDownBrokers.contains(id))  
+}
 ```
 # 3 Consumer
+
 # 4 复习
 ## 4.1 基本信息
 ### 4.1.1 生产流程

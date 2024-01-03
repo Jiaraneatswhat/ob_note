@@ -2853,36 +2853,87 @@ private synchronized boolean ensureCoordinatorReady(final Timer timer, boolean d
         return true;  
   
     do {  
+	    // 循环给服务器端发送 FindCoordinatorRequest 请求，直到找到 coordinator
         final RequestFuture<Void> future = lookupCoordinator();  
+        // 阻塞等待 Broker 请求返回或超时
         client.poll(future, timer, disableWakeup);  
-  
-        if (!future.isDone()) {  
-            // ran out of time  
-            break;  
-        }  
-  
-        RuntimeException fatalException = null;  
-  
-        if (future.failed()) {  
-            if (future.isRetriable()) {  
-                log.debug("Coordinator discovery failed, refreshing metadata", future.exception());  
-                client.awaitMetadataUpdate(timer);  
-            } else {  
-                fatalException = future.exception();  
-                log.info("FindCoordinator request hit fatal exception", fatalException);  
-            }  
-        } else if (coordinator != null && client.isUnavailable(coordinator)) {  
-            // we found the coordinator, but the connection has failed, so mark  
-            // it dead and backoff before retrying discovery            markCoordinatorUnknown("coordinator unavailable");  
-            timer.sleep(rebalanceConfig.retryBackoffMs);  
-        }  
-  
-        clearFindCoordinatorFuture();  
-        if (fatalException != null)  
-            throw fatalException;  
     } while (coordinatorUnknown() && timer.notExpired());  
-  
     return !coordinatorUnknown();  
+}
+
+protected synchronized RequestFuture<Void> lookupCoordinator() {  
+    if (findCoordinatorFuture == null) {  
+        // 找负载最小的节点
+        Node node = this.client.leastLoadedNode();  
+        if (node == null) {...} 
+        else {  
+            findCoordinatorFuture = sendFindCoordinatorRequest(node);  
+        }  
+    }  
+    return findCoordinatorFuture;  
+}
+
+private RequestFuture<Void> sendFindCoordinatorRequest(Node node) {   
+    FindCoordinatorRequest.Builder requestBuilder = new FindCoordinatorRequest.Builder(data);  
+    return client.send(node, requestBuilder)  
+            .compose(new FindCoordinatorResponseHandler());  
+}
+```
+### 3.3.3 Server 端处理请求
+```java
+override def handle(request: RequestChannel.Request): Unit = {  
+  try {
+		request.header.apiKey match {
+			case ApiKeys.FIND_COORDINATOR => handleFindCoordinatorRequest(request)
+			}
+	}
+}
+
+def handleFindCoordinatorRequest(request: RequestChannel.Request): Unit = {  
+
+    // get metadata (and create the topic if necessary)  
+    val (partition, topicMetadata) = CoordinatorType.forId(findCoordinatorRequest.data.keyType) match {  
+      case CoordinatorType.GROUP =>  
+	    // 确定哪个 Broker 做 GroupCoordinator
+        val partition = groupCoordinator.partitionFor(findCoordinatorRequest.data.key)  
+        // 获取对应的元数据
+        val metadata = getOrCreateInternalTopic(GROUP_METADATA_TOPIC_NAME, request.context.listenerName)  
+        (partition, metadata)  
+  
+    def createResponse(requestThrottleMs: Int): AbstractResponse = {  
+      def createFindCoordinatorResponse(error: Errors, node: Node): FindCoordinatorResponse = {  
+        new FindCoordinatorResponse(  
+            new FindCoordinatorResponseData()  
+              .setErrorCode(error.code)  
+              .setErrorMessage(error.message)  
+              .setNodeId(node.id)  
+              .setHost(node.host)  
+              .setPort(node.port)  
+              .setThrottleTimeMs(requestThrottleMs))  
+      }  
+      val responseBody = if (topicMetadata.errorCode != Errors.NONE.code) {  
+        createFindCoordinatorResponse(Errors.COORDINATOR_NOT_AVAILABLE, Node.noNode)  
+      } else {  
+        val coordinatorEndpoint = topicMetadata.partitions.asScala  
+          .find(_.partitionIndex == partition)  
+          .filter(_.leaderId != MetadataResponse.NO_LEADER_ID)  
+          .flatMap(metadata => metadataCache.getAliveBroker(metadata.leaderId))  
+          .flatMap(_.getNode(request.context.listenerName))  
+          .filterNot(_.isEmpty)  
+  
+        coordinatorEndpoint match {  
+          case Some(endpoint) =>  
+            createFindCoordinatorResponse(Errors.NONE, endpoint)  
+          case _ =>  
+            createFindCoordinatorResponse(Errors.COORDINATOR_NOT_AVAILABLE, Node.noNode)  
+        }  
+      }  
+      trace("Sending FindCoordinator response %s for correlation id %d to client %s."  
+        .format(responseBody, request.header.correlationId, request.header.clientId))  
+      responseBody  
+    }  
+    sendResponseMaybeThrottle(request, createResponse)  
+  }  
 }
 ```
 # 4 复习

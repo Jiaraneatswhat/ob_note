@@ -2777,8 +2777,40 @@ KafkaConsumer(ConsumerConfig config, Deserializer<K> keyDeserializer, Deserializ
 		else {  
 		    this.coordinator = new ConsumerCoordinator(...);  
 
-
+		this.fetcher = new Fetcher<>(...);
 }	
+```
+## 3.3 消费者组重平衡
+- 触发重平衡的条件
+	- 消费者组内消费者数量变化
+	- 订阅 `Topic` 发生变化
+	- 消费者组对应 `GroupCoordinator` 组件所在 `Broker` 变化
+### 3.3.1 消费者组状态
+```java
+// GroupState 定义了消费者组的状态空间，包含一个检验前置状态的方法
+private[group] case object Dead extends GroupState {  
+  val validPreviousStates: Set[GroupState] = Set(Stable, PreparingRebalance, CompletingRebalance, Empty, Dead)  
+}
+
+// 正在执行加入组操作的消费者组
+private[group] case object PreparingRebalance extends GroupState {  
+  val validPreviousStates: Set[GroupState] = Set(Stable, CompletingRebalance, Empty)  
+}
+
+// 等待 leader 成员指定分配方案的消费者组
+private[group] case object CompletingRebalance extends GroupState {  
+  val validPreviousStates: Set[GroupState] = Set(PreparingRebalance)  
+}
+
+// 已完成 Rebalance 可以正常工作的消费者组
+private[group] case object Stable extends GroupState {  
+  val validPreviousStates: Set[GroupState] = Set(CompletingRebalance)  
+}
+
+// 没有成员且元数据信息被删除的消费者组
+private[group] case object Dead extends GroupState {  
+  val validPreviousStates: Set[GroupState] = Set(Stable, PreparingRebalance, CompletingRebalance, Empty, Dead)  
+}
 ```
 
 # 4 复习

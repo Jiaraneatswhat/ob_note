@@ -1,6 +1,11 @@
 # 1 Producer
-
--  `Producer` 在生产过程中主要使用以下组件：`ProducerMetadata` 用于 `Producer` 与 `Broker` 通讯获取元数据，`ProducerConfig` 用于设置 `Producer` 的参数，`NetworkClient` 用于网络通信，`RecordAccumlator` 用于缓存 `Batch`，`Sender` 用于发送消息，`ProducerInterceptors` 用于处理拦截器逻辑(可选)
+- 基本架构
+	- ProducerMetadata：`Producer` 与 `Broker` 通讯获取元数据
+	- ProducerConfig：设置 `Producer` 的参数
+	- NetworkClient：网络通信
+	- RecordAccumlator：缓存 `Batch`
+	- Sender：发送数据
+	- ProducerInterceptors：用于处理拦截器逻辑(可选)
 
 ![[producer_components.svg]]
 
@@ -2721,6 +2726,15 @@ def controlledShutdownPartitionLeaderElection(assignment: Seq[Int], isr: Seq[Int
 }
 ```
 # 3 Consumer
+- 基本架构
+	- SubscriptionState：管理消费者订阅的主题分区，记录消费的各种状态
+	- ConsumerCoordinator：负责和 `Server` 的 `GroupCoordinator` 通讯
+	- Fetcher：负责发送拉取消息的请求
+	- PartitionAssignor：分区分配策略
+	- ConsumerNetworkClient：负责消费者的网络 IO，在 `NetworkClient` 上进行封装
+
+![[kafka_consumer.svg]]
+
 ## 3.1 fields
 ```java
 public class KafkaConsumer<K, V> implements Consumer<K, V> {
@@ -2744,7 +2758,27 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
 ```java
 KafkaConsumer(ConsumerConfig config, Deserializer<K> keyDeserializer, Deserializer<V> valueDeserializer) {  
     try {
+		this.groupId = Optional.ofNullable(groupRebalanceConfig.groupId);  
+		this.clientId = config.getString(CommonClientConfigs.CLIENT_ID_CONFIG);
+		// 拦截器
+		// 序列化器
+		OffsetResetStrategy offsetResetStrategy = OffsetResetStrategy.valueOf(config.getString(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG).toUpperCase(Locale.ROOT));  
+		this.subscriptions = new SubscriptionState(logContext, offsetResetStrategy);
+		this.metadata = new ConsumerMetadata(...);
+	    NetworkClient netClient = new NetworkClient(...);  
+		this.client = new ConsumerNetworkClient(...);
+		// partition.assignment.strategy, 默认 RangeAssignor
+		this.assignors = ConsumerPartitionAssignor.getAssignorInstances(  
+	    config.getList(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG), config.originals(Collections.singletonMap(ConsumerConfig.CLIENT_ID_CONFIG, clientId)) 
+	);
 
+		if (!groupId.isPresent()) {...} 
+		// 指定 groupId 时会创建 ConsumerCoordinator
+		else {  
+		    this.coordinator = new ConsumerCoordinator(...);  
+
+
+}	
 ```
 
 # 4 复习

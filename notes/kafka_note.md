@@ -2485,8 +2485,108 @@ def flush(offset: Long): Unit = {
 ## 2.5 Controller 选举 Partition 的 leader
 ### 2.5.1 Partition 的状态
 ```java
-// PartitionStateMachine.scala
+// PartitionStateMachine 中定义了 Partition 的状态
+sealed trait PartitionState {  
+  def state: Byte  
+  // 有效的上个状态
+  def validPreviousStates: Set[PartitionState]  
+}
 
+// 正在创建新的分区，只在 Controller 中保存了状态信息
+case object NewPartition extends PartitionState {  
+  val state: Byte = 0  
+  val validPreviousStates: Set[PartitionState] = Set(NonExistentPartition)  
+}
+
+// 可提供服务的状态
+case object OnlinePartition extends PartitionState {  
+  val state: Byte = 1  
+  val validPreviousStates: Set[PartitionState] = Set(NewPartition, OnlinePartition, OfflinePartition)  
+}
+
+// Broker 宕机或要删除 Topic
+case object OfflinePartition extends PartitionState {  
+  val state: Byte = 2  
+  val validPreviousStates: Set[PartitionState] = Set(NewPartition, OnlinePartition, OfflinePartition)  
+}
+
+// Topic 删除成功
+case object NonExistentPartition extends PartitionState {  
+  val state: Byte = 3  
+  val validPreviousStates: Set[PartitionState] = Set(OfflinePartition)  
+}
+```
+### 2.5.2 处理分区状态变化
+```java
+private def doHandleStateChanges(  
+  partitions: Seq[TopicPartition],  
+  targetState: PartitionState,  
+  partitionLeaderElectionStrategyOpt: Option[PartitionLeaderElectionStrategy]  
+): Map[TopicPartition, Either[Throwable, LeaderAndIsr]] = {  
+
+  targetState match {  
+    case NewPartition =>  
+        controllerContext.putPartitionState(partition, NewPartition)  
+      }  
+      Map.empty  
+    case OnlinePartition =>  
+      // NewPartition -> OnlinePartition 初始化
+      val uninitializedPartitions = validPartitions.filter(partition => partitionState(partition) == NewPartition)  
+      // OfflinePartition | OnlinePartition -> OnlinePartition 选举
+      val partitionsToElectLeader = validPartitions.filter(partition => partitionState(partition) == OfflinePartition || partitionState(partition) == OnlinePartition)  
+      if (uninitializedPartitions.nonEmpty) {  
+        val successfulInitializations = initializeLeaderAndIsrForPartitions(uninitializedPartitions)  
+        successfulInitializations.foreach { partition =>  
+          controllerContext.putPartitionState(partition, OnlinePartition)  
+        }  
+      }  
+      if (partitionsToElectLeader.nonEmpty) {  
+        val electionResults = electLeaderForPartitions(  
+          partitionsToElectLeader,  
+          partitionLeaderElectionStrategyOpt.getOrElse(  
+            throw new IllegalArgumentException("Election strategy is a required field when the target state is OnlinePartition")  
+          )  
+        )  
+  
+        electionResults.foreach {  
+          case (partition, Right(leaderAndIsr)) =>  
+            controllerContext.putPartitionState(partition, OnlinePartition)  
+          case (_, Left(_)) => // Ignore; no need to update partition state on election error  
+        } 
+        electionResults  
+      } else {  
+        Map.empty  
+      }  
+    // 下线或删除只需向集合加入新状态即可
+    case OfflinePartition =>  
+      validPartitions.foreach { partition =>  
+        controllerContext.putPartitionState(partition, OfflinePartition)  
+      }  
+      Map.empty  
+    case NonExistentPartition =>  
+      validPartitions.foreach { partition =>  
+        controllerContext.putPartitionState(partition, NonExistentPartition)  
+      }  
+      Map.empty  
+  }  
+}
+```
+### 2.5.3 初始化 Partition 的 leader
+```java
+private def initializeLeaderAndIsrForPartitions(partitions: Seq[TopicPartition]): Seq[TopicPartition] = {  
+  
+  val leaderIsrAndControllerEpochs = partitionsWithLiveReplicas.map { case (partition, liveReplicas) =>  
+    // liveReplicas 的第一个作为 leader，
+    val leaderAndIsr = LeaderAndIsr(liveReplicas.head, liveReplicas.toList)  
+    val leaderIsrAndControllerEpoch = LeaderIsrAndControllerEpoch(leaderAndIsr, controllerContext.epoch)  
+    partition -> leaderIsrAndControllerEpoch  
+  }.toMap  
+// 写入 zk 节点中
+  val createResponses = try {  
+    zkClient.createTopicPartitionStatesRaw(leaderIsrAndControllerEpochs, controllerContext.epochZkVersion)  
+  }  
+  successfulInitializations  
+}
 ```
 # 3 Consumer
 # 4 复习

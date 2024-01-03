@@ -2590,6 +2590,91 @@ zkClient.createTopicPartitionStatesRaw(leaderIsrAndControllerEpochs, controllerC
 ```
 ### 2.5.4 leader 宕机重选举
 ```java
+// Broker 下线时，会调用 controlledShutdown 方法
+private def controlledShutdown(): Unit = {  
+  
+  def doControlledShutdown(retries: Int): Boolean = {   
+    try {       
+        // 1. 获取到一个 Controller 
+        zkClient.getControllerId match {  
+          case Some(controllerId) =>  
+            zkClient.getBroker(controllerId) match {  
+              case Some(broker) =>  
+                  prevController = broker  
+                }  
+        }  
+  
+        // 2. issue a controlled shutdown to the controller  
+        if (prevController != null) {  
+          try {  
+            // send the controlled shutdown request  
+            val controlledShutdownRequest = new ControlledShutdownRequest.Builder(...)  
+            // 向 Controller 发送停止请求
+            val request = networkClient.newClientRequest(node(prevController).idString, controlledShutdownRequest,  
+              time.milliseconds(), true)  
+            val clientResponse = NetworkClientUtils.sendAndReceive(networkClient, request, time)  
+    }  
+    finally  
+      networkClient.close()  
+    shutdownSucceeded  
+  }   
+}
+
+// Controller 进行处理
+override def process(event: ControllerEvent): Unit = {  
+  try {  
+    event match {
+	    case ControlledShutdown(id, brokerEpoch, callback) =>  
+		  processControlledShutdown(id, brokerEpoch, callback)
+	  }
+}
+
+private def processControlledShutdown(id: Int, brokerEpoch: Long, controlledShutdownCallback: Try[Set[TopicPartition]] => Unit): Unit = { 
+  val controlledShutdownResult = Try { doControlledShutdown(id, brokerEpoch) }  
+  controlledShutdownCallback(controlledShutdownResult)  
+}
+
+private def doControlledShutdown(id: Int, brokerEpoch: Long): Set[TopicPartition] = {
+	partitionStateMachine.handleStateChanges(partitionsLedByBroker.toSeq, OnlinePartition, Some(ControlledShutdownPartitionLeaderElectionStrategy))
+}
+
+private def doHandleStateChanges(  
+  partitions: Seq[TopicPartition],  
+  targetState: PartitionState,  
+  partitionLeaderElectionStrategyOpt: Option[PartitionLeaderElectionStrategy]  
+): Map[TopicPartition, Either[Throwable, LeaderAndIsr]] = {  
+  
+  targetState match {  
+    case OnlinePartition =>  
+      val partitionsToElectLeader = validPartitions.filter(partition => partitionState(partition) == OfflinePartition || partitionState(partition) == OnlinePartition)  
+      if (partitionsToElectLeader.nonEmpty) {
+        // 选举  
+        val electionResults = electLeaderForPartitions(  
+          partitionsToElectLeader,  
+          partitionLeaderElectionStrategyOpt.getOrElse(  
+            throw new IllegalArgumentException("Election strategy is a required field when the target state is OnlinePartition")  
+          )  
+        )   
+        electionResults  
+      } else {  
+        Map.empty  
+      }  
+  }  
+}
+
+private def electLeaderForPartitions(  
+  partitions: Seq[TopicPartition],  
+  partitionLeaderElectionStrategy: PartitionLeaderElectionStrategy  
+): Map[TopicPartition, Either[Throwable, LeaderAndIsr]] = {  
+  var remaining = partitions  
+  val finishedElections = mutable.Map.empty[TopicPartition, Either[Throwable, LeaderAndIsr]]  
+  
+  while (remaining.nonEmpty) {  
+    val (finished, updatesToRetry) = doElectLeaderForPartitions(remaining, partitionLeaderElectionStrategy)  
+    remaining = updatesToRetry  
+  finishedElections.toMap  
+}
+
 
 ```
 # 3 Consumer

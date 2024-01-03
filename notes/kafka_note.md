@@ -2485,7 +2485,8 @@ def flush(offset: Long): Unit = {
 ## 2.5 Controller 选举 Partition 的 leader
 ### 2.5.1 Partition 的状态
 ```java
-// 
+// PartitionStateMachine.scala
+
 ```
 # 3 Consumer
 # 4 复习

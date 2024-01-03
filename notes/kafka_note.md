@@ -2349,18 +2349,17 @@ private def maybeRoll(messagesSize: Int, appendInfo: LogAppendInfo): LogSegment 
   }  
 }
 
+// Segment 字节数 > config.segmentSize - messagesSize
+// time.milliseconds - segment.created > config.segmentMs - segment.rollJitterMs
+// 超过 maxIndexSize
 def shouldRoll(rollParams: RollParams): Boolean = {  
   val reachedRollMs = timeWaitedForRoll(rollParams.now, rollParams.maxTimestampInMessages) > rollParams.maxSegmentMs - rollJitterMs  
   size > rollParams.maxSegmentBytes - rollParams.messagesSize ||  
     (size > 0 && reachedRollMs) ||  
     offsetIndex.isFull || timeIndex.isFull || !canConvertToRelativeOffset(rollParams.maxOffsetInMessages)  
 }
-
-
 ```
-
-
-
+### 2.4.5 启动 LogManager
 ```java
 def startup(): Unit = {  
   /* Schedule the cleanup task to delete old logs */  
@@ -2397,7 +2396,7 @@ def startup(): Unit = {
     cleaner.startup()  
 }
 ```
-### 2.4.1 清理日志
+#### 2.4.5.1 清理日志
 ```java
 def cleanupLogs(): Unit = {  
   debug("Beginning log cleanup...")  
@@ -2455,7 +2454,7 @@ private def deleteLogStartOffsetBreachedSegments(): Int = {
   deleteOldSegments(shouldDelete, StartOffsetBreach)  
 }
 ```
-### 2.4.2 刷写日志
+#### 2.4.5.2 刷写日志
 ```java
 private def flushDirtyLogs(): Unit = {  
   
@@ -2483,6 +2482,7 @@ def flush(offset: Long): Unit = {
 
 
 ```
+## 2.5 Controller 选举 Partition 的 leader
 # 3 Consumer
 # 4 复习
 ## 4.1 基本信息

@@ -2979,82 +2979,90 @@ public void onSuccess(ClientResponse resp, RequestFuture<Void> future) {
 // ensureActiveGroup() 返回 joinGroupIfNeeded()
 boolean joinGroupIfNeeded(final Timer timer) {  
     while (rejoinNeededOrPending()) {  
+	    // 确保已经找到 GroupCoordinator
         if (!ensureCoordinatorReady(timer)) {  
             return false;  
         }  
-  
-        // call onJoinPrepare if needed. We set a flag to make sure that we do not call it a second  
-        // time if the client is woken up before a pending rebalance completes. This must be called        // on each iteration of the loop because an event requiring a rebalance (such as a metadata        // refresh which changes the matched subscription set) can occur while another rebalance is        // still in progress.        if (needsJoinPrepare) {  
-            // need to set the flag before calling onJoinPrepare since the user callback may throw  
-            // exception, in which case upon retry we should not retry onJoinPrepare either.            needsJoinPrepare = false;  
-            // return false when onJoinPrepare is waiting for committing offset  
+		// Rebalance正在执行的过程中，如果再次执行（元数据刷新导致重平衡）则不需要准备工作
+        if (needsJoinPrepare) {            
+            needsJoinPrepare = false;  
             if (!onJoinPrepare(timer, generation.generationId, generation.memberId)) {  
                 needsJoinPrepare = true;  
-                //should not initiateJoinGroup if needsJoinPrepare still is true  
                 return false;  
             }  
         }  
-  
+	    // 初始化 JoinGroup，发送请求
         final RequestFuture<ByteBuffer> future = initiateJoinGroup();  
         client.poll(future, timer);  
-        if (!future.isDone()) {  
-            // we ran out of time  
-            return false;  
-        }  
-  
-        if (future.succeeded()) {  
-            Generation generationSnapshot;  
-            MemberState stateSnapshot;  
-  
-            // Generation data maybe concurrently cleared by Heartbeat thread.  
-            // Can't use synchronized for {@code onJoinComplete}, because it can be long enough            // and shouldn't block heartbeat thread.            // See {@link PlaintextConsumerTest#testMaxPollIntervalMsDelayInAssignment}            synchronized (AbstractCoordinator.this) {  
-                generationSnapshot = this.generation;  
-                stateSnapshot = this.state;  
-            }  
-  
-            if (!hasGenerationReset(generationSnapshot) && stateSnapshot == MemberState.STABLE) {  
-                // Duplicate the buffer in case `onJoinComplete` does not complete and needs to be retried.  
-                ByteBuffer memberAssignment = future.value().duplicate();  
-  
-                onJoinComplete(generationSnapshot.generationId, generationSnapshot.memberId, generationSnapshot.protocolName, memberAssignment);  
-  
-                // Generally speaking we should always resetJoinGroupFuture once the future is done, but here  
-                // we can only reset the join group future after the completion callback returns. This ensures                // that if the callback is woken up, we will retry it on the next joinGroupIfNeeded.                // And because of that we should explicitly trigger resetJoinGroupFuture in other conditions below.                resetJoinGroupFuture();  
-                needsJoinPrepare = true;  
-            } else {  
-                final String reason = String.format("rebalance failed since the generation/state was " +  
-                        "modified by heartbeat thread to %s/%s before the rebalance callback triggered",  
-                        generationSnapshot, stateSnapshot);  
-  
-                resetStateAndRejoin(reason, true);  
-                resetJoinGroupFuture();  
-            }  
-        } else {  
-            final RuntimeException exception = future.exception();  
-  
-            resetJoinGroupFuture();  
-            synchronized (AbstractCoordinator.this) {  
-                final String simpleName = exception.getClass().getSimpleName();  
-                final String shortReason = String.format("rebalance failed due to %s", simpleName);  
-                final String fullReason = String.format("rebalance failed due to '%s' (%s)",  
-                    exception.getMessage(),  
-                    simpleName);  
-                requestRejoin(shortReason, fullReason);  
-            }  
-  
-            if (exception instanceof UnknownMemberIdException ||  
-                exception instanceof IllegalGenerationException ||  
-                exception instanceof RebalanceInProgressException ||  
-                exception instanceof MemberIdRequiredException)  
-                continue;  
-            else if (!future.isRetriable())  
-                throw exception;  
-  
-            timer.sleep(rebalanceConfig.retryBackoffMs);  
-        }  
     }  
     return true;  
 }
+
+private synchronized RequestFuture<ByteBuffer> initiateJoinGroup() {  
+    if (joinFuture == null) {  
+	    // 开始准备重平衡
+        state = MemberState.PREPARING_REBALANCE;   
+        // 发送请求
+        joinFuture = sendJoinGroupRequest();  
+    }  
+    return joinFuture;  
+}
+
+RequestFuture<ByteBuffer> sendJoinGroupRequest() {  
+  
+    JoinGroupRequest.Builder requestBuilder = new JoinGroupRequest.Builder(  
+            new JoinGroupRequestData()  
+	        .setGroupId(rebalanceConfig.groupId)  
+	        // 客户端与 Broker 最大会话有效期，默认 10s
+		    .setSessionTimeoutMs(this.rebalanceConfig.sessionTimeoutMs)  
+            .setMemberId(this.generation.memberId)  
+	.setGroupInstanceId(this.rebalanceConfig.groupInstanceId.orElse(null))  
+            .setProtocolType(protocolType())  
+            .setProtocols(metadata())  
+	.setRebalanceTimeoutMs(this.rebalanceConfig.rebalanceTimeoutMs)                .setReason(JoinGroupRequest.maybeTruncateReason(this.rejoinReason))  
+    );  
+
+	// joinGroup 的请求超时时间
+	// 取 request.timeout.ms 默认 30s 
+	// 和 JOIN_GROUP_TIMEOUT_LAPSE = 5s + request.timeout.ms 最大值
+    int joinGroupTimeoutMs = Math.max(  
+        client.defaultRequestTimeoutMs(),  
+        Math.max(  
+            rebalanceConfig.rebalanceTimeoutMs + JOIN_GROUP_TIMEOUT_LAPSE,  
+            rebalanceConfig.rebalanceTimeoutMs)
+        );  
+    // 发请求
+    return client.send(coordinator, requestBuilder, joinGroupTimeoutMs)  
+            .compose(new JoinGroupResponseHandler(generation));  
+}
+```
+### 3.3.5 GroupCoordinator 处理 JoinGroupRequest 请求
+```java
+override def handle(request: RequestChannel.Request): Unit = {  
+  try {
+		request.header.apiKey match {
+			case ApiKeys.JOIN_GROUP => handleJoinGroupRequest(request)
+			}
+	}
+}
+
+def handleJoinGroupRequest(request: RequestChannel.Request): Unit = {  
+    groupCoordinator.handleJoinGroup(  
+      joinGroupRequest.data.groupId,  
+      joinGroupRequest.data.memberId,  
+      groupInstanceId,  
+      requireKnownMemberId,  
+      request.header.clientId,  
+      request.context.clientAddress.toString,  
+      joinGroupRequest.data.rebalanceTimeoutMs,  
+      joinGroupRequest.data.sessionTimeoutMs,  
+      joinGroupRequest.data.protocolType,  
+      protocols,  
+      sendResponseCallback)  
+  }  
+}
+
+
 ```
 # 4 复习
 ## 4.1 基本信息

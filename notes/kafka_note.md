@@ -2786,6 +2786,9 @@ KafkaConsumer(ConsumerConfig config, Deserializer<K> keyDeserializer, Deserializ
 	- 订阅 `Topic` 发生变化
 	- 消费者组对应 `GroupCoordinator` 组件所在 `Broker` 变化
 ### 3.3.1 消费者组状态
+
+![[consumer_status.svg]]
+
 ```java
 // GroupState 定义了消费者组的状态空间，包含一个检验前置状态的方法
 private[group] case object Dead extends GroupState {  
@@ -2812,7 +2815,7 @@ private[group] case object Dead extends GroupState {
   val validPreviousStates: Set[GroupState] = Set(Stable, PreparingRebalance, CompletingRebalance, Empty, Dead)  
 }
 ```
-
+### 3.3.2 
 # 4 复习
 ## 4.1 基本信息
 ### 4.1.1 生产流程

@@ -4,7 +4,7 @@
 
 ![[producer_components.svg]]
 
-## 1.1 Producer 的属性
+## 1.1 fields
 ```java
 public class KafkaProducer<K, V> implements Producer<K, V> {
 
@@ -2589,7 +2589,14 @@ zkClient.createTopicPartitionStatesRaw(leaderIsrAndControllerEpochs, controllerC
 }
 ```
 ### 2.5.4 leader 宕机重选举
+- 状态机中定义了选举策略 `
 ```java
+sealed trait PartitionLeaderElectionStrategy  
+final case class OfflinePartitionLeaderElectionStrategy(allowUnclean: Boolean) extends PartitionLeaderElectionStrategy  
+final case object ReassignPartitionLeaderElectionStrategy extends PartitionLeaderElectionStrategy  
+final case object PreferredReplicaPartitionLeaderElectionStrategy extends PartitionLeaderElectionStrategy  
+final case object ControlledShutdownPartitionLeaderElectionStrategy extends PartitionLeaderElectionStrategy
+
 // Broker 下线时，会调用 controlledShutdown 方法
 private def controlledShutdown(): Unit = {  
   
@@ -2714,6 +2721,26 @@ def controlledShutdownPartitionLeaderElection(assignment: Seq[Int], isr: Seq[Int
 }
 ```
 # 3 Consumer
+## 3.1 fields
+```java
+public class KafkaConsumer<K, V> implements Consumer<K, V> {
+	private final String clientId;  
+	private final Optional<String> groupId;  
+	// 与 Server 的 coordinator 交互
+	private final ConsumerCoordinator coordinator;  
+	private final Deserializer<K> keyDeserializer;  
+	private final Deserializer<V> valueDeserializer;  
+	// 拉取数据
+	private final Fetcher<K, V> fetcher;  
+	private final ConsumerInterceptors<K, V> interceptors;
+	// 保存消费信息
+	private final SubscriptionState subscriptions;  
+	private final ConsumerMetadata metadata;
+	// 分配消费分区
+	private List<ConsumerPartitionAssignor> assignors
+}
+```
+
 
 # 4 复习
 ## 4.1 基本信息

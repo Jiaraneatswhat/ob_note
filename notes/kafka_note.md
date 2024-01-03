@@ -2836,14 +2836,54 @@ public boolean poll(Timer timer, boolean waitForJoinGroup) {
 }
 
 boolean ensureActiveGroup(final Timer timer) {   
+	// 确保 ConsumerCoordinator能够正常接收服务端请求
     if (!ensureCoordinatorReady(timer)) {  
         return false;  
     }  
+    // 启动心跳线程
     startHeartbeatThreadIfNeeded();  
+    // 发送 joinGroup 请求
     return joinGroupIfNeeded(timer);  
 }
 
-
+// AbstractCoordinator.java
+private synchronized boolean ensureCoordinatorReady(final Timer timer, boolean disableWakeup) {  
+	// 找到了 coordinator 直接返回
+    if (!coordinatorUnknown())  
+        return true;  
+  
+    do {  
+        final RequestFuture<Void> future = lookupCoordinator();  
+        client.poll(future, timer, disableWakeup);  
+  
+        if (!future.isDone()) {  
+            // ran out of time  
+            break;  
+        }  
+  
+        RuntimeException fatalException = null;  
+  
+        if (future.failed()) {  
+            if (future.isRetriable()) {  
+                log.debug("Coordinator discovery failed, refreshing metadata", future.exception());  
+                client.awaitMetadataUpdate(timer);  
+            } else {  
+                fatalException = future.exception();  
+                log.info("FindCoordinator request hit fatal exception", fatalException);  
+            }  
+        } else if (coordinator != null && client.isUnavailable(coordinator)) {  
+            // we found the coordinator, but the connection has failed, so mark  
+            // it dead and backoff before retrying discovery            markCoordinatorUnknown("coordinator unavailable");  
+            timer.sleep(rebalanceConfig.retryBackoffMs);  
+        }  
+  
+        clearFindCoordinatorFuture();  
+        if (fatalException != null)  
+            throw fatalException;  
+    } while (coordinatorUnknown() && timer.notExpired());  
+  
+    return !coordinatorUnknown();  
+}
 ```
 # 4 复习
 ## 4.1 基本信息

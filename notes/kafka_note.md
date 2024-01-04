@@ -3464,15 +3464,45 @@ public Map<String, List<TopicPartition>> assign(
         int consumersWithExtraPartition = numPartitionsForTopic % consumersForTopic.size();  
 		
         List<TopicPartition> partitions = AbstractPartitionAssignor.partitions(topic, numPartitionsForTopic);  
+        // 整除分配到的分区数量，加上1个无法整除分配到的分区
         for (int i = 0, n = consumersForTopic.size(); i < n; i++) {  
             int start = numPartitionsPerConsumer * i + Math.min(i, consumersWithExtraPartition);  
-            int length = numPartitionsPerConsumer + (i + 1 > consumersWithExtraPartition ? 0 : 1);  
-            assignment.get(consumersForTopic.get(i).memberId).addAll(partitions.subList(start, start + length));  
+            // 整除后余数为 m，排序后的消费者集合中前 m 个都能分配到一个额外的分区
+            int length = numPartitionsPerConsumer + (i + 1 > consumersWithExtraPartition ? 0 : 1);  assignment.get(consumersForTopic.get(i).memberId).addAll(partitions.subList(start, start + length));  
         }  
     }  
     return assignment;  
 }
 ```
+### 3.4.2 RoundRobinAssignor
+```java
+public Map<String, List<TopicPartition>> assign(
+	Map<String, Integer> partitionsPerTopic,  
+    Map<String, Subscription> subscriptions) {  
+    Map<String, List<TopicPartition>> assignment = new HashMap<>();  
+    List<MemberInfo> memberInfoList = new ArrayList<>();  
+    for (Map.Entry<String, Subscription> memberSubscription : subscriptions.entrySet()) {  
+        assignment.put(memberSubscription.getKey(), new ArrayList<>());  
+        memberInfoList.add(new MemberInfo(memberSubscription.getKey(),                   memberSubscription.getValue().groupInstanceId()));  
+    }  
+	// 环形迭代器：迭代器中没有元素时返回第一个元素继续迭代
+	// 对消费者进行排序
+    CircularIterator<MemberInfo> assigner = new CircularIterator<>(Utils.sorted(memberInfoList));  
+  
+    for (TopicPartition partition : allPartitionsSorted(partitionsPerTopic, subscriptions)) {  
+        final String topic = partition.topic();  
+        // 如果遍历得到的消费者没有订阅当前 topic，则继续循环
+        while (!subscriptions.get(assigner.peek().memberId).topics().contains(topic))  
+            assigner.next();  
+        assignment.get(assigner.next().memberId).add(partition);  
+    }  
+    return assignment;  
+}
+```
+### 3.4.3 AbstractStickyAssignor
+- AbstractStickyAssignor 有两个实现类
+	- CooperativeStickyAssignor
+	- 
 # 4 复习
 ## 4.1 基本信息
 ### 4.1.1 生产流程

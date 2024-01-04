@@ -3721,6 +3721,59 @@ public synchronized int sendFetches() {
 // KafkaApis
 case ApiKeys.FETCH => handleFetchRequest(request)
 
+def handleFetchRequest(request: RequestChannel.Request): Unit = {
+	val interesting = mutable.ArrayBuffer[(TopicPartition, FetchRequest.PartitionData)]() 
+	// interesting += (topicPartition -> data)
+	if (interesting.isEmpty)  
+  processResponseCallback(Seq.empty)  
+else {  
+  // call the replica manager to fetch messages from the local replica  
+  replicaManager.fetchMessages(  
+    fetchRequest.maxWait.toLong,  
+    fetchRequest.replicaId,  
+    fetchMinBytes,  
+    fetchMaxBytes,  
+    versionId <= 2,  
+    interesting,  
+    replicationQuota(fetchRequest),  
+    // 创建响应
+    processResponseCallback,  
+    fetchRequest.isolationLevel,  
+    clientMetadata)  
+	}
+}
+
+// ReplicaManager 拉取数据
+def fetchMessages(...): Unit = {
+	val logReadResults = readFromLog()
+	def readFromLog(): Seq[(TopicPartition, LogReadResult)] = {  
+  val result = readFromLocalLog(  
+    replicaId = replicaId,  
+    fetchOnlyFromLeader = fetchOnlyFromLeader,  
+    fetchIsolation = fetchIsolation,  
+    fetchMaxBytes = fetchMaxBytes,  
+    hardMaxBytesLimit = hardMaxBytesLimit,  
+    readPartitionInfo = fetchInfos,  
+    quota = quota,  
+    clientMetadata = clientMetadata)  
+  if (isFromFollower) updateFollowerFetchState(replicaId, result)  
+  else result  
+	}
+}
+
+def readFromLocalLog(...): Seq[(TopicPartition, LogReadResult)] = {
+	var limitBytes = fetchMaxBytes  
+	val result = new mutable.ArrayBuffer[(TopicPartition, LogReadResult)]  
+	readPartitionInfo.foreach { case (tp, fetchInfo) =>  
+	  val readResult = read(tp, fetchInfo, limitBytes, minOneMessage)  
+	  val recordBatchSize = readResult.info.records.sizeInBytes  
+  if (recordBatchSize > 0)  
+	  limitBytes = math.max(0, limitBytes - recordBatchSize)  
+	  result += (tp -> readResult)  
+}
+
+def read(tp: TopicPartition, fetchInfo: PartitionData, limitBytes: Int, minOneMessage: Boolean): LogReadResult = {
+	
 
 ```
 # 4 复习

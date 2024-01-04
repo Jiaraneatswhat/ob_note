@@ -3537,7 +3537,6 @@ private def doSyncGroup(group: GroupMetadata,
             groupManager.storeGroup(group, assignment, (error: Errors) => {...}  
   
         case Stable =>  
-          // 互殴去  
           val memberMetadata = group.get(memberId)  
           responseCallback(SyncGroupResult(group.protocolType, group.protocolName, memberMetadata.assignment, Errors.NONE))  
           completeAndScheduleNextHeartbeatExpiration(group, group.get(memberId))  

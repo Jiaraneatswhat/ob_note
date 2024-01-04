@@ -3569,10 +3569,36 @@ private def setAndPropagateAssignment(group: GroupMetadata, assignment: Map[Stri
   propagateAssignment(group, Errors.NONE)  
 }
 ```
-### 3.3.15 SyncGroupResponseHandler 处理同步组请求
+### 3.3.15 重平衡成功后消费者更新自己的分区
+```java
+// 3.3.4 joinGroupIfNeeded()
+boolean joinGroupIfNeeded(final Timer timer) {
+	if (future.succeeded()) {
+		if (!hasGenerationReset(generationSnapshot) && stateSnapshot == MemberState.STABLE) {  
+    ByteBuffer memberAssignment = future.value().duplicate();  
+    onJoinComplete(...);
+	    }
+	}
+}
 
+protected void onJoinComplete(int generation,  
+                              String memberId,  
+                              String assignmentStrategy,  
+                              ByteBuffer assignmentBuffer) {  
+
+  
+    ConsumerPartitionAssignor assignor = lookupAssignor(assignmentStrategy);  
+    // 已经订阅的 topic 及分区信息
+    SortedSet<TopicPartition> ownedPartitions = new TreeSet<>(COMPARATOR);  
+    ownedPartitions.addAll(subscriptions.assignedPartitions());  
+    // 将 GroupCoordinator 响应数据反序列化为 Assignment
+    Assignment assignment = ConsumerProtocol.deserializeAssignment(assignmentBuffer);  
+    // 获取GroupCoordinator发给消费者对应消费的TopicPartition信息
+    SortedSet<TopicPartition> assignedPartitions = new TreeSet<>(COMPARATOR); 
+    // 消费者更新自己的分区
+    subscriptions.assignFromSubscribed(assignedPartitions);  
+}
 ```
-
 ## 3.4 消费者分区策略
 ### 3.4.1 RangeAssigner
 ```java
@@ -3639,6 +3665,10 @@ public Map<String, List<TopicPartition>> assign(
 	- `StickyAssignor`：分区的分配尽量均匀，尽可能与上次保持相同
 ```java
 // todo
+```
+## 3.5 消费流程
+```java
+
 ```
 # 4 复习
 ## 4.1 基本信息

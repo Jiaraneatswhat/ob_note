@@ -3446,26 +3446,23 @@ public Map<String, List<TopicPartition>> assign(
 	Map<String, Integer> partitionsPerTopic,  
     Map<String, Subscription> subscriptions) {  
 
-	```ja// 得到topic和订阅的消费者集合信息，例如{t0:[c0, c1], t1:[C0, C1]}
-    Map<String, List<MemberInfo>> consumersPerTopic = consumersPerTopic(subscriptions);  
+	// topic 和订阅的消费者集合信息，例如{t0:[c0, c1], t1:[C0, C1]}
+    Map<String, List<MemberInfo>> consumersPerTopic = consumersPerTopic(subscriptions); 
+	// 保存 topic 分区和订阅该 topic 的消费者关系结果
     Map<String, List<TopicPartition>> assignment = new HashMap<>();  
-    
-    for (String memberId : subscriptions.keySet())  
-        assignment.put(memberId, new ArrayList<>());  
-  
+
+	// range策略分配结果在各个topic之间互不影响
     for (Map.Entry<String, List<MemberInfo>> topicEntry : consumersPerTopic.entrySet()) {  
         String topic = topicEntry.getKey();  
         List<MemberInfo> consumersForTopic = topicEntry.getValue();  
-  
         Integer numPartitionsForTopic = partitionsPerTopic.get(topic);  
-        if (numPartitionsForTopic == null)  
-            continue;  
-  
+		// 消费者集合根据字典排序
         Collections.sort(consumersForTopic);  
-  
+		// 每个topic分区数量除以消费者数量，得出每个消费者分配到的分区数量
         int numPartitionsPerConsumer = numPartitionsForTopic / consumersForTopic.size();  
+        // 不能整除的数量
         int consumersWithExtraPartition = numPartitionsForTopic % consumersForTopic.size();  
-  
+		
         List<TopicPartition> partitions = AbstractPartitionAssignor.partitions(topic, numPartitionsForTopic);  
         for (int i = 0, n = consumersForTopic.size(); i < n; i++) {  
             int start = numPartitionsPerConsumer * i + Math.min(i, consumersWithExtraPartition);  

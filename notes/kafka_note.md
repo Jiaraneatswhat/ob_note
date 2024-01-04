@@ -3686,6 +3686,40 @@ private ConsumerRecords<K, V> poll(final Timer timer, final boolean includeMetad
         return ConsumerRecords.empty();  
     } 
 }
+```
+### 3.5.2 sendFetches()
+```java
+public synchronized int sendFetches() {  
+    Map<Node, FetchSessionHandler.FetchRequestData> fetchRequestMap = prepareFetchRequests();  
+    for (Map.Entry<Node, FetchSessionHandler.FetchRequestData> entry : fetchRequestMap.entrySet()) {  
+		// 创建请求
+		// maxWaitMs 最大等待时间，默认500ms 
+		// minBytes 最少抓取一个字节 
+		// maxBytes 最大抓取多少数据 默认50m
+        final FetchRequest.Builder request = FetchRequest.Builder  
+                .forConsumer(maxVersion, this.maxWaitMs, this.minBytes, data.toSend())  
+                .isolationLevel(isolationLevel)  
+                .setMaxBytes(this.maxBytes)  
+                .metadata(data.metadata())  
+                .removed(data.toForget())  
+                .replaced(data.toReplace())  
+                .rackId(clientRackId);  
+  
+        RequestFuture<ClientResponse> future = client.send(fetchTarget, request);    
+        future.addListener(new RequestFutureListener<ClientResponse>() {  
+            @Override  
+            public void onSuccess(ClientResponse resp) {  
+				completedFetches.add(new CompletedFetch(partition, partitionData,metricAggregator, batches, fetchOffset, responseVersion));  
+	               }  
+              }  
+          } 
+    return fetchRequestMap.size();  
+}
+```
+### 3.5.3 Server 处理 Fetch 请求
+```java
+// KafkaApis
+case ApiKeys.FETCH => handleFetchRequest(request)
 
 
 ```

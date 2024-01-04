@@ -3447,7 +3447,7 @@ private RequestFuture<ByteBuffer> sendSyncGroupRequest(SyncGroupRequest.Builder 
             .compose(new SyncGroupResponseHandler(generation));  
 }
 ```
-### 3.3.11 Server 处理同步组请求
+### 3.3.11 Server 处理同步组请求，发送消费方案
 ```java
 case ApiKeys.SYNC_GROUP => handleSyncGroupRequest(request)
 
@@ -3534,7 +3534,18 @@ private def doSyncGroup(group: GroupMetadata,
             // 如果没有消费方案，创建一个空方案 
             val assignment = groupAssignment ++ missing.map(_ -> Array.empty[Byte]).toMap  
 			// 保存消费者组信息至元数据，写入内部 offset 中
-            groupManager.storeGroup(group, assignment, (error: Errors) => {...}  
+            groupManager.storeGroup(group, assignment, (error: Errors) => {
+	            group.inLock {  
+				  if (group.is(CompletingRebalance) && generationId == group.generationId) {  
+				    if (error != Errors.NONE) {...}
+				    else {  
+				      // 在消费者组元数据中保存分配方案并发送给所有成员
+				      setAndPropagateAssignment(group, assignment)  
+				      group.transitionTo(Stable)  
+				    }  
+				  }  
+				}
+            }
   
         case Stable =>  
           val memberMetadata = group.get(memberId)  
@@ -3547,41 +3558,19 @@ private def doSyncGroup(group: GroupMetadata,
     }  
   }  
 }
+
+private def setAndPropagateAssignment(group: GroupMetadata, assignment: Map[String, Array[Byte]]): Unit = {  
+  assert(group.is(CompletingRebalance))  
+  // 遍历 member 发送分区分配方案
+  group.allMemberMetadata.foreach(member => member.assignment = assignment(member.memberId))  
+  propagateAssignment(group, Errors.NONE)  
+}
 ```
 ### 3.3.15 SyncGroupResponseHandler 处理同步组请求
 ```java
 public void handle(SyncGroupResponse syncResponse,  
                    RequestFuture<ByteBuffer> future) {  
-    Errors error = syncResponse.error();  
-    if (error == Errors.NONE) {  
-        if (isProtocolTypeInconsistent(syncResponse.data().protocolType())) {  
-        } else {  
-            log.debug("Received successful SyncGroup response: {}", syncResponse);  
-            sensors.syncSensor.record(response.requestLatencyMs());  
-  
-            synchronized (AbstractCoordinator.this) {  
-                if (!hasGenerationReset(generation) && state == MemberState.COMPLETING_REBALANCE) {  
-                    // check protocol name only if the generation is not reset  
-                    final String protocolName = syncResponse.data().protocolName();  
-                    final boolean protocolNameInconsistent = protocolName != null &&  
-                        !protocolName.equals(generation.protocolName);  
-  
-                    if (protocolNameInconsistent) {  
-                        log.error("SyncGroup failed due to inconsistent Protocol Name, received {} but expected {}",  
-                            protocolName, generation.protocolName);  
-  
-                        future.raise(Errors.INCONSISTENT_GROUP_PROTOCOL);  
-                    } else {  
-                        log.info("Successfully synced group in generation {}", generation);  
-                        state = MemberState.STABLE;  
-                        rejoinReason = "";  
-                        rejoinNeeded = false;  
-                        // record rebalance latency  
-                        lastRebalanceEndMs = time.milliseconds();  
-                        sensors.successfulRebalanceSensor.record(lastRebalanceEndMs - lastRebalanceStartMs);  
-                        lastRebalanceStartMs = -1L;  
-  
-                        future.complete(ByteBuffer.wrap(syncResponse.data().assignment()));  
+        future.complete(ByteBuffer.wrap(syncResponse.data().assignment()));  
                     }  
                 } else {  
                     log.info("Generation data was cleared by heartbeat thread to {} and state is now {} before " +  

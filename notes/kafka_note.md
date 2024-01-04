@@ -3140,6 +3140,84 @@ private def doUnknownJoinGroup(group: GroupMetadata,
 ```
 ### 3.3.7 旧成员入组
 ```java
+private def doJoinGroup(group: GroupMetadata,  
+                        memberId: String,  
+                        groupInstanceId: Option[String],  
+                        clientId: String,  
+                        clientHost: String,  
+                        rebalanceTimeoutMs: Int,  
+                        sessionTimeoutMs: Int,  
+                        protocolType: String,  
+                        protocols: List[(String, Array[Byte])],  
+                        responseCallback: JoinCallback): Unit = {  
+  group.inLock {  
+    if (group.is(Dead)) {   
+      responseCallback(JoinGroupResult(memberId, Errors.COORDINATOR_NOT_AVAILABLE))  
+    } else if (!group.supportsProtocols(protocolType, MemberMetadata.plainProtocolSet(protocols))) {  
+      responseCallback(JoinGroupResult(memberId, Errors.INCONSISTENT_GROUP_PROTOCOL))  
+    } else if (group.isPendingMember(memberId)) {  
+      if (groupInstanceId.isDefined) {...} 
+      else {  
+	    // 如果是待决成员，由于这次分配了成员ID，故允许加入组
+        addMemberAndRebalance(rebalanceTimeoutMs, sessionTimeoutMs, memberId, groupInstanceId,  
+          clientId, clientHost, protocolType, protocols, group, responseCallback)  
+      }  
+    } else {  
+	  // 处理非 pending 状态成员的入组请求
+      val groupInstanceIdNotFound = groupInstanceId.isDefined && !group.hasStaticMember(groupInstanceId)  
+        // 获取元数据信息
+        val member = group.get(memberId)  
+  
+        group.currentState match {  
+          // 将要开启重平衡时直接加入
+          case PreparingRebalance =>  
+            updateMemberAndRebalance(group, member, protocols, s"Member ${member.memberId} joining group during ${group.currentState}", responseCallback)  
+		  // 判断 member 的分区消费分配策略与订阅分区列表是否和记录中一致
+          case CompletingRebalance =>  
+            // 相同，说明已经发起过加入组的操作，没有收到返回信息
+            // 则创建一个 JoinGroupResult 对象返回给 member
+            if (member.matches(protocols)) {  
+              responseCallback(JoinGroupResult(  
+                members = if (group.isLeader(memberId)) {  
+                  group.currentMemberMetadata  
+                } else {  
+                  List.empty  
+                },  
+                memberId = memberId,  
+                generationId = group.generationId,  
+                protocolType = group.protocolType,  
+                protocolName = group.protocolName,  
+                leaderId = group.leaderOrNull,  
+                error = Errors.NONE))  
+            } else {  
+              // 成员变更了订阅信息或分配策略，需要强制重平衡
+              // member has changed metadata, so force a rebalance  
+              updateMemberAndRebalance(group, member, protocols, s"Updating metadata for member ${member.memberId} during ${group.currentState}", responseCallback)  
+            }  
+  
+          case Stable =>  
+            val member = group.get(memberId)  
+            if (group.isLeader(memberId)) {  
+		      // 如果是 leader 
+              updateMemberAndRebalance(group, member, protocols, s"leader ${member.memberId} re-joining group during ${group.currentState}", responseCallback)  
+              // 或成员变更了分区分配策略，则开启一轮 rebalance
+            } else if (!member.matches(protocols)) {  
+              updateMemberAndRebalance(group, member, protocols, s"Updating metadata for member ${member.memberId} during ${group.currentState}", responseCallback)  
+            } else {  
+              // 否则返回当前组信息给该成员即可
+              responseCallback(JoinGroupResult(...))  
+            }  
+          case Empty | Dead =>  
+            // 封装异常
+            responseCallback(JoinGroupResult(memberId, Errors.UNKNOWN_MEMBER_ID))  
+        }  
+      }  
+    }  
+  }  
+}
+```
+### 3.3.8 添加成员重平衡
+```java
 
 ```
 # 4 复习

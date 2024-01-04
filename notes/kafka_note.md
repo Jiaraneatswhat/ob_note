@@ -3273,6 +3273,8 @@ def add(member: MemberMetadata, callback: JoinCallback = null): Unit = {
 }
 ```
 #### 3.3.8.2 重平衡
+- 每个消费者向 `GroupCoordinator` 发送入组请求，包含了各自提案的分配策略和订阅信息
+- 入组响应中包含了投票选举出的分配策略的信息，并且只有 leader 消费者的回执中包含各个消费者的订阅信息
 ```java
 private def maybePrepareRebalance(group: GroupMetadata, reason: String): Unit = {  
   group.inLock 
@@ -3315,24 +3317,19 @@ def onCompleteJoin(group: GroupMetadata): Unit = {
         new DelayedJoin(this, group, group.rebalanceTimeoutMs),  
         Seq(GroupKey(group.groupId)))  
     } else {  
+      // 初始化下个 generation，generationId + 1，组不为空时进入 CompletingRebalance 状态
+      // 选择组的分配协议，所有 member 支持的协议中票数最多的
       group.initNextGeneration()  
       if (group.is(Empty)) {  
-        info(s"Group ${group.groupId} with generation ${group.generationId} is now empty " +  
-          s"(${Topic.GROUP_METADATA_TOPIC_NAME}-${partitionFor(group.groupId)})")  
-  
-        groupManager.storeGroup(group, Map.empty, error => {  
-          if (error != Errors.NONE) {  
-            // we failed to write the empty group metadata. If the broker fails before another rebalance,  
-            // the previous generation written to the log will become active again (and most likely timeout).            // This should be safe since there are no active members in an empty generation, so we just warn.            warn(s"Failed to write empty metadata for group ${group.groupId}: ${error.message}")  
-          }  
-        })  
+		// Group是空的话，我们则在 __consumer_offset 里面写入一条Group的元数据,状态是Empty
+        groupManager.storeGroup(group, Map.empty, error => {...})  
       } else {  
-        info(s"Stabilized group ${group.groupId} generation ${group.generationId} " +  
-          s"(${Topic.GROUP_METADATA_TOPIC_NAME}-${partitionFor(group.groupId)})")  
-  
+      
         // trigger the awaiting join group response callback for all the members after rebalancing  
+        // rebalance 后触发所有等待Join group的members的的回调接口
         for (member <- group.allMemberMetadata) {  
           val joinResult = JoinGroupResult(  
+            // 只有 leader 会返回 member 元数据信息
             members = if (group.isLeader(member.memberId)) {  
               group.currentMemberMetadata  
             } else {  
@@ -3344,7 +3341,7 @@ def onCompleteJoin(group: GroupMetadata): Unit = {
             protocolName = group.protocolName,  
             leaderId = group.leaderOrNull,  
             error = Errors.NONE)  
-  
+		  // member 的回调函数
           group.maybeInvokeJoinCallback(member, joinResult)  
           completeAndScheduleNextHeartbeatExpiration(group, member)  
           member.isNew = false  
@@ -3353,6 +3350,10 @@ def onCompleteJoin(group: GroupMetadata): Unit = {
     }  
   }  
 }
+```
+### 3.3.9 处理 JoinGroupResponse
+```java
+// CoordinatorResponseHandler 处理响应
 ```
 # 4 复习
 ## 4.1 基本信息

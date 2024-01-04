@@ -3667,7 +3667,26 @@ public Map<String, List<TopicPartition>> assign(
 // todo
 ```
 ## 3.5 消费流程
+### 3.5.1 poll()
 ```java
+private ConsumerRecords<K, V> poll(final Timer timer, final boolean includeMetadataInTimeout) {  
+    try {   
+	    // 未过期
+        do {  
+			// 拉取 Fetch 
+            final Fetch<K, V> fetch = pollForFetches(timer);  
+            if (!fetch.isEmpty()) {               
+                if (fetcher.sendFetches() > 0 || client.hasPendingRequests()) {  
+                    // 向 Server 发送请求
+                    client.transmitSends();  
+                }  
+                return this.interceptors.onConsume(new ConsumerRecords<>(fetch.records()));  
+            }  
+        } while (timer.notExpired());  
+        return ConsumerRecords.empty();  
+    } 
+}
+
 
 ```
 # 4 复习

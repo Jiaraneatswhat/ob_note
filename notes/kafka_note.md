@@ -3364,8 +3364,11 @@ public void onSuccess(ClientResponse clientResponse, RequestFuture<T> future) {
 
 // 调用 JoinGroupResponseHandler 的 handle 方法
 public void handle(JoinGroupResponse joinResponse, RequestFuture<ByteBuffer> future) {
-
+	
 	synchronized (AbstractCoordinator.this) {  
+			if (heartbeatThread != null) 
+			    // 开启心跳 
+			    heartbeatThread.enable();
 	        if (joinResponse.isLeader()) {  
 	            onLeaderElected(joinResponse).chain(future);  
 	        } else {  
@@ -3567,22 +3570,6 @@ private def setAndPropagateAssignment(group: GroupMetadata, assignment: Map[Stri
 }
 ```
 ### 3.3.15 SyncGroupResponseHandler 处理同步组请求
-```java
-public void handle(SyncGroupResponse syncResponse,  
-                   RequestFuture<ByteBuffer> future) {  
-        future.complete(ByteBuffer.wrap(syncResponse.data().assignment()));  
-                    }  
-                } else {  
-                    log.info("Generation data was cleared by heartbeat thread to {} and state is now {} before " +  
-                        "receiving SyncGroup response, marking this rebalance as failed and retry",  
-                        generation, state);  
-                    // use ILLEGAL_GENERATION error code to let it retry immediately  
-                    future.raise(Errors.ILLEGAL_GENERATION);  
-                }  
-            }  
-        }  
-    }
-}
 
 ```
 

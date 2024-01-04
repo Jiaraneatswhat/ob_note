@@ -3534,25 +3534,10 @@ private def doSyncGroup(group: GroupMetadata,
             // 如果没有消费方案，创建一个空方案 
             val assignment = groupAssignment ++ missing.map(_ -> Array.empty[Byte]).toMap  
 			// 保存消费者组信息至元数据，写入内部 offset 中
-            groupManager.storeGroup(group, assignment, (error: Errors) => {  
-              group.inLock {  
-                // another member may have joined the group while we were awaiting this callback,  
-                // so we must ensure we are still in the CompletingRebalance state and the same generation                // when it gets invoked. if we have transitioned to another state, then do nothing                if (group.is(CompletingRebalance) && generationId == group.generationId) {  
-                  if (error != Errors.NONE) {  
-                    resetAndPropagateAssignmentError(group, error)  
-                    maybePrepareRebalance(group, s"error when storing group assignment during SyncGroup (member: $memberId)")  
-                  } else {  
-                    setAndPropagateAssignment(group, assignment)  
-                    group.transitionTo(Stable)  
-                  }  
-                }  
-              }  
-            })  
-            groupCompletedRebalanceSensor.record()  
-          }  
+            groupManager.storeGroup(group, assignment, (error: Errors) => {...}  
   
         case Stable =>  
-          // if the group is stable, we just return the current assignment  
+          // 互殴去  
           val memberMetadata = group.get(memberId)  
           responseCallback(SyncGroupResult(group.protocolType, group.protocolName, memberMetadata.assignment, Errors.NONE))  
           completeAndScheduleNextHeartbeatExpiration(group, group.get(memberId))  

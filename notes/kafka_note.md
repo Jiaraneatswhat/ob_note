@@ -3047,21 +3047,99 @@ override def handle(request: RequestChannel.Request): Unit = {
 }
 
 def handleJoinGroupRequest(request: RequestChannel.Request): Unit = {  
-    groupCoordinator.handleJoinGroup(  
-      joinGroupRequest.data.groupId,  
-      joinGroupRequest.data.memberId,  
-      groupInstanceId,  
-      requireKnownMemberId,  
-      request.header.clientId,  
-      request.context.clientAddress.toString,  
-      joinGroupRequest.data.rebalanceTimeoutMs,  
-      joinGroupRequest.data.sessionTimeoutMs,  
-      joinGroupRequest.data.protocolType,  
-      protocols,  
-      sendResponseCallback)  
+    groupCoordinator.handleJoinGroup(...)  
   }  
 }
 
+def handleJoinGroup(groupId: String,  
+					// 新加入成员该字段为""
+                    memberId: String,  
+                    groupInstanceId: Option[String],  
+                    requireKnownMemberId: Boolean,  
+					// Coordinator 使用它来生成 memberId
+                    clientId: String,  
+                    clientHost: String,  
+                    rebalanceTimeoutMs: Int,  
+                    sessionTimeoutMs: Int,  
+                    protocolType: String,  
+                    protocols: List[(String, Array[Byte])],  
+                    responseCallback: JoinCallback): Unit = {  
+	// 验证消费者组状态的合法性
+	// sessionTimeoutMs参数校验
+	
+    // 获取组信息
+    groupManager.getOrMaybeCreateGroup(groupId, isUnknownMember) match {  
+      case Some(group) =>  
+        group.inLock {  
+          // 判断是否接收该成员
+          if (!acceptJoiningMember(group, memberId)) {  
+            group.remove(memberId)  
+            group.removeStaticMember(groupInstanceId)  
+          } else if (isUnknownMember) {  
+	        // 新的 member 执行 doUnknownJoinGroup
+            doUnknownJoinGroup(group, groupInstanceId, requireKnownMemberId, clientId, clientHost, rebalanceTimeoutMs, sessionTimeoutMs, protocolType, protocols, responseCallback)  
+          } else { 
+	        // 已存在的 member 请求加入 
+            doJoinGroup(group, memberId, groupInstanceId, clientId, clientHost, rebalanceTimeoutMs, sessionTimeoutMs, protocolType, protocols, responseCallback)  
+          }  
+        }  
+    }  
+  }  
+}
+
+private def acceptJoiningMember(group: GroupMetadata, member: String): Boolean = {  
+  group.currentState match {  
+    // empty 或 dead 可以加入成员  
+    case Empty | Dead =>  
+      true  
+	// PreparingRebalance 状态需要：之前已有的正在等待加入组的成员
+	//      当前等待加入组的成员数小于 Broker 端参数 group.max.size 值
+    case PreparingRebalance =>  
+      (group.has(member) && group.get(member).isAwaitingJoin) ||  
+        group.numAwaiting < groupConfig.groupMaxSize  
+  
+    // 其他状态：需要是已有成员，或当前组总成员数小于 Broker 端参数 group.max.size 值
+    case CompletingRebalance | Stable =>  
+      group.has(member) || group.size < groupConfig.groupMaxSize  
+  }  
+}
+```
+### 3.3.6 新成员入组
+```java
+private def doUnknownJoinGroup(group: GroupMetadata,  
+                               groupInstanceId: Option[String],  
+                               requireKnownMemberId: Boolean,  
+                               clientId: String,  
+                               clientHost: String,  
+                               rebalanceTimeoutMs: Int,  
+                               sessionTimeoutMs: Int,  
+                               protocolType: String,  
+                               protocols: List[(String, Array[Byte])],  
+                               responseCallback: JoinCallback): Unit = {  
+  group.inLock {  
+    if (group.is(Dead)) {  
+	  // 封装异常调用回调返回  
+      responseCallback(JoinGroupResult(JoinGroupRequest.UNKNOWN_MEMBER_ID, Errors.COORDINATOR_NOT_AVAILABLE))  
+    } else if (!group.supportsProtocols(protocolType, MemberMetadata.plainProtocolSet(protocols))) { 
+      // 协议不匹配 
+      responseCallback(JoinGroupResult(JoinGroupRequest.UNKNOWN_MEMBER_ID, Errors.INCONSISTENT_GROUP_PROTOCOL))  
+    } else {  
+	  // 创建 memberId
+	  // 动态Member ：cliend.id-UUID.toString
+      // 静态Member： group.instance.id-UUID.toString
+      val newMemberId = group.generateMemberId(clientId, groupInstanceId)  
+      if (group.hasStaticMember(groupInstanceId)) {
+      } else if (requireKnownMemberId) {
+      } else {  
+	    // 重平衡
+        addMemberAndRebalance(rebalanceTimeoutMs, sessionTimeoutMs, newMemberId, groupInstanceId, clientId, clientHost, protocolType, protocols, group, responseCallback)  
+      }  
+    }  
+  }  
+}
+```
+### 3.3.7 旧成员入组
+```java
 
 ```
 # 4 复习

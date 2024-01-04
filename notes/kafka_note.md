@@ -3354,6 +3354,127 @@ def onCompleteJoin(group: GroupMetadata): Unit = {
 ### 3.3.9 处理 JoinGroupResponse
 ```java
 // CoordinatorResponseHandler 处理响应
+public void onSuccess(ClientResponse clientResponse, RequestFuture<T> future) {  
+    try {  
+        this.response = clientResponse;  
+        R responseObj = (R) clientResponse.responseBody();  
+        handle(responseObj, future);  
+    }
+}
+
+// 调用 JoinGroupResponseHandler 的 handle 方法
+public void handle(JoinGroupResponse joinResponse, RequestFuture<ByteBuffer> future) {
+
+	synchronized (AbstractCoordinator.this) {  
+	        if (joinResponse.isLeader()) {  
+	            onLeaderElected(joinResponse).chain(future);  
+	        } else {  
+	            onJoinFollower().chain(future);  
+	        }  
+	    }  
+	}
+}
+```
+### 3.3.10 Leader 制定消费计划
+```java
+// AbstractCoordinator.java
+private RequestFuture<ByteBuffer> onLeaderElected(JoinGroupResponse joinResponse) {  
+    try {  
+        // 调用 ConsumerCoordinator的方法
+        Map<String, ByteBuffer> groupAssignment = onLeaderElected(  
+            joinResponse.data().leader(),  
+            joinResponse.data().protocolName(),  
+            joinResponse.data().members(),  
+            joinResponse.data().skipAssignment()  
+        );  
+  
+        List<SyncGroupRequestData.SyncGroupRequestAssignment> groupAssignmentList = new ArrayList<>();  
+	  // 循环向集合中添加分区策略
+  
+        SyncGroupRequest.Builder requestBuilder =  
+                new SyncGroupRequest.Builder(...);  
+		// 创建并发送 SyncGroupRequest
+        return sendSyncGroupRequest(requestBuilder);  
+    }
+}
+
+protected Map<String, ByteBuffer> onLeaderElected(String leaderId,  
+   String assignmentStrategy,  
+  List<JoinGroupResponseData.JoinGroupResponseMember> allSubscriptions,  
+  boolean skipAssignment) {  
+
+    // 获取对应的分区的分配策略
+    // this.assigner
+    ConsumerPartitionAssignor assignor = lookupAssignor(assignmentStrategy);  
+    String assignorName = assignor.name();  
+  
+    Set<String> allSubscribedTopics = new HashSet<>();  
+    Map<String, Subscription> subscriptions = new HashMap<>();  
+  
+    // collect all the owned partitions 
+
+    // 分配策略
+    Map<String, Assignment> assignments = assignor.assign(metadata.fetch(), new GroupSubscription(subscriptions)).groupAssignment();  
+    return groupAssignment;  
+}
+
+// AbstractPartitionAssigner.java
+public GroupAssignment assign(Cluster metadata, GroupSubscription groupSubscription) {  
+    // 获取消费者组的订阅关系
+    Map<String, Subscription> subscriptions = groupSubscription.groupSubscription();  
+    Set<String> allSubscribedTopics = new HashSet<>();  
+    for (Map.Entry<String, Subscription> subscriptionEntry : subscriptions.entrySet())  
+        allSubscribedTopics.addAll(subscriptionEntry.getValue().topics());  
+
+	// 遍历订阅的Topic，根据Topic从元数据中获取对应的partation信息
+    Map<String, Integer> partitionsPerTopic = new HashMap<>();  
+    for (String topic : allSubscribedTopics) {  
+        Integer numPartitions = metadata.partitionCountForTopic(topic);  
+        if (numPartitions != null && numPartitions > 0)  
+            partitionsPerTopic.put(topic, numPartitions);  
+    }  
+    // 分配策略
+    Map<String, List<TopicPartition>> rawAssignments = assign(partitionsPerTopic, subscriptions);  
+  
+    return new GroupAssignment(assignments);  
+}
+```
+## 3.4 消费者分区策略
+### 3.4.1 RangeAssigner
+```java
+public Map<String, List<TopicPartition>> assign(
+	Map<String, Integer> partitionsPerTopic,  
+    Map<String, Subscription> subscriptions) {  
+
+	```ja// 得到topic和订阅的消费者集合信息，例如{t0:[c0, c1], t1:[C0, C1]}
+    Map<String, List<MemberInfo>> consumersPerTopic = consumersPerTopic(subscriptions);  
+    Map<String, List<TopicPartition>> assignment = new HashMap<>();  
+    
+    for (String memberId : subscriptions.keySet())  
+        assignment.put(memberId, new ArrayList<>());  
+  
+    for (Map.Entry<String, List<MemberInfo>> topicEntry : consumersPerTopic.entrySet()) {  
+        String topic = topicEntry.getKey();  
+        List<MemberInfo> consumersForTopic = topicEntry.getValue();  
+  
+        Integer numPartitionsForTopic = partitionsPerTopic.get(topic);  
+        if (numPartitionsForTopic == null)  
+            continue;  
+  
+        Collections.sort(consumersForTopic);  
+  
+        int numPartitionsPerConsumer = numPartitionsForTopic / consumersForTopic.size();  
+        int consumersWithExtraPartition = numPartitionsForTopic % consumersForTopic.size();  
+  
+        List<TopicPartition> partitions = AbstractPartitionAssignor.partitions(topic, numPartitionsForTopic);  
+        for (int i = 0, n = consumersForTopic.size(); i < n; i++) {  
+            int start = numPartitionsPerConsumer * i + Math.min(i, consumersWithExtraPartition);  
+            int length = numPartitionsPerConsumer + (i + 1 > consumersWithExtraPartition ? 0 : 1);  
+            assignment.get(consumersForTopic.get(i).memberId).addAll(partitions.subList(start, start + length));  
+        }  
+    }  
+    return assignment;  
+}
 ```
 # 4 复习
 ## 4.1 基本信息

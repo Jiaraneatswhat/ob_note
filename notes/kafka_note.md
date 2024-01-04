@@ -3438,7 +3438,181 @@ public GroupAssignment assign(Cluster metadata, GroupSubscription groupSubscript
   
     return new GroupAssignment(assignments);  
 }
+
+// leader Consumer 发送 SYNC_GROUP 请求
+private RequestFuture<ByteBuffer> sendSyncGroupRequest(SyncGroupRequest.Builder requestBuilder) {  
+    if (coordinatorUnknown())  
+        return RequestFuture.coordinatorNotAvailable();  
+    return client.send(coordinator, requestBuilder)  
+            .compose(new SyncGroupResponseHandler(generation));  
+}
 ```
+### 3.3.11 Server 处理同步组请求
+```java
+case ApiKeys.SYNC_GROUP => handleSyncGroupRequest(request)
+
+def handleSyncGroupRequest(request: RequestChannel.Request): Unit = {  
+  
+  def sendResponseCallback(syncGroupResult: SyncGroupResult): Unit = {  
+    sendResponseMaybeThrottle(request, requestThrottleMs =>  
+      new SyncGroupResponse(...)  
+  }  
+  
+  groupCoordinator.handleSyncGroup(  
+      syncGroupRequest.data.groupId,  
+      syncGroupRequest.data.generationId,  
+      syncGroupRequest.data.memberId,  
+      Option(syncGroupRequest.data.protocolType),  
+      Option(syncGroupRequest.data.protocolName),  
+      Option(syncGroupRequest.data.groupInstanceId),  
+      assignmentMap.result(),  
+      sendResponseCallback  
+    )  
+  }  
+}
+
+def handleSyncGroup(groupId: String,  
+                    generation: Int,  
+                    memberId: String,  
+                    protocolType: Option[String],  
+                    protocolName: Option[String],  
+                    groupInstanceId: Option[String],  
+                    groupAssignment: Map[String, Array[Byte]],  
+                    responseCallback: SyncCallback): Unit = {  
+  validateGroupStatus(groupId, ApiKeys.SYNC_GROUP) match {  
+    case None =>  
+      groupManager.getGroup(groupId) match {  
+        // 同步
+        case Some(group) => doSyncGroup(group, generation, memberId, protocolType, protocolName,  
+          groupInstanceId, groupAssignment, responseCallback)  
+      }  
+  }  
+}		
+
+private def doSyncGroup(group: GroupMetadata,  
+                        generationId: Int,  
+                        memberId: String,  
+                        protocolType: Option[String],  
+                        protocolName: Option[String],  
+                        groupInstanceId: Option[String],  
+                        groupAssignment: Map[String, Array[Byte]],  
+                        responseCallback: SyncCallback): Unit = {  
+  group.inLock {  
+    // 判断消费者组状态是否为 dead
+    if (group.is(Dead)) {  
+      responseCallback(SyncGroupResult(Errors.COORDINATOR_NOT_AVAILABLE))  
+      // 静态成员相关
+    } else if (group.isStaticMemberFenced(memberId, groupInstanceId, "sync-group")) {  
+      responseCallback(SyncGroupResult(Errors.FENCED_INSTANCE_ID))  
+      // 通过 memberId 判断是否该组成员
+    } else if (!group.has(memberId)) {  
+      responseCallback(SyncGroupResult(Errors.UNKNOWN_MEMBER_ID)) 
+      // 判断成员的 generationId 是否与组相同
+    } else if (generationId != group.generationId) {  
+      responseCallback(SyncGroupResult(Errors.ILLEGAL_GENERATION))  
+      // 判断协议类型
+    } else if (protocolType.isDefined && !group.protocolType.contains(protocolType.get)) {  
+      responseCallback(SyncGroupResult(Errors.INCONSISTENT_GROUP_PROTOCOL))
+      // 判断分区分配策略  
+    } else if (protocolName.isDefined && !group.protocolName.contains(protocolName.get)) {  
+      responseCallback(SyncGroupResult(Errors.INCONSISTENT_GROUP_PROTOCOL))  
+    } else {  
+      group.currentState match { 
+        // 封装异常，回调 
+        case Empty =>  
+          responseCallback(SyncGroupResult(Errors.UNKNOWN_MEMBER_ID))  
+		// 封装异常，回调 
+        case PreparingRebalance =>  
+          responseCallback(SyncGroupResult(Errors.REBALANCE_IN_PROGRESS))  
+	    // 设置回调
+        case CompletingRebalance =>  
+          group.get(memberId).awaitingSyncCallback = responseCallback  
+  
+          // leader 需要处理
+          if (group.isLeader(memberId)) {  
+            val missing = group.allMembers.diff(groupAssignment.keySet) 
+            // 如果没有消费方案，创建一个空方案 
+            val assignment = groupAssignment ++ missing.map(_ -> Array.empty[Byte]).toMap  
+			// 保存消费者组信息至元数据，写入内部 offset 中
+            groupManager.storeGroup(group, assignment, (error: Errors) => {  
+              group.inLock {  
+                // another member may have joined the group while we were awaiting this callback,  
+                // so we must ensure we are still in the CompletingRebalance state and the same generation                // when it gets invoked. if we have transitioned to another state, then do nothing                if (group.is(CompletingRebalance) && generationId == group.generationId) {  
+                  if (error != Errors.NONE) {  
+                    resetAndPropagateAssignmentError(group, error)  
+                    maybePrepareRebalance(group, s"error when storing group assignment during SyncGroup (member: $memberId)")  
+                  } else {  
+                    setAndPropagateAssignment(group, assignment)  
+                    group.transitionTo(Stable)  
+                  }  
+                }  
+              }  
+            })  
+            groupCompletedRebalanceSensor.record()  
+          }  
+  
+        case Stable =>  
+          // if the group is stable, we just return the current assignment  
+          val memberMetadata = group.get(memberId)  
+          responseCallback(SyncGroupResult(group.protocolType, group.protocolName, memberMetadata.assignment, Errors.NONE))  
+          completeAndScheduleNextHeartbeatExpiration(group, group.get(memberId))  
+  
+        case Dead =>  
+          throw new IllegalStateException(s"Reached unexpected condition for Dead group ${group.groupId}")  
+      }  
+    }  
+  }  
+}
+```
+### 3.3.15 SyncGroupResponseHandler 处理同步组请求
+```java
+public void handle(SyncGroupResponse syncResponse,  
+                   RequestFuture<ByteBuffer> future) {  
+    Errors error = syncResponse.error();  
+    if (error == Errors.NONE) {  
+        if (isProtocolTypeInconsistent(syncResponse.data().protocolType())) {  
+        } else {  
+            log.debug("Received successful SyncGroup response: {}", syncResponse);  
+            sensors.syncSensor.record(response.requestLatencyMs());  
+  
+            synchronized (AbstractCoordinator.this) {  
+                if (!hasGenerationReset(generation) && state == MemberState.COMPLETING_REBALANCE) {  
+                    // check protocol name only if the generation is not reset  
+                    final String protocolName = syncResponse.data().protocolName();  
+                    final boolean protocolNameInconsistent = protocolName != null &&  
+                        !protocolName.equals(generation.protocolName);  
+  
+                    if (protocolNameInconsistent) {  
+                        log.error("SyncGroup failed due to inconsistent Protocol Name, received {} but expected {}",  
+                            protocolName, generation.protocolName);  
+  
+                        future.raise(Errors.INCONSISTENT_GROUP_PROTOCOL);  
+                    } else {  
+                        log.info("Successfully synced group in generation {}", generation);  
+                        state = MemberState.STABLE;  
+                        rejoinReason = "";  
+                        rejoinNeeded = false;  
+                        // record rebalance latency  
+                        lastRebalanceEndMs = time.milliseconds();  
+                        sensors.successfulRebalanceSensor.record(lastRebalanceEndMs - lastRebalanceStartMs);  
+                        lastRebalanceStartMs = -1L;  
+  
+                        future.complete(ByteBuffer.wrap(syncResponse.data().assignment()));  
+                    }  
+                } else {  
+                    log.info("Generation data was cleared by heartbeat thread to {} and state is now {} before " +  
+                        "receiving SyncGroup response, marking this rebalance as failed and retry",  
+                        generation, state);  
+                    // use ILLEGAL_GENERATION error code to let it retry immediately  
+                    future.raise(Errors.ILLEGAL_GENERATION);  
+                }  
+            }  
+        }  
+    }
+}
+
+```
+
 ## 3.4 消费者分区策略
 ### 3.4.1 RangeAssigner
 ```java
@@ -3501,8 +3675,11 @@ public Map<String, List<TopicPartition>> assign(
 ```
 ### 3.4.3 AbstractStickyAssignor
 - AbstractStickyAssignor 有两个实现类
-	- CooperativeStickyAssignor
-	- 
+	- `CooperativeStickyAssignor`
+	- `StickyAssignor`：分区的分配尽量均匀，尽可能与上次保持相同
+```java
+// todo
+```
 # 4 复习
 ## 4.1 基本信息
 ### 4.1.1 生产流程

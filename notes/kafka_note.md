@@ -3218,7 +3218,141 @@ private def doJoinGroup(group: GroupMetadata,
 ```
 ### 3.3.8 添加成员重平衡
 ```java
+private def addMemberAndRebalance(rebalanceTimeoutMs: Int,  
+                                  sessionTimeoutMs: Int,  
+                                  memberId: String,  
+                                  groupInstanceId: Option[String],  
+                                  clientId: String,  
+                                  clientHost: String,  
+                                  protocolType: String,  
+                                  protocols: List[(String, Array[Byte])],  
+                                  group: GroupMetadata,  
+                                  callback: JoinCallback): Unit = {  
+  // 创建 member 对象
+  val member = new MemberMetadata(memberId, group.groupId, groupInstanceId,  
+    clientId, clientHost, rebalanceTimeoutMs,  
+    sessionTimeoutMs, protocolType, protocols)  
+  // 标记为新成员
+  member.isNew = true  
+  
+  // 如果消费者组准备开启首次Rebalance，设置newMemberAdded为True
+  if (group.is(PreparingRebalance) && group.generationId == 0)  
+    group.newMemberAdded = true  
+  // 入组
+  group.add(member, callback)  
+  
+ // 设置下次心跳过期时间(member 的 session 过期时间)
+  completeAndScheduleNextExpiration(group, member, NewMemberJoinTimeoutMs)  
+  // 准备开启 rebalance
+  maybePrepareRebalance(group, s"Adding new member $memberId with group instance id $groupInstanceId")  
+}
+```
+#### 3.3.8.1 添加成员
+```java
+def add(member: MemberMetadata, callback: JoinCallback = null): Unit = {
+  // 如果是第一个添加的消费者组成员 
+  if (members.isEmpty)  
+    // 将该成员的 protocolType 设置为组的 protocolType，以及分区分配策略与组相同
+    this.protocolType = Some(member.protocolType)  
+  // 确保成员的组ID，protocolType
+  assert(groupId == member.groupId)  
+  assert(this.protocolType.orNull == member.protocolType)  
+  assert(supportsProtocols(member.protocolType, MemberMetadata.plainProtocolSet(member.supportedProtocols)))  
 
+  // 判断有没有 leader
+  if (leaderId.isEmpty)  
+    // 把该成员设定为Leader成员
+    leaderId = Some(member.memberId) 
+  // 否则添加进成员 
+  members.put(member.memberId, member)  
+  member.supportedProtocols.foreach{ case (protocol, _) => supportedProtocols(protocol) += 1 }  
+  member.awaitingJoinCallback = callback  
+// 更新已加入组的成员数
+  if (member.isAwaitingJoin)  
+    numMembersAwaitingJoin += 1  
+}
+```
+#### 3.3.8.2 重平衡
+```java
+private def maybePrepareRebalance(group: GroupMetadata, reason: String): Unit = {  
+  group.inLock 
+  { 
+	// 判断前置状态是否合法 
+    if (group.canRebalance)  
+      prepareRebalance(group, reason)  
+  }  
+}
+
+private[group] def prepareRebalance(group: GroupMetadata, reason: String): Unit = {  
+  if (group.is(CompletingRebalance))  
+    resetAndPropagateAssignmentError(group, Errors.REBALANCE_IN_PROGRESS)  
+  // 为空说明 GroupCoordinator 第一次接收客户端入组请求
+  val delayedRebalance = if (group.is(Empty))  
+    new InitialDelayedJoin(this,  
+      joinPurgatory,  
+      group,  
+      groupConfig.groupInitialRebalanceDelayMs,  
+      groupConfig.groupInitialRebalanceDelayMs,  
+      max(group.rebalanceTimeoutMs - groupConfig.groupInitialRebalanceDelayMs, 0))  
+  else  
+    // 客户端 poll 间隔
+    new DelayedJoin(this, group, group.rebalanceTimeoutMs)  
+  // 尝试将group状态流转为  PreparingRebalance，并且尝试完成Join
+  group.transitionTo(PreparingRebalance)  
+  
+  val groupKey = GroupKey(group.groupId)  
+  // 延迟操作执行delayedRebalance。如果是DelayedJoin类型，会执行对应的onComplete方法
+  joinPurgatory.tryCompleteElseWatch(delayedRebalance, Seq(groupKey))  
+}
+
+def onCompleteJoin(group: GroupMetadata): Unit = {  
+  group.inLock {  
+    if (group.is(Dead)) {  
+      info(s"Group ${group.groupId} is dead, skipping rebalance stage")  
+    } else if (!group.maybeElectNewJoinedLeader() && group.allMembers.nonEmpty) {  
+      // 如果所有成员都没有重新加入，我们将推迟重新平衡准备阶段的完成，并发出另一个延迟操作，直到会话超时删除所有未响应的成员
+      joinPurgatory.tryCompleteElseWatch(  
+        new DelayedJoin(this, group, group.rebalanceTimeoutMs),  
+        Seq(GroupKey(group.groupId)))  
+    } else {  
+      group.initNextGeneration()  
+      if (group.is(Empty)) {  
+        info(s"Group ${group.groupId} with generation ${group.generationId} is now empty " +  
+          s"(${Topic.GROUP_METADATA_TOPIC_NAME}-${partitionFor(group.groupId)})")  
+  
+        groupManager.storeGroup(group, Map.empty, error => {  
+          if (error != Errors.NONE) {  
+            // we failed to write the empty group metadata. If the broker fails before another rebalance,  
+            // the previous generation written to the log will become active again (and most likely timeout).            // This should be safe since there are no active members in an empty generation, so we just warn.            warn(s"Failed to write empty metadata for group ${group.groupId}: ${error.message}")  
+          }  
+        })  
+      } else {  
+        info(s"Stabilized group ${group.groupId} generation ${group.generationId} " +  
+          s"(${Topic.GROUP_METADATA_TOPIC_NAME}-${partitionFor(group.groupId)})")  
+  
+        // trigger the awaiting join group response callback for all the members after rebalancing  
+        for (member <- group.allMemberMetadata) {  
+          val joinResult = JoinGroupResult(  
+            members = if (group.isLeader(member.memberId)) {  
+              group.currentMemberMetadata  
+            } else {  
+              List.empty  
+            },  
+            memberId = member.memberId,  
+            generationId = group.generationId,  
+            protocolType = group.protocolType,  
+            protocolName = group.protocolName,  
+            leaderId = group.leaderOrNull,  
+            error = Errors.NONE)  
+  
+          group.maybeInvokeJoinCallback(member, joinResult)  
+          completeAndScheduleNextHeartbeatExpiration(group, member)  
+          member.isNew = false  
+        }  
+      }  
+    }  
+  }  
+}
 ```
 # 4 复习
 ## 4.1 基本信息

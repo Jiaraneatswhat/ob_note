@@ -3689,6 +3689,7 @@ private ConsumerRecords<K, V> poll(final Timer timer, final boolean includeMetad
 ```
 ### 3.5.2 sendFetches()
 ```java
+// Fetcher.java
 public synchronized int sendFetches() {  
     Map<Node, FetchSessionHandler.FetchRequestData> fetchRequestMap = prepareFetchRequests();  
     for (Map.Entry<Node, FetchSessionHandler.FetchRequestData> entry : fetchRequestMap.entrySet()) {  
@@ -3773,8 +3774,31 @@ def readFromLocalLog(...): Seq[(TopicPartition, LogReadResult)] = {
 }
 
 def read(tp: TopicPartition, fetchInfo: PartitionData, limitBytes: Int, minOneMessage: Boolean): LogReadResult = {
-	
+	// 调用 Partition.scala 的 readRecords()
+	val readInfo: LogReadInfo = partition.readRecords(...)
+	// 返回 LogReadResult
+	LogReadResult(...)
+}
 
+// Server 创建响应
+def processResponseCallback(responsePartitionData: Seq[(TopicPartition, FetchPartitionData)]): Unit = {
+	if (fetchRequest.isFromFollower) {...}
+	else {
+	    // 都会调用 sendResponse()
+		sendResponse(request, Some(response), onComplete)	
+	}
+}
+```
+### 3.5.4 Consumer 处理 Fetch 响应
+```java
+// ConcurrentLinkedQueue<CompletedFetch> completedFetches
+public void onSuccess(ClientResponse resp) {  
+	// 创建 CompletedFetch 加入到队列中
+	completedFetches.add(new CompletedFetch(partition, partitionData,metricAggregator, batches, fetchOffset, responseVersion));  
+}
+// poll()
+// 返回拦截器处理后的 ProducerRecord
+return this.interceptors.onConsume(new ConsumerRecords<>(fetch.records()));
 ```
 # 4 复习
 ## 4.1 基本信息

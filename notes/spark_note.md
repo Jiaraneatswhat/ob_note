@@ -915,8 +915,85 @@ class RangeDependency[T](rdd: RDD[T], inStart: Int, outStart: Int, length: Int)
   }  
 }
 ```
-
 ## 2.2 宽依赖
+```java
+class ShuffleDependency[K: ClassTag, V: ClassTag, C: ClassTag](
+    @transient private val _rdd: RDD[_ <: Product2[K, V]],
+    val partitioner: Partitioner, // 分区器
+    val serializer: Serializer = SparkEnv.get.serializer, // SparkEnv序列化器，默认org.apache.spark.serializer.JavaSerializer
+    val keyOrdering: Option[Ordering[K]] = None,
+    val aggregator: Option[Aggregator[K, V, C]] = None, // 对map的输出进行聚合的聚合器
+    val mapSideCombine: Boolean = false,
+    val shuffleWriterProcessor: ShuffleWriteProcessor = new ShuffleWriteProcessor)
+  extends Dependency[Product2[K, V]] with Logging {...}
+```
+## 2.3 分区器
+### 2.3.1 HashPartitioner
+```scala
+class HashPartitioner(partitions: Int) extends Partitioner {
+
+  def numPartitions: Int = partitions
+
+  def getPartition(key: Any): Int = key match {
+    case null => 0
+    case _ => Utils.nonNegativeMod(key.hashCode, numPartitions)
+  }
+
+  override def hashCode: Int = numPartitions
+}
+
+def nonNegativeMod(x: Int, mod: Int): Int = {
+  val rawMod = x % mod
+  rawMod + (if (rawMod < 0) mod else 0)
+}
+```
+### 2.3.2 RangePartitioner
+#### 2.3.2.1 Reservoir Sampling
+- 选取前 $k$ 个元素
+- 从 $k + i (i >= 0)$ 个元素开始，以概率 $$\frac{k}{k+i}$$ 的概率来决定是否保留该元素，若保存，则随机丢弃前 k 个元素中的一个
+- 添加第 $k+1$ 个元素，前 $k$ 个元素被保留的概率为 $$1-\frac{k}{k+1}\times\frac{1}{k}$$，遍历到第 $n$ 个元素时，前 $k$ 个元素中任一个被保留的概率为: $$1\times(1-\frac{k}{k+1}\times\frac{1}{k})\times(1-\frac{k}{k+2}\times\frac{1}{k})\times\dots(1-\frac{k}{n-1}\times\frac{1}{k})\times(1-\frac{k}{n}\times\frac{1}{k})=\frac{k}{n}$$
+- 第 $i$ 个元素在之后的第 $m$ 次遍历中被剔除的概率是$$\frac{k}{i+m}\times\frac{1}{k}$$, 则第 $i$ 个元素在 $n$ 次遍历中被保留的概率为: $$1\times(1-\frac{k}{i+1}\times\frac{1}{k})\times(1-\frac{k}{i+2}\times\frac{1}{k})\times\dots(1-\frac{k}{n-1}\times\frac{1}{k})\times(1-\frac{k}{n}\times\frac{1}{k})=\frac{k}{n}$$
+#### 2.3.2.2 rangeBounds
+```scala
+// 计算范围边界
+private var rangeBounds: Array[K] = {
+      // 采样大小
+      val sampleSize = math.min(samplePointsPerPartitionHint.toDouble * partitions, 1e6) // samplePointsPerPartitionHint: 20
+      // 保证分区数少时能收集更多样本
+      val sampleSizePerPartition = math.ceil(3.0 * sampleSize / rdd.partitions.length).toInt
+      // 将K和每个分区的采样数传入 sketch 方法
+      val (numItems, sketched) = RangePartitioner.sketch(rdd.map(_._1), sampleSizePerPartition)
+      // sketch返回(总记录数，Array[(PartitionId, 对应分区记录数, 样本)])
+      if (numItems == 0L) {} else {
+        val fraction = math.min(sampleSize / math.max(numItems, 1L), 1.0)
+        val candidates = ArrayBuffer.empty[(K, Float)]
+        val imbalancedPartitions = mutable.Set.empty[Int]
+        sketched.foreach { case (idx, n, sample) =>
+          if (fraction * n > sampleSizePerPartition) { // 超过sampleSizePerPartition再进行一次采样
+            imbalancedPartitions += idx
+          } else {
+            // The weight is 1 over the sampling probability.
+            val weight = (n.toDouble / sample.length).toFloat
+            for (key <- sample) {
+              candidates += ((key, weight))
+            }
+          }
+        }
+        if (imbalancedPartitions.nonEmpty) {
+          // 重采样
+          val imbalanced = new PartitionPruningRDD(rdd.map(_._1), imbalancedPartitions.contains)
+          val seed = byteswap32(-rdd.id - 1)
+          val reSampled = imbalanced.sample(withReplacement = false, fraction, seed).collect()
+          val weight = (1.0 / fraction).toFloat
+          candidates ++= reSampled.map(x => (x, weight))
+        }
+        // 计算边界
+        RangePartitioner.determineBounds(candidates, math.min(partitions, candidates.size))
+      }
+    }
+  }
+```
+
 
 
 # 复习

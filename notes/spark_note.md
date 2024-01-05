@@ -258,6 +258,7 @@ private def startUserApplication(): Thread = {
 	- `HeartbeatReceiver`
 	- `TaskScheduler`
 	- `DAGScheduler`
+- 最后通过 `setActiveContext()` 防止开启多个 `SparkContext`
 ### 1.7.1 SparkEnv
 ```java
 _env = createSparkEnv(_conf, isLocal, listenerBus)  
@@ -392,7 +393,28 @@ private val executorTimeoutMs = sc.conf.get(
 // EXECUTOR_HEARTBEAT_INTERVAL = 10s 
 private val executorHeartbeatIntervalMs = sc.conf.get(config.EXECUTOR_HEARTBEAT_INTERVAL)
 ```
+### 1.7.4 TaskScheduler
+```java
+val (sched, ts) = SparkContext.createTaskScheduler(this, master)  
+_schedulerBackend = sched  
+_taskScheduler = ts  
+_dagScheduler = new DAGScheduler(this)
 
+// 创建 TaskScheduler 以及 SchedulerBackend
+private def createTaskScheduler(  
+    sc: SparkContext,  
+    master: String): (SchedulerBackend, TaskScheduler) = {
+    
+    master match {
+	    case masterUrl =>
+		try {  
+		      // YarnClusterManager
+		      val scheduler = cm.createTaskScheduler(...)  
+			  val backend = cm.createSchedulerBackend(...)  
+			  cm.initialize(scheduler, backend)  
+  (backend, scheduler)  
+}
+```
 ## 1.8 AM 向 RM 申请资源
 ```scala
 // 1.6 继续执行
@@ -848,33 +870,13 @@ override def run(): Unit = {
     } 
 }
 ```
+# 2 RDD
+- `Resilient Distributed Datasets`
 
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Resilient Distributed Datasets
-# 2 
 # 复习
 ## .1 入门
 - 端口号：

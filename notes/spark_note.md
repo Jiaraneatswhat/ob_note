@@ -251,6 +251,7 @@ private def startUserApplication(): Thread = {
 }
 ```
 ## 1.7 初始化 SparkContext
+
 ## 1.8 AM 向 RM 申请资源
 ```scala
 // 1.6 继续执行

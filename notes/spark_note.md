@@ -380,10 +380,17 @@ _executorMemory = _conf.getOption(EXECUTOR_MEMORY.key)
 ```
 ### 1.7.3 HeartbeatReceiver
 ```JAVA
-
+// 接收 Executor 的心跳
 _heartbeatReceiver = env.rpcEnv.setupEndpoint(  
   HeartbeatReceiver.ENDPOINT_NAME, new HeartbeatReceiver(this))
 
+// NETWORK_TIMEOUT = 120s
+private val executorTimeoutMs = sc.conf.get(  
+  config.STORAGE_BLOCKMANAGER_HEARTBEAT_TIMEOUT  
+).getOrElse(Utils.timeStringAsMs(s"${sc.conf.get(Network.NETWORK_TIMEOUT)}s"))
+
+// EXECUTOR_HEARTBEAT_INTERVAL = 10s 
+private val executorHeartbeatIntervalMs = sc.conf.get(config.EXECUTOR_HEARTBEAT_INTERVAL)
 ```
 
 ## 1.8 AM 向 RM 申请资源

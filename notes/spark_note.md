@@ -1313,54 +1313,8 @@ private def submitMissingTasks(stage: Stage, jobId: Int): Unit = {
   // 获取还没有完成计算的每一个分区的偏好位置
   // 开始 Stage 的执行尝试
   stage.makeNewStageAttempt(partitionsToCompute.size, taskIdToLocations.values.toSeq)  
-  
-  // If there are tasks to execute, record the submission time of the stage. Otherwise,  
-  // post the even without the submission time, which indicates that this stage was  // skipped.  if (partitionsToCompute.nonEmpty) {  
-    stage.latestInfo.submissionTime = Some(clock.getTimeMillis())  
-  }  
-  listenerBus.post(SparkListenerStageSubmitted(stage.latestInfo,  
-    Utils.cloneProperties(properties)))  
-  
-  // TODO: Maybe we can keep the taskBinary in Stage to avoid serializing it multiple times.  
-  // Broadcasted binary for the task, used to dispatch tasks to executors. Note that we broadcast  // the serialized copy of the RDD and for each task we will deserialize it, which means each  // task gets a different copy of the RDD. This provides stronger isolation between tasks that  // might modify state of objects referenced in their closures. This is necessary in Hadoop  // where the JobConf/Configuration object is not thread-safe.  var taskBinary: Broadcast[Array[Byte]] = null  
-  var partitions: Array[Partition] = null  
-  try {  
-    // For ShuffleMapTask, serialize and broadcast (rdd, shuffleDep).  
-    // For ResultTask, serialize and broadcast (rdd, func).    var taskBinaryBytes: Array[Byte] = null  
-    // taskBinaryBytes and partitions are both effected by the checkpoint status. We need  
-    // this synchronization in case another concurrent job is checkpointing this RDD, so we get a    // consistent view of both variables.    RDDCheckpointData.synchronized {  
-      taskBinaryBytes = stage match {  
-        case stage: ShuffleMapStage =>  
-          JavaUtils.bufferToArray(  
-            closureSerializer.serialize((stage.rdd, stage.shuffleDep): AnyRef))  
-        case stage: ResultStage =>  
-          JavaUtils.bufferToArray(closureSerializer.serialize((stage.rdd, stage.func): AnyRef))  
-      }  
-  
-      partitions = stage.rdd.partitions  
-    }  
-  
-    if (taskBinaryBytes.length > TaskSetManager.TASK_SIZE_TO_WARN_KIB * 1024) {  
-      logWarning(s"Broadcasting large task binary with size " +  
-        s"${Utils.bytesToString(taskBinaryBytes.length)}")  
-    }  
-    taskBinary = sc.broadcast(taskBinaryBytes)  
-  } catch {  
-    // In the case of a failure during serialization, abort the stage.  
-    case e: NotSerializableException =>  
-      abortStage(stage, "Task not serializable: " + e.toString, Some(e))  
-      runningStages -= stage  
-  
-      // Abort execution  
-      return  
-    case e: Throwable =>  
-      abortStage(stage, s"Task serialization failed: $e\n${Utils.exceptionString(e)}", Some(e))  
-      runningStages -= stage  
-  
-      // Abort execution  
-      return  
-  }  
-  
+
+  // 为 Stage 创建 Task
   val tasks: Seq[Task[_]] = try {  
     val serializedTaskMetrics = closureSerializer.serialize(stage.latestInfo.taskMetrics).array()  
     stage match {  
@@ -1386,36 +1340,56 @@ private def submitMissingTasks(stage: Stage, jobId: Int): Unit = {
             stage.rdd.isBarrier())  
         }  
     }  
-  } catch {  
-    case NonFatal(e) =>  
-      abortStage(stage, s"Task creation failed: $e\n${Utils.exceptionString(e)}", Some(e))  
-      runningStages -= stage  
-      return  
-  }  
+  }
   
   if (tasks.nonEmpty) {  
-    logInfo(s"Submitting ${tasks.size} missing tasks from $stage (${stage.rdd}) (first 15 " +  
-      s"tasks are for partitions ${tasks.take(15).map(_.partitionId)})")  
+    // 向 TaskScheduler 提交 Task  
     taskScheduler.submitTasks(new TaskSet(  
       tasks.toArray, stage.id, stage.latestInfo.attemptNumber, jobId, properties,  
       stage.resourceProfileId))  
   } else {  
-    // Because we posted SparkListenerStageSubmitted earlier, we should mark  
-    // the stage as completed here in case there are no tasks to run    markStageAsFinished(stage, None)  
-  
+    // 已完成的进行标记
     stage match {  
       case stage: ShuffleMapStage =>  
-
         markMapStageJobsAsFinished(stage)  
-      case stage : ResultStage =>  
-        logDebug(s"Stage ${stage} is actually done; (partitions: ${stage.numPartitions})")  
+      case stage : ResultStage =>  logDebug(...)
     }  
     submitWaitingChildStages(stage)  
   }  
 }
 ```
-# 复习
-## .1 入门
+# 5 切片机制
+## 5.1 TextFile 的切片机制
+```java
+def textFile(  
+    path: String,  
+    minPartitions: Int = defaultMinPartitions): RDD[String] = withScope {  
+  hadoopFile(path, classOf[TextInputFormat], classOf[LongWritable], classOf[Text],  
+    minPartitions).map(pair => pair._2.toString).setName(path)  
+}
+
+// 创建 HadoopRDD
+def hadoopFile[K, V](
+    path: String,
+    inputFormatClass: Class[_ <: InputFormat[K, V]],
+    keyClass: Class[K],
+    valueClass: Class[V],
+   minPartitions: Int = defaultMinPartitions): RDD[(K, V)] = withScope {
+new HadoopRDD(
+    this,
+    confBroadcast,
+    Some(setInputPathsFunc),
+    inputFormatClass,
+    keyClass,
+    valueClass,
+    minPartitions).setName(path)
+}
+
+
+```
+
+# 6 复习
+## 6.1 入门
 - 端口号：
 	- `Yarn`：8032    `web`: 8088
 	- `Spark` 历史服务：18080
@@ -1428,8 +1402,8 @@ sc.textFile("src", 2)
 	.reduceByKey((x, y) -> x + y)
 	.saveAsTextFile("dst")
 ```
-## .2 SparkCore RDD
-### .2.1 五大属性
+## 6.2 SparkCore RDD
+### 6.2.1 五大属性
 - 一个分区列表
 ```scala
 protected def getPartitions: Array[Partition]
@@ -1452,8 +1426,8 @@ protected def getDependencies: Seq[Dependency[_]] = deps
 ```scala
 protected def getPreferredLocations(split: Partition): Seq[String] = Nil
 ```
-### .2.2 算子
-#### .2.2.1 常用的算子
+### 6.2.2 算子
+#### 6.2.2.1 常用的算子
 	- `map`
 	- `flatMap`
 	-  `mapValues`
@@ -1472,7 +1446,7 @@ protected def getPreferredLocations(split: Partition): Seq[String] = Nil
 	- `sortByKey` 
 	- `repartition`
 	- `reduceByKey`
-#### .2.2.2 算子的比较
+#### 6.2.2.2 算子的比较
 - `map` 和 `mapPartitions`
 	- `map` 对 `RDD` 中的每一个元素进行操作，`mapPartition` 是对 `RDD` 中的每一个分区进行操作
 - `foreach` 和 `foreachPartition`
@@ -1485,7 +1459,7 @@ protected def getPreferredLocations(split: Partition): Seq[String] = Nil
 	- `groupByKey` 只有分组的功能
 	- `reduceByKey` 不但可以分组，也可以进行聚合操作
 		- 会先进行局部聚合，效率要高于 `groupByKey` + 逻辑聚合操作
-- aggregate 算子
+- `aggregate` 算子
 ```scala
 /*
  * zeroValue: 每个分区 seqOp 累加的初始值以及最终不同分区组合结果 comOp 的初始值
@@ -1507,10 +1481,10 @@ rdd.aggregate("")((a, b) => Math.min(a.length, b.length).toString,
 // "" 和 “12” 比较，返回 “0 ”，“0” 和 “234” 比较返回 “1”
 // 同理另一个分区返回 “1”, 最终结果 "11"
 ```
-### .2.3 血缘关系
+### 6.2.3 血缘关系
 - 窄依赖：父 `RDD` 和子 `RDD` 的分区是一对一的关系
 - 宽依赖：父 `RDD` 的一个分区会被多个子 `RDD` 分区所继承
-### .2.4 任务切分
+### 6.2.4 任务切分
 - 从后往前进行切分，从行动算子向前找宽依赖划分 `Stage`
 - 提交时先提交父阶段
 - `Application` 指一个 `Spark` 应用程序
@@ -1522,11 +1496,11 @@ rdd.aggregate("")((a, b) => Math.min(a.length, b.length).toString,
 	- 如果配置了 `Checkpoint`，会启动一个新 `Job`，此时个数不相等
 - `Job` 可以分为多个 `Stage`：`Stage个数  = 宽依赖数 + 1`
 - `Stage` 可以分为多个 `Task`，`Task` 个数取决于 `RDD` 的分区数
-### .2.5 分区器
+### 6.2.5 分区器
 - `HashPartitioner`
 - `RangePartitioner`
 - 自定义分区器
-### .2.6 持久化
+### 6.2.6 持久化
 - cache 和 checkpoint
 	- 存储位置不同：`cache` 存储在内存中，`checkpoint` 存储在 HDFS 中
 	- `cache` 不会切断血缘关系，`ck` 会切断
@@ -1539,12 +1513,12 @@ rdd.aggregate("")((a, b) => Math.min(a.length, b.length).toString,
 rdd.cache()
 rdd.checkPoint("hdfs://xxx")
 ```
-### .2.7 共享变量
+### 6.2.7 共享变量
 - 广播变量(共享读操作)
 	- 当多个分区多个 Task 都要用到同一份数据时，为了避免数据的重复发送，选择广播变量的方式，会将广播变量发给每个节点，作为只读值处理
 - 累加器(共享写操作)
 	- Driver 端定义的变量会发给每个 `Executor`，`Executor` 更新副本的值不会对 Driver 产生影响，需要将其注册成累加器
-## .3 SparkSql
+## 6.3 SparkSql
 - `RDD`, `DataSet`, `DataFrame`
 ```scala
 // DF 是特殊的 DS
@@ -1577,8 +1551,8 @@ ds.write.json("dst").save
 ds.write.format("json").save
 ds.write.save("dst") // 默认的文件格式 parquet
 ```
-## .4 提交流程
-## .5 内核 Shuffle
+## 6.4 提交流程
+## 6.5 内核 Shuffle
 - HashShuffle
 	- 类似 `MR` 中的 `shuffle`，会产生许多小文件
 	- `小文件个数 = Mapper数 * Reducer数`

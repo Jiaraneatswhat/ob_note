@@ -252,6 +252,12 @@ private def startUserApplication(): Thread = {
 ```
 ## 1.7 初始化 SparkContext
 - 在 try 代码块中初始化成员变量
+	- `SparkEnv`
+	- `WebUI`
+	- `Hadoop` 配置，`Executor` 环境变量设置
+	- `HeartbeatReceiver`
+	- `TaskScheduler`
+	- `DAGScheduler`
 ### 1.7.1 SparkEnv
 ```java
 _env = createSparkEnv(_conf, isLocal, listenerBus)  
@@ -361,9 +367,22 @@ private def create(
   envInstance  
 }
 ```
-- WebUI
-- Hadoop
+### 1.7.2 Executor 的内存
+
 ```java
+_executorMemory = _conf.getOption(EXECUTOR_MEMORY.key)  
+  .orElse(Option(System.getenv("SPARK_EXECUTOR_MEMORY")))  
+  .orElse(Option(System.getenv("SPARK_MEM"))  
+  .map(warnSparkMem))  
+  .map(Utils.memoryStringToMb)  
+  // 默认 1g
+  .getOrElse(1024)
+```
+### 1.7.3 HeartbeatReceiver
+```JAVA
+
+_heartbeatReceiver = env.rpcEnv.setupEndpoint(  
+  HeartbeatReceiver.ENDPOINT_NAME, new HeartbeatReceiver(this))
 
 ```
 

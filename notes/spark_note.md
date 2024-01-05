@@ -953,7 +953,7 @@ def nonNegativeMod(x: Int, mod: Int): Int = {
 - 从 $k + i (i >= 0)$ 个元素开始，以概率 $$\frac{k}{k+i}$$ 的概率来决定是否保留该元素，若保存，则随机丢弃前 k 个元素中的一个
 - 添加第 $k+1$ 个元素，前 $k$ 个元素被保留的概率为 $$1-\frac{k}{k+1}\times\frac{1}{k}$$，遍历到第 $n$ 个元素时，前 $k$ 个元素中任一个被保留的概率为: $$1\times(1-\frac{k}{k+1}\times\frac{1}{k})\times(1-\frac{k}{k+2}\times\frac{1}{k})\times\dots(1-\frac{k}{n-1}\times\frac{1}{k})\times(1-\frac{k}{n}\times\frac{1}{k})=\frac{k}{n}$$
 - 第 $i$ 个元素在之后的第 $m$ 次遍历中被剔除的概率是$$\frac{k}{i+m}\times\frac{1}{k}$$, 则第 $i$ 个元素在 $n$ 次遍历中被保留的概率为: $$1\times(1-\frac{k}{i+1}\times\frac{1}{k})\times(1-\frac{k}{i+2}\times\frac{1}{k})\times\dots(1-\frac{k}{n-1}\times\frac{1}{k})\times(1-\frac{k}{n}\times\frac{1}{k})=\frac{k}{n}$$
-#### 2.3.2.2 rangeBounds
+#### 2.3.2.2 rangeBounds()
 ```scala
 // 计算范围边界
 private var rangeBounds: Array[K] = {
@@ -964,7 +964,8 @@ private var rangeBounds: Array[K] = {
       // 将K和每个分区的采样数传入 sketch 方法
       val (numItems, sketched) = RangePartitioner.sketch(rdd.map(_._1), sampleSizePerPartition)
       // sketch返回(总记录数，Array[(PartitionId, 对应分区记录数, 样本)])
-      if (numItems == 0L) {} else {
+      if (numItems == 0L) {...} 
+      else {
         val fraction = math.min(sampleSize / math.max(numItems, 1L), 1.0)
         val candidates = ArrayBuffer.empty[(K, Float)]
         val imbalancedPartitions = mutable.Set.empty[Int]
@@ -993,7 +994,97 @@ private var rangeBounds: Array[K] = {
     }
   }
 ```
+#### 2.3.2.3 采样
+```scala
+/**
+  * @param rdd 需要采集数据的RDD
+  * @param sampleSizePerPartition 每个partition采集的数据量
+  * @return <采样RDD数据总量,<partitionId, 当前分区的数据量，当前分区采集的数据量>>
+  */
+def sketch[K : ClassTag](
+    rdd: RDD[K],
+    sampleSizePerPartition: Int): (Long, Array[(Int, Long, Array[K])]) = {
+  val shift = rdd.id
+  val sketched = rdd.mapPartitionsWithIndex { (idx, iter) =>
+    // 根据RDD的id获得seed
+    val seed = byteswap32(idx ^ (shift << 16))
+    // 使用水塘抽样算法进行抽样，返回Tuple2<Partition中抽取的样本量，Partition中包含的数据量>
+    val (sample, n) = SamplingUtils.reservoirSampleAndCount(
+      iter, sampleSizePerPartition, seed)
+    Iterator((idx, n, sample))
+  }.collect()
+  val numItems = sketched.map(_._2).sum
+  (numItems, sketched)
+}
 
+def reservoirSampleAndCount[T: ClassTag](
+    input: Iterator[T],
+    k: Int, // 每个分区抽样的数据量
+    seed: Long = Random.nextLong())
+  : (Array[T], Long) = {
+  val reservoir = new Array[T](k)
+  var i = 0
+  while (i < k && input.hasNext) {
+    val item = input.next()
+    reservoir(i) = item
+    i += 1
+  }
+  if (i < k) {
+    // 不够k个数据时直接返回
+    val trimReservoir = new Array[T](i)
+    System.arraycopy(reservoir, 0, trimReservoir, 0, i)
+    (trimReservoir, i)
+  } else {
+    // 否则继续采样
+    var l = i.toLong
+    val rand = new XORShiftRandom(seed) // 随机数生成器
+    while (input.hasNext) {
+      val item = input.next()
+      l += 1
+
+      val replacementIndex = (rand.nextDouble() * l).toLong // [0, l)中随机一个
+      if (replacementIndex < k) {
+        reservoir(replacementIndex.toInt) = item
+      }
+    }
+    (reservoir, l)
+  } 
+}
+```
+#### 2.3.2.4 determineBounds()
+```scala
+def determineBounds[K : Ordering : ClassTag](
+    candidates: ArrayBuffer[(K, Float)], // (K, weight)
+    partitions: Int): Array[K] = {
+  val ordering = implicitly[Ordering[K]]
+  val ordered = candidates.sortBy(_._1) // 通过key排序
+  val numCandidates = ordered.size
+  val sumWeights = ordered.map(_._2.toDouble).sum // 总权重
+  val step = sumWeights / partitions // 步长
+  var cumWeight = 0.0
+  var target = step
+  val bounds = ArrayBuffer.empty[K]
+  var i = 0
+  var j = 0
+  var previousBound = Option.empty[K]
+  while ((i < numCandidates) && (j < partitions - 1)) {
+    val (key, weight) = ordered(i)
+    cumWeight += weight
+    if (cumWeight >= target) {
+      // Skip duplicate values.
+      if (previousBound.isEmpty || ordering.gt(key, previousBound.get)) {
+        bounds += key // 达到target即step时将key记录为bounds
+        target += step
+        j += 1
+        previousBound = Some(key)
+      }
+    }
+    i += 1
+  }
+  bounds.toArray
+}
+```
+# 3 Stage
 
 
 # 复习

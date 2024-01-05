@@ -1155,6 +1155,102 @@ def collect(): Array[T] = withScope {
   Array.concat(results: _*)  
 }
 
+def runJob[T, U: ClassTag](  
+    rdd: RDD[T],  
+    func: (TaskContext, Iterator[T]) => U,  
+    partitions: Seq[Int],  
+    resultHandler: (Int, U) => Unit): Unit = {  
+
+  dagScheduler.runJob(rdd, cleanedFunc, partitions, callSite, resultHandler, localProperties.get)  
+  // 判断有没有开启 ck
+  rdd.doCheckpoint()  
+}
+
+// DAGScheduler.scala
+def runJob[T, U](  
+    rdd: RDD[T],  
+    func: (TaskContext, Iterator[T]) => U,  
+    partitions: Seq[Int],  
+    callSite: CallSite,  
+    resultHandler: (Int, U) => Unit,  
+    properties: Properties): Unit = {  
+  
+  val waiter = submitJob(rdd, func, partitions, callSite, resultHandler, properties)    
+}
+
+def submitJob[T, U](  
+    rdd: RDD[T],  
+    func: (TaskContext, Iterator[T]) => U,  
+    partitions: Seq[Int],  
+    callSite: CallSite,  
+    resultHandler: (Int, U) => Unit,  
+    properties: Properties): JobWaiter[U] = {  
+  // JobWaiter 用于等待整个 Job 执行完毕，然后用给定的处理函数对返回结果进行处理
+  val waiter = new JobWaiter[U](this, jobId, partitions.size, resultHandler)
+  // 向 DAGSchedulerEventProcessLoop 中放入一个 JobSubmitted 事件
+  eventProcessLoop.post(JobSubmitted(  
+    jobId, rdd, func2, partitions.toArray, callSite, waiter,  
+    Utils.cloneProperties(properties)))  
+  waiter  
+}
+```
+## 4.2 调度器处理 JobSubmitted 事件
+```scala
+override def onReceive(event: DAGSchedulerEvent): Unit = {  
+  val timerContext = timer.time()  
+  try {  
+    doOnReceive(event)  
+  } finally {  
+    timerContext.stop()  
+  }  
+}
+
+private def doOnReceive(event: DAGSchedulerEvent): Unit = event match {  
+  case JobSubmitted(jobId, rdd, func, partitions, callSite, listener, properties) =>  
+    dagScheduler.handleJobSubmitted(jobId, rdd, func, partitions, callSite, listener, properties)
+}
+
+private[scheduler] def handleJobSubmitted(jobId: Int,  
+    finalRDD: RDD[_],  
+    func: (TaskContext, Iterator[_]) => _,  
+    partitions: Array[Int],  
+    callSite: CallSite,  
+    listener: JobListener,  
+    properties: Properties): Unit = {  
+	  var finalStage: ResultStage = null  
+	  try {  
+		// 创建 ResultStage
+		finalStage = createResultStage(finalRDD, func, partitions, jobId, callSite)
+			}
+	  // 创建 ActiveJob
+	  val job = new ActiveJob(jobId, finalStage, callSite, listener, properties)
+      // 提交 Stage
+	  submitStage(finalStage)
+```
+### 4.2.1 构建 Stage
+- 反向驱动
+	- 从最下游的 `ResultStage` 开始，一级一级驱动父 `Stage` 的执行
+- 正向提交
+	- 父 `Stage` 先于子 `Stage` 提交 `Task` 给 `TaskScheduler`
+```scala
+private def createResultStage(  
+    rdd: RDD[_],  
+    func: (TaskContext, Iterator[_]) => _,  
+    partitions: Array[Int],  
+    jobId: Int,  
+    callSite: CallSite): ResultStage = {  
+  // 获取所有的 shuffle 依赖
+  val (shuffleDeps, resourceProfiles) = getShuffleDependenciesAndResourceProfiles(rdd)  
+  // 获取所有父 Stage 的列表
+  val parents = getOrCreateParentStages(shuffleDeps, jobId)  
+  val id = nextStageId.getAndIncrement()  
+  val stage = new ResultStage(id, rdd, func, partitions, parents, jobId,  
+    callSite, resourceProfile.id)  
+  stageIdToStage(id) = stage  
+  updateJobIdStageIdMaps(jobId, stage)  
+  stage  
+}
+
 
 ```
 # 复习

@@ -251,6 +251,12 @@ private def startUserApplication(): Thread = {
 }
 ```
 ## 1.7 初始化 SparkContext
+SparkEnv
+- WebUI
+- Hadoop
+```java
+
+```
 
 ## 1.8 AM 向 RM 申请资源
 ```scala

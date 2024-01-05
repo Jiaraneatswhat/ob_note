@@ -1085,8 +1085,78 @@ def determineBounds[K : Ordering : ClassTag](
 }
 ```
 # 3 Stage
+- `DAGScheduler` 将 `Job` 的 `RDD` 划分到不同的 `Stage`，并构建这些 `Stage` 的依赖关系，可以使没有依赖关系的 `Stage` 并行执行，有依赖关系的顺序执行
+```scala
+private[scheduler] abstract class Stage(
+    val id: Int,
+    val rdd: RDD[_], // Stage包含的RDD
+    val numTasks: Int, // stage的Task数量
+    val parents: List[Stage], // 父Stage的列表
+    val firstJobId: Int, // 用于FIFO调度
+    val callSite: CallSite,  
+	val resourceProfileId: Int) extends Logging {
+		val numPartitions = rdd.partitions.length // stage分区数量
+		val jobIds = new HashSet[Int]
+}
+```
+## 3.1 ResultStage
+- 可以用指定的函数对 `RDD` 中的分区进行计算并得出最终结果
+```scala
+private[spark] class ResultStage(  
+    id: Int,  
+    rdd: RDD[_],  
+    val func: (TaskContext, Iterator[_]) => _,  
+    val partitions: Array[Int],  
+    parents: List[Stage],  
+    firstJobId: Int,  
+    callSite: CallSite,  
+    resourceProfileId: Int)  
+  extends Stage(id, rdd, partitions.length, parents, firstJobId, callSite, resourceProfileId) {...}
+```
+## 3.2 ShuffleMapStage
+- 包括一到多个 `ShuffleMapTask`，通过 `Shuffle` 与下游 `Stage` 中的 `Task` 串联起来
+```scala
+private[spark] class ShuffleMapStage(  
+    id: Int,  
+    rdd: RDD[_],  
+    numTasks: Int,  
+    parents: List[Stage],  
+    firstJobId: Int,  
+    callSite: CallSite,  
+    val shuffleDep: ShuffleDependency[_, _, _], // 与 ShuffleMapStage相关的 ShuffleDependency
+    mapOutputTrackerMaster: MapOutputTrackerMaster,  
+    resourceProfileId: Int)  
+  extends Stage(id, rdd, numTasks, parents, firstJobId, callSite, resourceProfileId) {...}
+```
+## 3.3 StageInfo
+- 用于描述 `Stage` 信息并传递给 `SparkListener`
+```scala
+class StageInfo(  
+    val stageId: Int,  
+    private val attemptId: Int,  
+    val name: String,  
+    val numTasks: Int, // Task 数量
+    val rddInfos: Seq[RDDInfo],  
+    val parentIds: Seq[Int], // 父 Stage 的 Id 序列
+    val details: String,  
+    val taskMetrics: TaskMetrics = null,  
+    private[spark] val taskLocalityPreferences: Seq[Seq[TaskLocation]] = Seq.empty,  
+    private[spark] val shuffleDepId: Option[Int] = None,  
+    val resourceProfileId: Int,  
+    private[spark] var isPushBasedShuffleEnabled: Boolean = false,  
+    private[spark] var shuffleMergerCount: Int = 0) {...}
+```
+# 4 执行 Job
+## 4.1 提交 Job
+```scala
+// 行动算子调用 SparkContext 的 runJob()
+def collect(): Array[T] = withScope {  
+  val results = sc.runJob(this, (iter: Iterator[T]) => iter.toArray)  
+  Array.concat(results: _*)  
+}
 
 
+```
 # 复习
 ## .1 入门
 - 端口号：

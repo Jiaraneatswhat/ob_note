@@ -870,8 +870,15 @@ override def run(): Unit = {
     } 
 }
 ```
-# 2 RDD
+# 2 RDD 的依赖
 - `Resilient Distributed Datasets`
+```java
+abstract class Dependency[T] extends Serializable {
+  // 依赖的 RDD
+  def rdd: RDD[T]
+}
+```
+
 
 
 

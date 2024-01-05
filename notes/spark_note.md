@@ -251,7 +251,116 @@ private def startUserApplication(): Thread = {
 }
 ```
 ## 1.7 初始化 SparkContext
-SparkEnv
+- 在 try 代码块中初始化成员变量
+### 1.7.1 SparkEnv
+```java
+_env = createSparkEnv(_conf, isLocal, listenerBus)  
+SparkEnv.set(_env)
+
+private[spark] def createSparkEnv(  
+    conf: SparkConf,  
+    isLocal: Boolean,  
+    listenerBus: LiveListenerBus): SparkEnv = {  
+  SparkEnv.createDriverEnv(conf, isLocal, listenerBus, SparkContext.numDriverCores(master, conf))  
+}
+
+// 为 Driver 创建环境
+// SparkEnv.scala
+private[spark] def createDriverEnv(  
+    conf: SparkConf,  
+    isLocal: Boolean,  
+    listenerBus: LiveListenerBus,  
+    numCores: Int,  
+    mockOutputCommitCoordinator: Option[OutputCommitCoordinator] = None): SparkEnv = {  
+
+  val bindAddress = conf.get(DRIVER_BIND_ADDRESS)  
+  val advertiseAddress = conf.get(DRIVER_HOST_ADDRESS)  
+  val port = conf.get(DRIVER_PORT)  
+
+  create(  
+    conf,  
+    SparkContext.DRIVER_IDENTIFIER,  
+    bindAddress,  
+    advertiseAddress,  
+    Option(port),  
+    isLocal,  
+    numCores,  
+    ioEncryptionKey,  
+    listenerBus = listenerBus,  
+    mockOutputCommitCoordinator = mockOutputCommitCoordinator  
+  )  
+}
+
+// 为 Driver 或 Executor 创建环境
+private def create(  
+    conf: SparkConf,  
+    executorId: String,  
+    bindAddress: String,  
+    advertiseAddress: String,  
+    port: Option[Int],  
+    isLocal: Boolean,  
+    numUsableCores: Int,  
+    ioEncryptionKey: Option[Array[Byte]],  
+    listenerBus: LiveListenerBus = null,  
+    mockOutputCommitCoordinator: Option[OutputCommitCoordinator] = None): SparkEnv = {  
+  
+  val isDriver = executorId == SparkContext.DRIVER_IDENTIFIER  
+  // 创建 SecurityManager
+  val securityManager = new SecurityManager(conf, ioEncryptionKey, authSecretFileConf)  
+  if (isDriver) {  
+    securityManager.initializeAuth()  
+  }  
+  
+  val systemName = if (isDriver) driverSystemName else executorSystemName  
+  // 创建 RpcEnv
+  val rpcEnv = RpcEnv.create(systemName, bindAddress, advertiseAddress, port.getOrElse(-1), conf,  
+    securityManager, numUsableCores, !isDriver)  
+  
+  if (isDriver) {  
+    conf.set(DRIVER_PORT, rpcEnv.address.port)  
+  }  
+  
+  // 序列化器
+  val closureSerializer = new JavaSerializer(conf)  
+  // BroadcastManager
+  val broadcastManager = new BroadcastManager(isDriver, conf)  
+  // ShuffleManager
+  val shuffleManager = Utils.instantiateSerializerOrShuffleManager[ShuffleManager](  
+    shuffleMgrClass, conf, isDriver)  
+  // BlockManager
+  val blockManager = new BlockManager(  
+    executorId,  
+    rpcEnv,  
+    blockManagerMaster,  
+    serializerManager,  
+    conf,  
+    memoryManager,  
+    mapOutputTracker,  
+    shuffleManager,  
+    blockTransferService,  
+    securityManager,  
+    externalShuffleClient)  
+
+  // 实例化 SparkEnv
+  val envInstance = new SparkEnv(  
+    executorId,  
+    rpcEnv,  
+    serializer,  
+    closureSerializer,  
+    serializerManager,  
+    mapOutputTracker,  
+    shuffleManager,  
+    broadcastManager,  
+    blockManager,  
+    securityManager,  
+    metricsSystem,  
+    memoryManager,  
+    outputCommitCoordinator,  
+    conf)  
+  
+  envInstance  
+}
+```
 - WebUI
 - Hadoop
 ```java

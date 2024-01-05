@@ -1359,7 +1359,7 @@ private def submitMissingTasks(stage: Stage, jobId: Int): Unit = {
 }
 ```
 # 5 切片机制
-## 5.1 TextFile 的切片机制
+## 5.1 TextFile 的切片
 ```java
 def textFile(  
     path: String,  
@@ -1385,9 +1385,102 @@ new HadoopRDD(
     minPartitions).setName(path)
 }
 
+// 调用 HadoopRDD 的 getPartitions() 获取切片
+override def getPartitions: Array[Partition] = {  
+  try {  
+    val allInputSplits = getInputFormat(jobConf).getSplits(jobConf, minPartitions)  
+    }
+    val array = new Array[Partition](inputSplits.size)  
+    // 根据切片数创建分区
+    for (i <- 0 until inputSplits.size) {  
+      array(i) = new HadoopPartition(id, i, inputSplits(i))  
+    }  
+    array  
+  }
+}
+
+// 计算切片大小
+public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
+	// 获取全部文件
+    FileStatus[] stats = listStatus(job);
+    // 文件的总字节数
+    long totalSize = 0;                           
+
+    List<FileStatus> files = new ArrayList<>(stats.length);
+    for (FileStatus file: stats) {                // check we have valid files
+      if (file.isDirectory()) {...} 
+      else {
+        files.add(file);
+        totalSize += file.getLen();
+      }
+    }
+
+    long goalSize = totalSize / (numSplits == 0 ? 1 : numSplits);
+   // minSplitSize = 1
+    long minSize = Math.max(job.getLong(org.apache.hadoop.shaded.org.apache.hadoop.mapreduce.lib.input.
+      FileInputFormat.SPLIT_MINSIZE, 1), minSplitSize);
+
+    // List长度已经定义好，因此是最小切片数
+    ArrayList<FileSplit> splits = new ArrayList<FileSplit>(numSplits);
+    NetworkTopology clusterMap = new NetworkTopology();
+    for (FileStatus file: files) {
+      Path path = file.getPath();
+      long length = file.getLen();
+      if (length != 0) {
+        FileSystem fs = path.getFileSystem(job);
+        BlockLocation[] blkLocations;
+        if (file instanceof LocatedFileStatus) {
+          blkLocations = ((LocatedFileStatus) file).getBlockLocations();
+        } else {
+          blkLocations = fs.getFileBlockLocations(file, 0, length);
+        }
+        if (isSplitable(fs, path)) {
+          long blockSize = file.getBlockSize(); // 本地块大小是32M
+            // 计算切片大小：Math.max(minSize, Math.min(goalSize, blockSize))
+          long splitSize = org.apache.hadoop.shaded.com.uteSplitSize(goalSize, minSize, blockSize);
+          long bytesRemaining = length;
+          while (((double) bytesRemaining)/splitSize > SPLIT_SLOP) {
+            String[][] splitHosts = getSplitHostsAndCachedHosts(blkLocations,
+                length-bytesRemaining, splitSize, clusterMap);
+            splits.add(makeSplit(path, length-bytesRemaining, splitSize,
+                splitHosts[0], splitHosts[1]));
+            bytesRemaining -= splitSize;
+          }
+
+          if (bytesRemaining != 0) {
+            String[][] splitHosts = getSplitHostsAndCachedHosts(blkLocations, length
+                - bytesRemaining, bytesRemaining, clusterMap);
+            splits.add(makeSplit(path, length - bytesRemaining, bytesRemaining,
+                splitHosts[0], splitHosts[1]));
+          }
+    return splits.toArray(new FileSplit[splits.size()]);
+  }
+```
+## 5.2 集合创建 RDD 的切片
+```java
+def parallelize[T: ClassTag](  
+    seq: Seq[T],  
+    numSlices: Int = defaultParallelism): RDD[T] = withScope {  
+  new ParallelCollectionRDD[T](this, seq, numSlices, Map[Int, Seq[String]]())  
+} 
+
+// 不传并行度时，调用 defaultParallelism()
+def defaultParallelism: Int = {  
+  taskScheduler.defaultParallelism  
+}
+
+// TaskSchedulerImpl.scala
+override def defaultParallelism(): Int = backend.defaultParallelism()
+
+// CoarseGrainedSchedulerBackend.scala
+override def defaultParallelism(): Int = {  
+  conf.getInt("spark.default.parallelism", math.max(totalCoreCount.get(), 2))  
+}
+
+// 获取到并行度后，创建 ParallelCollectionRDD
+// ParallelCollectionRDD 通过 getPartitions() 切片
 
 ```
-
 # 6 复习
 ## 6.1 入门
 - 端口号：

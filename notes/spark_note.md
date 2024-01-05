@@ -1251,7 +1251,171 @@ private def createResultStage(
   stage  
 }
 
+private def getOrCreateParentStages(shuffleDeps: HashSet[ShuffleDependency[_, _, _]],  
+    firstJobId: Int): List[Stage] = {  
+  shuffleDeps.map { shuffleDep =>  
+    getOrCreateShuffleMapStage(shuffleDep, firstJobId)  
+  }.toList  
+}
 
+// 根据 ShuffleDependency 创建 ShuffleMapStage
+private def getOrCreateShuffleMapStage(  
+    shuffleDep: ShuffleDependency[_, _, _],  
+    firstJobId: Int): ShuffleMapStage = {  
+  shuffleIdToMapStage.get(shuffleDep.shuffleId) match {  
+    // 创建过的 Stage 直接返回
+    case Some(stage) =>  
+      stage  
+  
+    case None =>  
+      // Create stages for all missing ancestor shuffle dependencies.  
+      getMissingAncestorShuffleDependencies(shuffleDep.rdd).foreach { dep =>  
+        // 为没有依赖的祖先先创建 Stage       
+        if (!shuffleIdToMapStage.contains(dep.shuffleId)) {  
+          createShuffleMapStage(dep, firstJobId)  
+        }  
+      }  
+      // 最后为自己创建 Stage
+      createShuffleMapStage(shuffleDep, firstJobId)  
+  }  
+}
+
+def createShuffleMapStage[K, V, C](  
+    shuffleDep: ShuffleDependency[K, V, C], jobId: Int): ShuffleMapStage = {  
+  val stage = new ShuffleMapStage(  
+    id, rdd, numTasks, parents, jobId, rdd.creationSite, shuffleDep, mapOutputTracker,  
+    resourceProfile.id)  
+  // 更新 Stage 的映射
+  stageIdToStage(id) = stage  
+  shuffleIdToMapStage(shuffleDep.shuffleId) = stage  
+  updateJobIdStageIdMaps(jobId, stage)  
+  stage  
+}
+```
+### 4.2.2 提交 Task
+```scala
+private def submitStage(stage: Stage): Unit = {  
+  val jobId = activeJobForStage(stage)  
+  if (jobId.isDefined) {  
+    if (!waitingStages(stage) && !runningStages(stage) && !failedStages(stage)) {  
+      // 确保所有父 Stage 都提交后提交 Task
+      if (missing.isEmpty) {  
+        submitMissingTasks(stage, jobId.get)  
+      }
+    }  
+  }  
+}
+
+private def submitMissingTasks(stage: Stage, jobId: Int): Unit = {  
+  // 找到需要计算的分区
+  val partitionsToCompute: Seq[Int] = stage.findMissingPartitions()  
+  
+  // 获取还没有完成计算的每一个分区的偏好位置
+  // 开始 Stage 的执行尝试
+  stage.makeNewStageAttempt(partitionsToCompute.size, taskIdToLocations.values.toSeq)  
+  
+  // If there are tasks to execute, record the submission time of the stage. Otherwise,  
+  // post the even without the submission time, which indicates that this stage was  // skipped.  if (partitionsToCompute.nonEmpty) {  
+    stage.latestInfo.submissionTime = Some(clock.getTimeMillis())  
+  }  
+  listenerBus.post(SparkListenerStageSubmitted(stage.latestInfo,  
+    Utils.cloneProperties(properties)))  
+  
+  // TODO: Maybe we can keep the taskBinary in Stage to avoid serializing it multiple times.  
+  // Broadcasted binary for the task, used to dispatch tasks to executors. Note that we broadcast  // the serialized copy of the RDD and for each task we will deserialize it, which means each  // task gets a different copy of the RDD. This provides stronger isolation between tasks that  // might modify state of objects referenced in their closures. This is necessary in Hadoop  // where the JobConf/Configuration object is not thread-safe.  var taskBinary: Broadcast[Array[Byte]] = null  
+  var partitions: Array[Partition] = null  
+  try {  
+    // For ShuffleMapTask, serialize and broadcast (rdd, shuffleDep).  
+    // For ResultTask, serialize and broadcast (rdd, func).    var taskBinaryBytes: Array[Byte] = null  
+    // taskBinaryBytes and partitions are both effected by the checkpoint status. We need  
+    // this synchronization in case another concurrent job is checkpointing this RDD, so we get a    // consistent view of both variables.    RDDCheckpointData.synchronized {  
+      taskBinaryBytes = stage match {  
+        case stage: ShuffleMapStage =>  
+          JavaUtils.bufferToArray(  
+            closureSerializer.serialize((stage.rdd, stage.shuffleDep): AnyRef))  
+        case stage: ResultStage =>  
+          JavaUtils.bufferToArray(closureSerializer.serialize((stage.rdd, stage.func): AnyRef))  
+      }  
+  
+      partitions = stage.rdd.partitions  
+    }  
+  
+    if (taskBinaryBytes.length > TaskSetManager.TASK_SIZE_TO_WARN_KIB * 1024) {  
+      logWarning(s"Broadcasting large task binary with size " +  
+        s"${Utils.bytesToString(taskBinaryBytes.length)}")  
+    }  
+    taskBinary = sc.broadcast(taskBinaryBytes)  
+  } catch {  
+    // In the case of a failure during serialization, abort the stage.  
+    case e: NotSerializableException =>  
+      abortStage(stage, "Task not serializable: " + e.toString, Some(e))  
+      runningStages -= stage  
+  
+      // Abort execution  
+      return  
+    case e: Throwable =>  
+      abortStage(stage, s"Task serialization failed: $e\n${Utils.exceptionString(e)}", Some(e))  
+      runningStages -= stage  
+  
+      // Abort execution  
+      return  
+  }  
+  
+  val tasks: Seq[Task[_]] = try {  
+    val serializedTaskMetrics = closureSerializer.serialize(stage.latestInfo.taskMetrics).array()  
+    stage match {  
+      case stage: ShuffleMapStage =>  
+        stage.pendingPartitions.clear()  
+        partitionsToCompute.map { id =>  
+          val locs = taskIdToLocations(id)  
+          val part = partitions(id)  
+          stage.pendingPartitions += id  
+          new ShuffleMapTask(stage.id, stage.latestInfo.attemptNumber,  
+            taskBinary, part, locs, properties, serializedTaskMetrics, Option(jobId),  
+            Option(sc.applicationId), sc.applicationAttemptId, stage.rdd.isBarrier())  
+        }  
+  
+      case stage: ResultStage =>  
+        partitionsToCompute.map { id =>  
+          val p: Int = stage.partitions(id)  
+          val part = partitions(p)  
+          val locs = taskIdToLocations(id)  
+          new ResultTask(stage.id, stage.latestInfo.attemptNumber,  
+            taskBinary, part, locs, id, properties, serializedTaskMetrics,  
+            Option(jobId), Option(sc.applicationId), sc.applicationAttemptId,  
+            stage.rdd.isBarrier())  
+        }  
+    }  
+  } catch {  
+    case NonFatal(e) =>  
+      abortStage(stage, s"Task creation failed: $e\n${Utils.exceptionString(e)}", Some(e))  
+      runningStages -= stage  
+      return  
+  }  
+  
+  if (tasks.nonEmpty) {  
+    logInfo(s"Submitting ${tasks.size} missing tasks from $stage (${stage.rdd}) (first 15 " +  
+      s"tasks are for partitions ${tasks.take(15).map(_.partitionId)})")  
+    taskScheduler.submitTasks(new TaskSet(  
+      tasks.toArray, stage.id, stage.latestInfo.attemptNumber, jobId, properties,  
+      stage.resourceProfileId))  
+  } else {  
+    // Because we posted SparkListenerStageSubmitted earlier, we should mark  
+    // the stage as completed here in case there are no tasks to run    markStageAsFinished(stage, None)  
+  
+    stage match {  
+      case stage: ShuffleMapStage =>  
+        logDebug(s"Stage ${stage} is actually done; " +  
+            s"(available: ${stage.isAvailable}," +  
+            s"available outputs: ${stage.numAvailableOutputs}," +  
+            s"partitions: ${stage.numPartitions})")  
+        markMapStageJobsAsFinished(stage)  
+      case stage : ResultStage =>  
+        logDebug(s"Stage ${stage} is actually done; (partitions: ${stage.numPartitions})")  
+    }  
+    submitWaitingChildStages(stage)  
+  }  
+}
 ```
 # 复习
 ## .1 入门

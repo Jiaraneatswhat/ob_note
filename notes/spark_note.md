@@ -878,10 +878,45 @@ abstract class Dependency[T] extends Serializable {
   def rdd: RDD[T]
 }
 ```
+## 2.1 窄依赖
+```java
+// RDD与上游RDD的分区是一对一的关系
+@DeveloperApi
+abstract class NarrowDependency[T](_rdd: RDD[T]) extends Dependency[T] {
+  def getParents(partitionId: Int): Seq[Int]
+  override def rdd: RDD[T] = _rdd
+}
+```
+### 2.1.1 OneToOneDependency
 
+![[narrow_dep.svg]]
 
+```java
+class OneToOneDependency[T](rdd: RDD[T]) extends NarrowDependency[T](rdd) {  
+  override def getParents(partitionId: Int): List[Int] = List(partitionId)  
+}
+```
+### 2.1.2 RangeDependency
 
+![[narrow_dep2.svg]]
 
+```java
+class RangeDependency[T](rdd: RDD[T], inStart: Int, outStart: Int, length: Int)  
+  extends NarrowDependency[T](rdd) {  
+  // inStart: 父RDD的分区范围起始值
+  // outStart: 子RDD的分区范起始值
+  // 索引为partitionId的子RDD对应于索引为partitionId - outStart + inStart的父RDD的分区
+  override def getParents(partitionId: Int): List[Int] = {  
+    if (partitionId >= outStart && partitionId < outStart + length) {  
+      List(partitionId - outStart + inStart)  
+    } else {  
+      Nil  
+    }  
+  }  
+}
+```
+
+## 2.2 宽依赖
 
 
 # 复习

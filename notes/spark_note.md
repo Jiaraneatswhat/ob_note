@@ -1227,7 +1227,7 @@ private[scheduler] def handleJobSubmitted(jobId: Int,
       // 提交 Stage
 	  submitStage(finalStage)
 ```
-### 4.2.1 构建 Stage
+### 4.2.1 切分 Job 构建 Stage
 - 反向驱动
 	- 从最下游的 `ResultStage` 开始，一级一级驱动父 `Stage` 的执行
 - 正向提交
@@ -1405,10 +1405,7 @@ private def submitMissingTasks(stage: Stage, jobId: Int): Unit = {
   
     stage match {  
       case stage: ShuffleMapStage =>  
-        logDebug(s"Stage ${stage} is actually done; " +  
-            s"(available: ${stage.isAvailable}," +  
-            s"available outputs: ${stage.numAvailableOutputs}," +  
-            s"partitions: ${stage.numPartitions})")  
+
         markMapStageJobsAsFinished(stage)  
       case stage : ResultStage =>  
         logDebug(s"Stage ${stage} is actually done; (partitions: ${stage.numPartitions})")  

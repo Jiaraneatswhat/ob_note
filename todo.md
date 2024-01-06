@@ -1,7 +1,8 @@
-$\mathcal L$
-$\mathbb R$
-$\ell$
-$\nabla$
-$\mathscr{a}$
-$\mathbf a$
-$\mathfrak a$
+`$\mathcal L$`	       $\mathcal L$
+`$\mathbb R$`	           $\mathbb R$
+`$\ell$`	               $\ell$
+`$\nabla$`               $\nabla$
+`$\mathbf {abcxyR}$` $\mathbf {abcxyR}$
+`$\mathrm a$`           $\mathrm a$
+`$\mathit a$`           $\mathit a$ 
+

@@ -5,3 +5,4 @@
 `$\mathbf {abcxyR}$` $\mathbf {abcxyRWz}$
 `$\mathrm a$`           $\mathrm a$
 `$\mathit a$`           $\mathit a$ 
+$\boldsymbol{x}$

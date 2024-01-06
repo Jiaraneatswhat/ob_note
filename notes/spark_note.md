@@ -1479,7 +1479,47 @@ override def defaultParallelism(): Int = {
 
 // 获取到并行度后，创建 ParallelCollectionRDD
 // ParallelCollectionRDD 通过 getPartitions() 切片
+override def getPartitions: Array[Partition] = {  
+  val slices = ParallelCollectionRDD.slice(data, numSlices).toArray  
+  slices.indices.map(i => new ParallelCollectionPartition(id, i, slices(i))).toArray  
+}
 
+def slice[T: ClassTag](seq: Seq[T], numSlices: Int): Seq[Seq[T]] = {  
+
+  def positions(length: Long, numSlices: Int): Iterator[(Int, Int)] = {  
+    (0 until numSlices).iterator.map { i =>  
+      val start = ((i * length) / numSlices).toInt  
+      val end = (((i + 1) * length) / numSlices).toInt  
+      (start, end)  
+    }  
+  }  
+  seq match {  
+    case r: Range =>  
+      positions(r.length, numSlices).zipWithIndex.map { case ((start, end), index) =>  
+        // If the range is inclusive, use inclusive range for the last slice  
+        if (r.isInclusive && index == numSlices - 1) {  
+          new Range.Inclusive(r.start + start * r.step, r.end, r.step)  
+        } else {  
+          new Range.Inclusive(r.start + start * r.step, r.start + (end - 1) * r.step, r.step)  
+        }  
+      }.toSeq.asInstanceOf[Seq[Seq[T]]]  
+    case nr: NumericRange[T] =>  
+      // For ranges of Long, Double, BigInteger, etc  
+      val slices = new ArrayBuffer[Seq[T]](numSlices)  
+      var r = nr  
+      for ((start, end) <- positions(nr.length, numSlices)) {  
+        val sliceSize = end - start  
+        slices += r.take(sliceSize).asInstanceOf[Seq[T]]  
+        r = r.drop(sliceSize)  
+      }  
+      slices.toSeq  
+    case _ =>  
+      val array = seq.toArray // To prevent O(n^2) operations for List etc  
+      positions(array.length, numSlices).map { case (start, end) =>  
+          array.slice(start, end).toSeq  
+      }.toSeq  
+  }  
+}
 ```
 # 6 复习
 ## 6.1 入门

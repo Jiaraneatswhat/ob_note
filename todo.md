@@ -2,7 +2,6 @@
 `$\mathbb R$`	           $\mathbb R$
 `$\ell$`	               $\ell$
 `$\nabla$`               $\nabla$
-`$\mathbf {abcxyR}$` $\mathbf {abcxyRW}$
+`$\mathbf {abcxyR}$` $\mathbf {abcxyRWz}$
 `$\mathrm a$`           $\mathrm a$
 `$\mathit a$`           $\mathit a$ 
-$\textit{$$}$

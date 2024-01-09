@@ -32,4 +32,7 @@ $$
 $$
 \tanh(x)=2\sigma(2x)-1
 $$
-- 下图是 `Logistic` 函数和 `Tanh` 函数的形状，Tanh 函数的输出是<font color='red'>零中心化的</font>，而 Logistic 函数的输出恒大于 0，
+- 下图是 `Logistic` 函数和 `Tanh` 函数的形状，`Tanh` 函数的输出是<font color='red'>零中心化的</font>，而 `Logistic` 函数的输出恒大于 $0$，非零中心化的输出会使其后一层的神经元输入发生<font color='red'>偏置转移(Bias Shift)</font>，使下一步梯度下降的收敛速度变慢
+
+![[logistic_tanh.svg]]
+

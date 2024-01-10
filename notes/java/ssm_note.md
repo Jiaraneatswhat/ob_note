@@ -99,3 +99,19 @@ private MyDao dao;
 	- `@Resource` 是 `JDK` 自带，而 `@Autowired` 是 `Spring` 中的
 	- `@Resource` 默认根据 `name` 进行匹配，未指定 `name` 时通过类型进行匹配
 	- `@Resource` 只能用于属性和 `Setter` 方法上
+- 引入依赖
+```xml
+<dependency>  
+    <groupId>jakarta.annotation</groupId>  
+    <artifactId>jakarta.annotation-api</artifactId>  
+    <version>2.1.1</version>  
+</dependency>
+```
+- 根据名称注入
+```java
+@Service("service_name")
+
+@Resource(name = "service_name")
+private MyService service;
+```
+- 不写 name 时会根据变量名进行匹配

@@ -119,7 +119,7 @@ private MyDao dao;
 @Resource(name = "service_name")
 private MyService service;
 ```
-- 不写 name 时会根据变量名进行匹配
+- 不写 `name` 时会根据变量名进行匹配
 ### 1.1.3 反射
 - 获取 `Class` 对象的方式
 	- `类名.class`
@@ -169,5 +169,12 @@ cons.newInstance(...);
 ```
 - 获取属性
 ```java
-
+clazz.getFields();
+clazz.getDeclaredFields();
+// 得到 Field 对象后，通过 getName() 方法获取属性名称
+```
+- 调用方法
+```java
+Method m = clazz.getMethod();
+// m.invoke(obj, 参数列表)
 ```

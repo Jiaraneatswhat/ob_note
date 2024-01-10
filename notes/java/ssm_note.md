@@ -47,11 +47,12 @@
 #### 1.1.2.4 注入
 - @Autowired
 ```java
-// Target 元注解表明 @Autowired 可以用于
+// Target 元注解表明 @Autowired 可以用于五个位置
 @Target({ElementType.CONSTRUCTOR, ElementType.METHOD, ElementType.PARAMETER, ElementType.FIELD, ElementType.ANNOTATION_TYPE})  
 @Retention(RetentionPolicy.RUNTIME)  
 @Documented  
 public @interface Autowired {  
+	// 要求被注入的对象要提前存在
 	boolean required() default true;  
 }
 ```

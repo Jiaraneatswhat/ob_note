@@ -1,6 +1,6 @@
 # 1 Spring
 ## 1.1 IoC
-### 1.1.1 基于 xml 的 IoC
+### 1.1.1 基于 XML 的 IoC
 ### 1.1.2 基于注解的 IoC
 - `Spring` 默认不使用注解装配 `Bean`，需要在 `Spring` 的 `XML` 配置中开启 `Spring Beans` 的自动扫描功能
 ```xml
@@ -30,6 +30,11 @@
 	- 声明当前类为配置类，相当于 `XML` 形式的 `Spring` 配置
 	- 加载注解格式的上下文对象需要使用 `AnnotationConfigApplicationContext`
 - @ComponentScan (c): 类似 `XML` 中的 `ComponentScan`
+```java
+@Configuration  
+@ComponentScan("org.ranran.spring_ioc_annotations") // 开启扫描  
+public class MyConfig {}
+```
 - @Bean (m)
 	- 用于方法，声明当前方法的返回值为一个 `Spring` 管理的 `Bean`
 	- 第三方 `Bean` 无法在其源码上进行修改，因此使用该注解解决第三方 `Bean` 的引入问题
@@ -115,3 +120,9 @@ private MyDao dao;
 private MyService service;
 ```
 - 不写 name 时会根据变量名进行匹配
+### 1.1.3 反射
+- 获取 `Class` 对象的方式
+	- `类名.class`
+	- `对象.getClass()`
+	- `Class.forName("FQCN")`
+	- 

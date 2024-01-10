@@ -45,9 +45,9 @@
 	- 设置为生命周期方法
 	- 在 Bean 销毁前执行
 #### 1.1.2.4 注入
-- Autowired
+- @Autowired
 ```java
-// 
+// Target 元注解表明 @Autowired 可以用于
 @Target({ElementType.CONSTRUCTOR, ElementType.METHOD, ElementType.PARAMETER, ElementType.FIELD, ElementType.ANNOTATION_TYPE})  
 @Retention(RetentionPolicy.RUNTIME)  
 @Documented  

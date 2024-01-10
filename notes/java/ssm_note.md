@@ -178,3 +178,63 @@ clazz.getDeclaredFields();
 Method m = clazz.getMethod();
 // m.invoke(obj, 参数列表)
 ```
+### 1.1.4 创建流程
+#### 1.1.4.1 入口
+```java
+new AnnotationConfigApplicationContext("pkg_name");
+
+public AnnotationConfigApplicationContext(String... basePackages) {  
+    this(); // 创建工厂组件
+    scan(basePackages); // 扫描配置
+    refresh(); // 初始化容器
+}
+
+public AnnotationConfigApplicationContext() { 
+	// 创建工厂需要的组件
+    this.reader = new AnnotatedBeanDefinitionReader(this);  
+    this.scanner = new ClassPathBeanDefinitionScanner(this);  
+}
+
+```
+#### 1.1.4.2 扫描 Bean 配置
+```java
+public void scan(String... basePackages) {  
+    // 调用 ClassPathBeanDefinitionScanner 扫描 bean 配置信息
+    this.scanner.scan(basePackages);  
+}
+
+// ClassPathBeanDefinitionScanner.java
+public int scan(String... basePackages) { 
+    // bean 配置信息的个数
+    int beanCountAtScanStart = this.registry.getBeanDefinitionCount();  
+    doScan(basePackages);  
+    return (this.registry.getBeanDefinitionCount() - beanCountAtScanStart);  
+}
+
+protected Set<BeanDefinitionHolder> doScan(String... basePackages) {  
+    Assert.notEmpty(basePackages, "At least one base package must be specified");  
+    Set<BeanDefinitionHolder> beanDefinitions = new LinkedHashSet<>();  
+    for (String basePackage : basePackages) {  
+       Set<BeanDefinition> candidates = findCandidateComponents(basePackage);  
+       for (BeanDefinition candidate : candidates) {  
+          ScopeMetadata scopeMetadata = this.scopeMetadataResolver.resolveScopeMetadata(candidate);  
+          candidate.setScope(scopeMetadata.getScopeName());  
+          String beanName = this.beanNameGenerator.generateBeanName(candidate, this.registry);  
+          if (candidate instanceof AbstractBeanDefinition) {  
+             postProcessBeanDefinition((AbstractBeanDefinition) candidate, beanName);  
+          }  
+          if (candidate instanceof AnnotatedBeanDefinition) {  
+             AnnotationConfigUtils.processCommonDefinitionAnnotations((AnnotatedBeanDefinition) candidate);  
+          }  
+          if (checkCandidate(beanName, candidate)) {  
+             BeanDefinitionHolder definitionHolder = new BeanDefinitionHolder(candidate, beanName);  
+             definitionHolder =  
+                   AnnotationConfigUtils.applyScopedProxyMode(scopeMetadata, definitionHolder, this.registry);  
+             beanDefinitions.add(definitionHolder);  
+             registerBeanDefinition(definitionHolder, this.registry);  
+          }  
+       }  
+    }  
+    return beanDefinitions;  
+}
+```

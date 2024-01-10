@@ -125,4 +125,49 @@ private MyService service;
 	- `类名.class`
 	- `对象.getClass()`
 	- `Class.forName("FQCN")`
-	- 
+- 获取构造器
+```java
+clazz.getConstructors() // 只能获取 public 的构造器
+clazz.getDeclaredConstructors() // 可以获取全部构造器
+
+// getConstructor 检查构造器是否为 public
+public Constructor<T> getConstructor(Class<?>... parameterTypes)  
+    throws NoSuchMethodException, SecurityException  
+{  
+    @SuppressWarnings("removal")  
+    SecurityManager sm = System.getSecurityManager();  
+    if (sm != null) {  
+        checkMemberAccess(sm, Member.PUBLIC, Reflection.getCallerClass(), true);  
+    }  
+    return getReflectionFactory().copyConstructor(  
+        getConstructor0(parameterTypes, Member.PUBLIC));  
+}
+
+// getDeclaredConstructor 检查构造器是否不为 public
+public Constructor<T> getDeclaredConstructor(Class<?>... parameterTypes)  
+    throws NoSuchMethodException, SecurityException  
+{  
+    @SuppressWarnings("removal")  
+    SecurityManager sm = System.getSecurityManager();  
+    if (sm != null) {  
+        checkMemberAccess(sm, Member.DECLARED, Reflection.getCallerClass(), true);  
+    }  
+  
+    return getReflectionFactory().copyConstructor(  
+        getConstructor0(parameterTypes, Member.DECLARED));  
+}
+```
+- 通过有参构造器创建对象
+```java
+// public 的构造器
+clazz.getConstructor(String.class, int.class, ...);
+
+// private 的构造器
+Constructor cons = clazz.getDeclaredConstructor(String.class, int.class, ...);
+cons.setAccessible(true);
+cons.newInstance(...);
+```
+- 获取属性
+```java
+
+```

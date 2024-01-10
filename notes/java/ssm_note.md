@@ -25,3 +25,14 @@
 	- 用于业务层，功能与 `@Component` 相同
 - @Repository
 	- 用于数据访问层，功能与 `@Component` 相同
+#### 1.1.2.2 配置类注解
+- @Configuration
+	- 声明当前类为配置类，相当于 `XML` 形式的 `Spring` 配置
+	- 加载注解格式的上下文对象需要使用 `AnnotationConfigApplicationContext`
+- @ComponentScan: 类似 `XML` 中的 `ComponentScan`
+- @Bean
+	- 用于方法，声明当前方法的返回值为一个 `Bean`
+#### 1.1.2.3 配置 Bean
+- @Scope
+	- 设置 Spring 容器如何新建 `Bean` 实例
+		- Singe

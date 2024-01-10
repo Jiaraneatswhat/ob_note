@@ -56,3 +56,4 @@ public @interface Autowired {
 	boolean required() default true;  
 }
 ```
+- `Controller` 注入 `Service`，`Service` 注入 `Dao`

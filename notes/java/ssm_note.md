@@ -212,29 +212,84 @@ public int scan(String... basePackages) {
 }
 
 protected Set<BeanDefinitionHolder> doScan(String... basePackages) {  
-    Assert.notEmpty(basePackages, "At least one base package must be specified");  
     Set<BeanDefinitionHolder> beanDefinitions = new LinkedHashSet<>();  
     for (String basePackage : basePackages) {  
+       // 通过 findCandidateComponents 扫描 @Component 注解
        Set<BeanDefinition> candidates = findCandidateComponents(basePackage);  
        for (BeanDefinition candidate : candidates) {  
+	      // 解析 bean 的 scope 作用域
           ScopeMetadata scopeMetadata = this.scopeMetadataResolver.resolveScopeMetadata(candidate);  
           candidate.setScope(scopeMetadata.getScopeName());  
+          // 生成 bean 的名称
           String beanName = this.beanNameGenerator.generateBeanName(candidate, this.registry);  
-          if (candidate instanceof AbstractBeanDefinition) {  
-             postProcessBeanDefinition((AbstractBeanDefinition) candidate, beanName);  
-          }  
-          if (candidate instanceof AnnotatedBeanDefinition) {  
-             AnnotationConfigUtils.processCommonDefinitionAnnotations((AnnotatedBeanDefinition) candidate);  
+          //设置bean的一些默认属性，lazy,init,destory方法等
+          if (candidate instanceof AnnotatedBeanDefinition) {  AnnotationConfigUtils.processCommonDefinitionAnnotations((AnnotatedBeanDefinition) candidate);  
           }  
           if (checkCandidate(beanName, candidate)) {  
              BeanDefinitionHolder definitionHolder = new BeanDefinitionHolder(candidate, beanName);  
              definitionHolder =  
                    AnnotationConfigUtils.applyScopedProxyMode(scopeMetadata, definitionHolder, this.registry);  
              beanDefinitions.add(definitionHolder);  
+             // 注册 bean 的配置到容器
              registerBeanDefinition(definitionHolder, this.registry);  
           }  
        }  
     }  
     return beanDefinitions;  
 }
+
+// ClassPathScanningCandidateComponentProvider.java
+public Set<BeanDefinition> findCandidateComponents(String basePackage) {  
+    if (this.componentsIndex != null && indexSupportsIncludeFilters()) {...}  
+    else {  
+       return scanCandidateComponents(basePackage);  
+    }  
+}
+
+private Set<BeanDefinition> scanCandidateComponents(String basePackage) {  
+    Set<BeanDefinition> candidates = new LinkedHashSet<>();  
+    try {  
+       String packageSearchPath = ResourcePatternResolver.CLASSPATH_ALL_URL_PREFIX +  
+             resolveBasePackage(basePackage) + '/' + this.resourcePattern; 
+       // 扫描到的文件转换为 Resource 对象 
+       Resource[] resources = getResourcePatternResolver().getResources(packageSearchPath);  
+       for (Resource resource : resources) {  
+          String filename = resource.getFilename();   
+          try {  
+	         // 获取 MetadataReader
+             MetadataReader metadataReader = getMetadataReaderFactory().getMetadataReader(resource);  
+             // 判断是否包含 @Component 注解
+             if (isCandidateComponent(metadataReader)) {  
+                ScannedGenericBeanDefinition sbd = new ScannedGenericBeanDefinition(metadataReader);  
+                sbd.setSource(resource);  
+                if (isCandidateComponent(sbd)) {   
+                   candidates.add(sbd);  
+                }  
+             }  
+          }  
+       }  
+    }  
+    return candidates;  
+}
+
+protected boolean isCandidateComponent(MetadataReader metadataReader) throws IOException {  
+    // 判断 TypeFilter 是否匹配
+    for (TypeFilter tf : this.includeFilters) {  
+       if (tf.match(metadataReader, getMetadataReaderFactory())) {  
+          return isConditionMatch(metadataReader);  
+       }  
+    }  
+    return false;  
+}
+
+// includeFilters 中默认包含了 Component, ManagedBean, Named
+protected void registerDefaultFilters() {
+	this.includeFilters.add(new AnnotationTypeFilter(Component.class));
+	this.includeFilters.add(new AnnotationTypeFilter(  
+       ((Class<? extends Annotation>) ClassUtils.forName("jakarta.annotation.ManagedBean", cl)), false));
+    this.includeFilters.add(new AnnotationTypeFilter(  
+   ((Class<? extends Annotation>) ClassUtils.forName("jakarta.inject.Named", cl)), false));
+}
+
+
 ```

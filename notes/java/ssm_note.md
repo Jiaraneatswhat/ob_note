@@ -45,7 +45,7 @@
 	- 设置为生命周期方法
 	- 在 Bean 销毁前执行
 #### 1.1.2.4 注入
-- @Autowired
+- **@Autowired**
 ```java
 // Target 元注解表明 @Autowired 可以用于五个位置
 @Target({ElementType.CONSTRUCTOR, ElementType.METHOD, ElementType.PARAMETER, ElementType.FIELD, ElementType.ANNOTATION_TYPE})  
@@ -57,3 +57,45 @@ public @interface Autowired {
 }
 ```
 - `Controller` 注入 `Service`，`Service` 注入 `Dao`，均写在实现类中
+- 注入方式
+- 属性注入：在类中声明抽象类作为属性
+```java
+@Service  
+public class MyServiceImpl implements MyService{  
+    @Autowired    
+    private MyDao dao;
+}
+```
+- set 注入：在类中声明抽象类作为属性，定义其 `set` 方法后加注解
+```java
+@Autowired  
+public void setDao(MyDao dao) {  
+    this.dao = dao;  
+}
+```
+- 构造器注入：在类的构造器上加注解
+```java
+@Autowired  
+public MyController(MyService service) {  
+    this.service = service;  
+}
+```
+- 形参注入：在类的构造器参数列表中加注解
+```java
+public MyController(@Autowired MyService service) {  
+    this.service = service;  
+}
+```
+- <font color='red'>声明抽象类作为属性，只有一个有参构造的情况下不需要注入</font>
+- @Autowired 和 @Qualifier 联合注入
+	- @Autowired 按类型进行注入，如果一个接口有多个实现类时会报错
+	- 因此配合 @Qualifier 匹配名称进行注入
+```java
+@Autowired
+@Qualifier(value = "MyDaoImpl")
+private MyDao dao;
+```
+- **@Resource**
+	- `@Resource` 是 `JDK` 自带，而 `@Autowired` 是 `Spring` 中的
+	- `@Resource` 默认根据 `name` 进行匹配，未指定 `name` 时通过类型进行匹配
+	- `@Resource` 只能用于属性和 `Setter` 方法上

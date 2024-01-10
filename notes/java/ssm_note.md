@@ -225,19 +225,23 @@ protected Set<BeanDefinitionHolder> doScan(String... basePackages) {
           //设置bean的一些默认属性，lazy,init,destory方法等
           if (candidate instanceof AnnotatedBeanDefinition) {  AnnotationConfigUtils.processCommonDefinitionAnnotations((AnnotatedBeanDefinition) candidate);  
           }  
+          // 检查是否已在缓存中
           if (checkCandidate(beanName, candidate)) {  
              BeanDefinitionHolder definitionHolder = new BeanDefinitionHolder(candidate, beanName);  
              definitionHolder =  
                    AnnotationConfigUtils.applyScopedProxyMode(scopeMetadata, definitionHolder, this.registry);  
              beanDefinitions.add(definitionHolder);  
              // 注册 bean 的配置到容器
+             // beanDefinitionMap, beanDefinitionNames，aliasMap 三个缓存
              registerBeanDefinition(definitionHolder, this.registry);  
           }  
        }  
     }  
     return beanDefinitions;  
 }
-
+```
+##### 1.1.4.2.1 扫描 @Component 注解
+```java
 // ClassPathScanningCandidateComponentProvider.java
 public Set<BeanDefinition> findCandidateComponents(String basePackage) {  
     if (this.componentsIndex != null && indexSupportsIncludeFilters()) {...}  
@@ -291,5 +295,82 @@ protected void registerDefaultFilters() {
    ((Class<? extends Annotation>) ClassUtils.forName("jakarta.inject.Named", cl)), false));
 }
 
-
+// 第二次 isCandidateComponent 继续判断该类是否符合要求
+protected boolean isCandidateComponent(AnnotatedBeanDefinition beanDefinition) {   
+	// isIndependent: 是否为顶级类或静态内部类
+	// isConcrete: 不是接口类且不是抽象类
+	// hasAnnotatedMethods：是否有使用注解的方法
+    AnnotationMetadata metadata = beanDefinition.getMetadata();  
+    return (metadata.isIndependent() && (metadata.isConcrete() ||  
+          (metadata.isAbstract() && metadata.hasAnnotatedMethods(Lookup.class.getName()))));  
+}
+```
+##### 1.1.4.2.2 判断是否已缓存过 bean
+```java
+protected boolean checkCandidate(String beanName, BeanDefinition beanDefinition) throws IllegalStateException {  
+	// 注册表没有，返回 true，表示可以注册该 bean 定义
+    if (!this.registry.containsBeanDefinition(beanName)) {  
+       return true;  
+    }  
+    // 注册表中包含该 beanName，获取到定义
+    BeanDefinition existingDef = this.registry.getBeanDefinition(beanName);  
+    BeanDefinition originatingDef = existingDef.getOriginatingBeanDefinition();  
+    // 说明使用了代理，用原始的定义
+    if (originatingDef != null) {  
+       existingDef = originatingDef;  
+    }  
+    // 否则检查新旧定义兼容性
+    if (isCompatible(beanDefinition, existingDef)) {  
+       return false;  
+    }  
+}
+```
+#### 1.1.4.3 容器初始化
+```java
+// 1.1.4.1
+// AbstractApplicationContext.java
+public void refresh() throws BeansException, IllegalStateException {  
+    synchronized (this.startupShutdownMonitor) {  
+  
+       // 预处理工作
+       prepareRefresh();  
+  
+       // 获取 Bean 工厂
+       ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();  
+  
+       // 设置工厂配置属性信息
+       prepareBeanFactory(beanFactory);  
+  
+       try {  
+          // Allows post-processing of the bean factory in context subclasses.  
+          postProcessBeanFactory(beanFactory);  
+  
+          StartupStep beanPostProcess = this.applicationStartup.start("spring.context.beans.post-process");  
+          // Invoke factory processors registered as beans in the context.  
+          invokeBeanFactoryPostProcessors(beanFactory);  
+  
+          // Register bean processors that intercept bean creation.  
+          registerBeanPostProcessors(beanFactory);  
+          beanPostProcess.end();  
+  
+          // Initialize message source for this context.  
+          initMessageSource();  
+  
+          // Initialize event multicaster for this context.  
+          initApplicationEventMulticaster();  
+  
+          // Initialize other special beans in specific context subclasses.  
+          onRefresh();  
+  
+          // Check for listener beans and register them.  
+          registerListeners();  
+  
+          // Instantiate all remaining (non-lazy-init) singletons.  
+          finishBeanFactoryInitialization(beanFactory);  
+  
+          // Last step: publish corresponding event.  
+          finishRefresh();  
+       }  
+    }  
+}
 ```

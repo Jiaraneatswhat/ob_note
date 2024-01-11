@@ -8410,12 +8410,13 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 ```
 # 5 复习
 # 6 面试
-### 6.1 如何检测 Hadoop 集群的健康状态，怎么检测 Namenode 是否健康
-### 6.2 Hadoop 高可用
-### 6.3 Hadoop 遇到的问题，集群多大
-### 6.4 Hadoop 的详细加载顺序
-### 6.5 NameNode 加载哪些信息，启动过程中，元数据信息保存在哪里
-### 6.6 Hadoop3 的纠删码，默认是 4+2 模式吗，纠删码的加速策略
+- 1 如何检测 `Hadoop` 集群的健康状态，怎么检测 `Namenode` 是否健康
+	- 
+2 Hadoop 高可用
+3 Hadoop 遇到的问题，集群多大
+4 Hadoop 的详细加载顺序
+5 NameNode 加载哪些信息，启动过程中，元数据信息保存在哪里
+6 Hadoop3 的纠删码，默认是 4+2 模式吗，纠删码的加速策略
 ### 6.7 Hadoop 读写流程数据同步如何实现 
 ### 6.8 Hadoop 是怎么进行数据校验的
 ### 6.9 Hadoop 挂掉怎么处理

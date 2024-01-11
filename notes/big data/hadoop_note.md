@@ -2785,9 +2785,6 @@ public FSDataInputStream open(Path f, final int bufferSize)
             dfs.open(getPathName(p), bufferSize, verifyChecksum);
         try {
           return dfs.createWrappedInputStream(dfsis);
-        } catch (IOException ex){
-          dfsis.close();
-          throw ex;
         }
       }
    }
@@ -2950,8 +2947,6 @@ private DFSInputStream openInternal(LocatedBlocks locatedBlocks, String src,
             locatedBlocks);
       }
       return new DFSInputStream(this, src, verifyChecksum, locatedBlocks);
-    } else {
-      throw new IOException("Cannot open filename " + src);
     }
 }
 
@@ -3000,10 +2995,6 @@ private List<LocatedBlock> getBlockRange(long offset,
       long length)  throws IOException {
     // getFileLength(): returns total file length
     // locatedBlocks.getFileLength(): returns length of completed blocks
-    if (offset >= getFileLength()) {
-      throw new IOException("Offset: " + offset +
-        " exceeds file length: " + getFileLength());
-    }
     synchronized(infoLock) {
       final List<LocatedBlock> blocks;
       // block两种状态：已完成以及未完成
@@ -3031,7 +3022,6 @@ private List<LocatedBlock> getBlockRange(long offset,
 private List<LocatedBlock> getFinalizedBlockRange(
       long offset, long length) throws IOException {
     synchronized(infoLock) {
-      assert (locatedBlocks != null) : "locatedBlocks is null";
       List<LocatedBlock> blockRange = new ArrayList<>();
       // search cached blocks first
       long remaining = length;
@@ -3039,7 +3029,6 @@ private List<LocatedBlock> getFinalizedBlockRange(
       while(remaining > 0) {
         // 从NN中取一个块并缓存
         LocatedBlock blk = fetchBlockAt(curOff, remaining, true);
-        assert curOff >= blk.getStartOffset() : "Block not found";
         blockRange.add(blk);
         long bytesRead = blk.getStartOffset() + blk.getBlockSize() - curOff;
         remaining -= bytesRead;
@@ -3093,10 +3082,6 @@ protected void fetchBlockByteRange(LocatedBlock block, long start, long end,
         actualGetFromOneDataNode(addressPair, start, end, buf,
             corruptedBlocks);
         return;
-      } catch (IOException e) {
-        checkInterrupted(e); // check if the read has been interrupted
-        // Ignore other IOException. Already processed inside the function.
-        // Loop through to try the next node.
       }
     }
 }
@@ -8443,8 +8428,12 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 - 5 Hadoop3 的纠删码
 	- 3 + 2 模式：3 个数据单元，2 个校验单元
 	- 任意两个单元挂掉，通过其他单元仍然能够恢复出挂掉的单元
-	- 通过因特尔 ISA-L 存储加速库可以提升 `HDFS` 纠删码的编码和解码效率
-### 6.7 Hadoop 读写流程数据同步如何实现 
+	- 通过因特尔 `ISA-L` 存储加速库可以提升 `HDFS` 纠删码的编码和解码效率
+ - 6 Hadoop 读写流程数据同步如何实现
+	 - 写
+		 - 契约机制
+		 - 读取到的 `packet` 放在 `dataQueue` 和 `ackQueue` 中，只有所有节点都发送成功时，才会移除 `ackQueue` 中的 `packet`
+
 ### 6.8 Hadoop 是怎么进行数据校验的
 ### 6.9 Hadoop 挂掉怎么处理
 ### 6.10  Hadoop 中的 shuffle 中反向溢写为什么不能设置成100%

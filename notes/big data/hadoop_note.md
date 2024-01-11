@@ -8466,9 +8466,14 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 	 - 不适合低延迟数据访问
 	 - 无法高效对大量小文件进行存储
 	 - 不支持并发写入和随机修改
-### 6.22 现在提交不同的应用到 Hdfs，有的要2副本，有的要3副本，怎么指定
-### 6.23 HDFS 什么情况下会进入安全模式
-### 6.24 HDFS 的 DataNode 挂了怎么办
+- 16 提交不同的应用到 Hdfs，有的要2副本，有的要3副本，怎么指定
+- 17 HDFS 什么情况下会进入安全模式
+	- 安全模式只接受读请求
+	- 部分 `DataNode` 启动失败或因网络原因与 `NameNode` 心跳失败
+	- 部分 `DataNode` 节点磁盘损坏，导致数据无法读取
+	- 部分 `DataNode` 节点磁盘使用过多，导致数据无法正常读取
+- 18 HDFS 的 DataNode 挂了怎么办
+	- `HDFS` 会自动处理 `DataNode` 宕机，会在宕机的 `DataNode` 上复制数据块的副本到其他正常的 `DataNode`
 ### 6.25 RocksDB 和 HDFS 有什么区别
 ### 6.26 HDFS 回收站
 ### 6.27 HDFS 用哪种存储格式

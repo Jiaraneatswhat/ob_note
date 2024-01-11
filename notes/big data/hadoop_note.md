@@ -8432,9 +8432,12 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
  - 6 Hadoop 读写流程数据同步如何实现
 	 - 写
 		 - 契约机制
-		 - 读取到的 `packet` 放在 `dataQueue` 和 `ackQueue` 中，只有所有节点都发送成功时，才会移除 `ackQueue` 中的 `packet`
-
-### 6.8 Hadoop 是怎么进行数据校验的
+		 - 发送的 `packet` 放在 `dataQueue` 和 `ackQueue` 中，只有所有节点都发送成功时，才会移除 `ackQueue` 中的 `packet`
+	- 读
+		- 读取到的 `packet` 先在本地缓存，再写入目标文件
+- 7 Hadoop 数据校验
+	- `DN` 读取 `Block` 的时候检验 `CheckSum`
+	- 上传文件时，本地会通过 `crc-32算法` 生成一个校验文件，`HDFS` 接收数据后也会产生校验文件进行对比，相同则会存储
 ### 6.9 Hadoop 挂掉怎么处理
 ### 6.10  Hadoop 中的 shuffle 中反向溢写为什么不能设置成100%
 ### 6.11 Hadoop 怎么保证副本数据一致性

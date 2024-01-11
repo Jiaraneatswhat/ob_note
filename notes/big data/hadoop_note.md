@@ -8498,8 +8498,17 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 		- 适用于 `OLAP` 场景，按列存储和扫描
 - 22 HDFS 修改文件名是不是一个原子性过程
 	- HDFS 创建文件，删除文件，重命名，创建目录都是原子性操作
-### 6.29 HDFS 写过程中，某个 Namenode 挂掉会发生什么？原来的传输通道会断掉，还是连着只是不传数据了   
-### 6.30 MR 有没有遇到过没有只有 Map 没有 Reduce 的业务
+- 23 HDFS 写过程中，NN 挂掉会发生什么？DN ？客户端 ?
+	- NN 挂了
+		- 一个 `Block` 写完向 `NN` 报告时，报告失败，但不影响 `DN` 的工作，数据会被保存下来，最后 `Client` 向 `NN` 请求关闭时会出错
+	- DN 挂了
+		- `NN` 会从 `pipeline` 中移除故障的 `DN`，恢复写入
+		- `pipeline recovery`
+	- Client 挂了
+		- 租约超时后，`HDFS` 会释放该文件的租约并关闭该文件
+		- `lease recovery`
+		- `lease recovery` 时如果有文件的 `Block` 在多个 `DN` 上处于不一致的状态，首先需要将其恢复到一致长度的状态，称为 `block recovery` 
+- 24 MR 有没有遇到过没有只有 Map 没有 Reduce 的业务
 ### 6.31 MR 怎么实现去重，hql 去重底层原理是什么
 ### 6.32 Yarn 任务执行中，maptask 已完成100%，reduce task 完成60%，applicationMaster 挂掉会发生什么
 ### 6.33 Yarn 三种引擎和三种调度器

@@ -172,3 +172,6 @@ select * from t1 left join t2 on t1.id = t2.id where t2.age > 50
 	
 	![[optimized_big2big_join.svg]]
 	
+- 去重原理
+	- 指定 distinct 时，Hive 会首先将数据从文件中读取到内存缓冲区
+	- Hive 按照指定的列或表达式dui'shu

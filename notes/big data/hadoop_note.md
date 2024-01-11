@@ -8474,8 +8474,13 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 	- 部分 `DataNode` 节点磁盘使用过多，导致数据无法正常读取
 - 18 HDFS 的 DataNode 挂了怎么办
 	- `HDFS` 会自动处理 `DataNode` 宕机，会在宕机的 `DataNode` 上复制数据块的副本到其他正常的 `DataNode`
-### 6.25 RocksDB 和 HDFS 有什么区别
-### 6.26 HDFS 回收站
+- 19 RocksDB 和 HDFS 有什么区别
+	- RocksDB 是 KV 类型的数据库，HDFS 是文件系统
+- 20 HDFS 回收站
+	- 默认回收站不开启
+	- 修改 core-site.xml
+		- `fs.trash.interval` 单位 min，为 0 时表示禁用
+		- `fs.trash.checkpoint.interval` 创建 ck 的间隔
 ### 6.27 HDFS 用哪种存储格式
 ### 6.28 HDFS 修改文件名是不是一个原子性过程
 ### 6.29 HDFS 写过程中，某个 Namenode 挂掉会发生什么？原来的传输通道会断掉，还是连着只是不传数据了   

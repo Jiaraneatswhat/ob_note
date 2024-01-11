@@ -8436,7 +8436,7 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 	- 读
 		- 读取到的 `packet` 先在本地缓存，再写入目标文件
 - 7 Hadoop 数据校验
-	- `DN` 读取 `Block` 的时候检验 `CheckSum`
+	- 读取文件时，`DN` 产生一个校验文件和之前上传的校验文件进行对比
 	- 上传文件时，本地会通过 `crc-32算法` 生成一个校验文件，`HDFS` 接收数据后也会产生校验文件进行对比，相同则会存储
 ### 6.9 Hadoop 挂掉怎么处理
 ### 6.10  Hadoop 中的 shuffle 中反向溢写为什么不能设置成100%

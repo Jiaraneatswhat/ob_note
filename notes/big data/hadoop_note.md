@@ -8451,7 +8451,10 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 		- 在 `hdfs-site.xml` 中增加 `dfs.hosts.exclude` 指向其路径
 		- 刷新 `NameNode`：`hdfs dfsadmin -refreshNodes`
 		- 更新 `RM` 节点：`yarn rmadmin -refreshNodes`
-### 6.18 HDFS 磁盘均衡
+- 12 HDFS 磁盘均衡
+	- 生成均衡计划：`hdfs diskbalancer -plan host_name`
+	- 执行：`hdfs diskbalancer -execute host_name.plan.json`
+	- 查看执行情况：`hdfs diskbalancer -query host_name`
 ### 6.19 HDFS 能不能并发写入？如何解决并发问题的
 ### 6.20 为什么是文件块大小是128m？Hdfs 中平均寻址的时间？
 ### 6.21 HDFS 文件系统缺点

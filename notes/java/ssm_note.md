@@ -680,53 +680,76 @@ protected Object doCreateBean(String beanName, RootBeanDefinition mbd, @Nullable
     try {  
 	   // 依赖注入
        populateBean(beanName, mbd, instanceWrapper);  
+       // 执行 BeanPostProcessor，init等逻辑
        exposedObject = initializeBean(beanName, exposedObject, mbd);  
-    }  
-    catch (Throwable ex) {  
-       if (ex instanceof BeanCreationException bce && beanName.equals(bce.getBeanName())) {  
-          throw bce;  
-       }  
-       else {  
-          throw new BeanCreationException(mbd.getResourceDescription(), beanName, ex.getMessage(), ex);  
-       }  
-    }  
-  
-    if (earlySingletonExposure) {  
-       Object earlySingletonReference = getSingleton(beanName, false);  
-       if (earlySingletonReference != null) {  
-          if (exposedObject == bean) {  
-             exposedObject = earlySingletonReference;  
-          }  
-          else if (!this.allowRawInjectionDespiteWrapping && hasDependentBean(beanName)) {  
-             String[] dependentBeans = getDependentBeans(beanName);  
-             Set<String> actualDependentBeans = new LinkedHashSet<>(dependentBeans.length);  
-             for (String dependentBean : dependentBeans) {  
-                if (!removeSingletonIfCreatedForTypeCheckOnly(dependentBean)) {  
-                   actualDependentBeans.add(dependentBean);  
-                }  
-             }  
-             if (!actualDependentBeans.isEmpty()) {  
-                throw new BeanCurrentlyInCreationException(beanName,  
-                      "Bean with name '" + beanName + "' has been injected into other beans [" +  
-                      StringUtils.collectionToCommaDelimitedString(actualDependentBeans) +  
-                      "] in its raw version as part of a circular reference, but has eventually been " +  
-                      "wrapped. This means that said other beans do not use the final version of the " +  
-                      "bean. This is often the result of over-eager type matching - consider using " +  
-                      "'getBeanNamesForType' with the 'allowEagerInit' flag turned off, for example.");  
-             }  
-          }  
-       }  
-    }  
-  
-    // Register bean as disposable.  
-    try {  
-       registerDisposableBeanIfNecessary(beanName, bean, mbd);  
-    }  
-    catch (BeanDefinitionValidationException ex) {  
-       throw new BeanCreationException(  
-             mbd.getResourceDescription(), beanName, "Invalid destruction signature", ex);  
-    }  
+    }   
   
     return exposedObject;  
+}
+```
+##### 1.1.4.6.1 创建 Bean 实例
+```java
+protected BeanWrapper createBeanInstance(String beanName, RootBeanDefinition mbd, @Nullable Object[] args) {  
+    Class<?> beanClass = resolveBeanClass(mbd, beanName);  
+
+    // 确保 Class 不为空且为 public
+    if (beanClass != null && !Modifier.isPublic(beanClass.getModifiers()) && !mbd.isNonPublicAccessAllowed()) {...}  
+
+	// 确定实例化的构造器
+    if (args == null) {  
+       synchronized (mbd.constructorArgumentLock) {  
+          if (mbd.resolvedConstructorOrFactoryMethod != null) {  
+             resolved = true;  
+             autowireNecessary = mbd.constructorArgumentsResolved;  
+          }  
+       }  
+    }  
+    if (resolved) {  
+       if (autowireNecessary) {  
+          return autowireConstructor(beanName, mbd, null, null);  
+       }  
+       else {  
+          // 默认无参，实例化 Bean 设置到 BeanWrapper 中
+          return instantiateBean(beanName, mbd);  
+       }  
+    }  
+}
+```
+##### 1.1.4.6.2 属性注入
+```java
+protected void populateBean(String beanName, RootBeanDefinition mbd, @Nullable BeanWrapper bw) {  
+
+    // 执行实现了InstantiationAwareBeanPostProcessor接口的逻辑,在设置bean属性前对bean做修改
+    if (!mbd.isSnthetic() && hasInstantiationAwareBeanPostProcessors()) {  
+       for (InstantiationAwareBeanPostProcessor bp : getBeanPostProcessorCache().instantiationAware) {  
+          if (!bp.postProcessAfterInstantiation(bw.getWrappedInstance(), beanName)) {  
+             return;  
+          }  
+       }  
+    }  
+
+    // 属性参数
+    PropertyValues pvs = (mbd.hasPropertyValues() ? mbd.getPropertyValues() : null);  
+    
+    int resolvedAutowireMode = mbd.getResolvedAutowireMode();  
+    if (resolvedAutowireMode == AUTOWIRE_BY_NAME || resolvedAutowireMode == AUTOWIRE_BY_TYPE) {  
+       MutablePropertyValues newPvs = new MutablePropertyValues(pvs);  
+       // 基于名称自动注入
+       if (resolvedAutowireMode == AUTOWIRE_BY_NAME) {  
+          autowireByName(beanName, mbd, bw, newPvs);  
+       }  
+       // 基于类型自动注入
+       if (resolvedAutowireMode == AUTOWIRE_BY_TYPE) {  
+          autowireByType(beanName, mbd, bw, newPvs);  
+       }  
+       pvs = newPvs;  
+    }  
+    // InstantiationAwareBeanPostProcessors
+	// DepCheck
+
+    if (pvs != null) {  
+	   // 设置属性
+       applyPropertyValues(beanName, mbd, bw, pvs);  
+    }  
 }
 ```

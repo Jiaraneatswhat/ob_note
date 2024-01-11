@@ -8410,8 +8410,11 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 ```
 # 5 复习
 # 6 面试
-- 1 如何检测 `Hadoop` 集群的健康状态，怎么检测 `Namenode` 是否健康
-	- 
+- 1 如何检测 `Hadoop` 集群的健康状态
+	- 执行命令
+		- `hdfs dfsadmin -report`：提供了 `HDFS` 的健康状态报告，包括数据节点的状态和块的复制因子
+		- `yarn node -list -all`：查看所有 `NodeManager` 的状态
+		- `hdfs dfsadmin -safemode get`：检查是否处于安全模式
 2 Hadoop 高可用
 3 Hadoop 遇到的问题，集群多大
 4 Hadoop 的详细加载顺序

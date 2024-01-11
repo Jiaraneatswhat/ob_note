@@ -8424,9 +8424,22 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 		- hdfs-site.xml
 			- `dfs.nameservices nn 组名称`
 			- `dfs.ha.namenodes.{group_name} -> nn1,nn2`
-3 Hadoop 遇到的问题，集群多大
-4 Hadoop 的详细加载顺序
-5 NameNode 加载哪些信息，启动过程中，元数据信息保存在哪里
+			- `dfs.client.failover.proxy.provider.{group_name} -> org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider`
+	- `ResourceManager` 高可用
+		- yarn-site.xml
+			- `yarn.resourcemanager.ha.enabled -> true`
+			- `yarn.resourcemanager.recovery.enabled -> true`
+			- `yarn.resourcemanager.store.class -> org.apache.hadoop.yarn.server.resourcemanager.recovery.ZKRMStateStore` 数据状态保持介质
+			- `yarn.resourcemanager.zk-address`
+			- `yarn.resourcemanager.cluster-id`
+			- `yarn.resourcemanager.ha.rm-ids -> rm1, rm2`
+			- `yarn.resourcemanager.hostname.rm1 -> hadoop102`
+3 Hadoop 的详细加载顺序
+- `core-default.xml -> core-site.xml -> hdfs-default.xml -> hdfs-site.xml`
+- `core-default.xml -> core-site.xml -> mapred-default.xml -> mapred-site.xml`
+- 4 NameNode 加载哪些信息，启动过程中，元数据信息保存在哪里
+	- 初始化 `FSNameSystem`，加载 `FSImage` 和 `Edits` 文件
+	- 元数据存储位置由配置 `dfs.namenode.name.dir` 决定
 6 Hadoop3 的纠删码，默认是 4+2 模式吗，纠删码的加速策略
 ### 6.7 Hadoop 读写流程数据同步如何实现 
 ### 6.8 Hadoop 是怎么进行数据校验的

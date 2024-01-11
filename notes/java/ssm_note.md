@@ -305,7 +305,7 @@ protected boolean isCandidateComponent(AnnotatedBeanDefinition beanDefinition) {
           (metadata.isAbstract() && metadata.hasAnnotatedMethods(Lookup.class.getName()))));  
 }
 ```
-##### 1.1.4.2.2 判断是否已缓存过 bean
+##### 1.1.4.2.2 判断是否已缓存过 Bean
 ```java
 protected boolean checkCandidate(String beanName, BeanDefinition beanDefinition) throws IllegalStateException {  
 	// 注册表没有，返回 true，表示可以注册该 bean 定义
@@ -322,6 +322,30 @@ protected boolean checkCandidate(String beanName, BeanDefinition beanDefinition)
     // 否则检查新旧定义兼容性
     if (isCompatible(beanDefinition, existingDef)) {  
        return false;  
+    }  
+}
+```
+##### 1.1.4.2.3 注册 Bean 定义
+```java
+protected void registerBeanDefinition(BeanDefinitionHolder definitionHolder, BeanDefinitionRegistry registry) {  
+    BeanDefinitionReaderUtils.registerBeanDefinition(definitionHolder, registry);  
+}
+
+public static void registerBeanDefinition(  
+       BeanDefinitionHolder definitionHolder, BeanDefinitionRegistry registry) 
+       throws BeanDefinitionStoreException {  
+  
+    // Register bean definition under primary name.  
+    // 将 Bean 定义 添加到 beanDefinitionMap 中
+    String beanName = definitionHolder.getBeanName();  
+    registry.registerBeanDefinition(beanName, definitionHolder.getBeanDefinition());  
+  
+    // Register aliases for bean name, if any.  
+    String[] aliases = definitionHolder.getAliases();  
+    if (aliases != null) {  
+       for (String alias : aliases) {  
+          registry.registerAlias(beanName, alias);  
+       }  
     }  
 }
 ```
@@ -342,35 +366,126 @@ public void refresh() throws BeansException, IllegalStateException {
        prepareBeanFactory(beanFactory);  
   
        try {  
-          // Allows post-processing of the bean factory in context subclasses.  
+          // 子类的进一步设置
           postProcessBeanFactory(beanFactory);  
-  
-          StartupStep beanPostProcess = this.applicationStartup.start("spring.context.beans.post-process");  
-          // Invoke factory processors registered as beans in the context.  
+
+          // 执行 BeanFactoryPostProcessor后置处理器逻辑
           invokeBeanFactoryPostProcessors(beanFactory);  
   
-          // Register bean processors that intercept bean creation.  
+          // 将实现了 BeanPostProcessor 接口的类信息添加到容器
           registerBeanPostProcessors(beanFactory);  
-          beanPostProcess.end();  
   
-          // Initialize message source for this context.  
+          // 初始化消息资源解析器 
           initMessageSource();  
   
-          // Initialize event multicaster for this context.  
+          // 初始化事件监听器
           initApplicationEventMulticaster();  
   
-          // Initialize other special beans in specific context subclasses.  
+          // 子类实现容器初始化扩展方法
           onRefresh();  
   
-          // Check for listener beans and register them.  
+          // 获取注册监听器，分发容器初始化事件
           registerListeners();  
   
-          // Instantiate all remaining (non-lazy-init) singletons.  
+          // 创建非懒加载的 Bean
           finishBeanFactoryInitialization(beanFactory);  
   
-          // Last step: publish corresponding event.  
+          // 初始化之后的操作
           finishRefresh();  
        }  
+    }  
+}
+```
+##### 1.1.4.3.1 预处理工作
+```java
+protected void prepareRefresh() {  
+    // Switch to active.  
+    this.active.set(true);  
+    // 子类实现初始化容器的属性值
+    // AbstractApplicationContext -> GenericApplicationContext -> AnnotationConfigApplicationContext
+    initPropertySources();  
+  
+    // Validate that all properties marked as required are resolvable:  
+    getEnvironment().validateRequiredProperties();  
+  
+    // Allow for the collection of early ApplicationEvents,  
+    // to be published once the multicaster is available...    
+    this.earlyApplicationEvents = new LinkedHashSet<>();  
+}
+```
+##### 1.1.4.3.2 获取 BeanFactory
+```java
+protected ConfigurableListableBeanFactory obtainFreshBeanFactory() { 
+    refreshBeanFactory(); 
+    // getter 
+    return getBeanFactory();  
+}
+
+protected final void refreshBeanFactory() throws BeansException {  
+	// 清空已存在的 BeanFactory
+    if (hasBeanFactory()) {  
+       destroyBeans();  
+       closeBeanFactory();  
+    }  
+    try {
+	  // 创建 DefaultListableBeanFactory
+       DefaultListableBeanFactory beanFactory = createBeanFactory();  
+       beanFactory.setSerializationId(getId());  
+       // 定义工厂创建 Bean 的规则
+       customizeBeanFactory(beanFactory);  
+       // 加载配置文件，解析为 BeanDefinition
+       loadBeanDefinitions(beanFactory);  
+       this.beanFactory = beanFactory;  
+    }  
+}
+```
+##### 1.1.4.3.3 设置工厂的基本属性
+```java
+protected void prepareBeanFactory(ConfigurableListableBeanFactory beanFactory) {  
+    // 类加载器
+    beanFactory.setBeanClassLoader(getClassLoader()); 
+    // 表达式解析器 
+    beanFactory.setBeanExpressionResolver(new StandardBeanExpressionResolver(beanFactory.getBeanClassLoader()));  
+    beanFactory.addPropertyEditorRegistrar(new ResourceEditorRegistrar(this, getEnvironment()));  
+  
+    // Configure the bean factory with context callbacks.  
+    beanFactory.addBeanPostProcessor(new ApplicationContextAwareProcessor(this));  
+    beanFactory.ignoreDependencyInterface(EnvironmentAware.class);  
+    beanFactory.ignoreDependencyInterface(EmbeddedValueResolverAware.class);  
+    beanFactory.ignoreDependencyInterface(ResourceLoaderAware.class);  
+    beanFactory.ignoreDependencyInterface(ApplicationEventPublisherAware.class);  
+    beanFactory.ignoreDependencyInterface(MessageSourceAware.class);  
+    beanFactory.ignoreDependencyInterface(ApplicationContextAware.class);  
+    beanFactory.ignoreDependencyInterface(ApplicationStartupAware.class);  
+  
+    // BeanFactory interface not registered as resolvable type in a plain factory.  
+    // MessageSource registered (and found for autowiring) as a bean.    beanFactory.registerResolvableDependency(BeanFactory.class, beanFactory);  
+    beanFactory.registerResolvableDependency(ResourceLoader.class, this);  
+    beanFactory.registerResolvableDependency(ApplicationEventPublisher.class, this);  
+    beanFactory.registerResolvableDependency(ApplicationContext.class, this);  
+  
+    // Register early post-processor for detecting inner beans as ApplicationListeners.  
+    beanFactory.addBeanPostProcessor(new ApplicationListenerDetector(this));  
+  
+    // Detect a LoadTimeWeaver and prepare for weaving, if found.  
+    if (!NativeDetector.inNativeImage() && beanFactory.containsBean(LOAD_TIME_WEAVER_BEAN_NAME)) {  
+       beanFactory.addBeanPostProcessor(new LoadTimeWeaverAwareProcessor(beanFactory));  
+       // Set a temporary ClassLoader for type matching.  
+       beanFactory.setTempClassLoader(new ContextTypeMatchClassLoader(beanFactory.getBeanClassLoader()));  
+    }  
+  
+    // Register default environment beans.  
+    if (!beanFactory.containsLocalBean(ENVIRONMENT_BEAN_NAME)) {  
+       beanFactory.registerSingleton(ENVIRONMENT_BEAN_NAME, getEnvironment());  
+    }  
+    if (!beanFactory.containsLocalBean(SYSTEM_PROPERTIES_BEAN_NAME)) {  
+       beanFactory.registerSingleton(SYSTEM_PROPERTIES_BEAN_NAME, getEnvironment().getSystemProperties());  
+    }  
+    if (!beanFactory.containsLocalBean(SYSTEM_ENVIRONMENT_BEAN_NAME)) {  
+       beanFactory.registerSingleton(SYSTEM_ENVIRONMENT_BEAN_NAME, getEnvironment().getSystemEnvironment());  
+    }  
+    if (!beanFactory.containsLocalBean(APPLICATION_STARTUP_BEAN_NAME)) {  
+       beanFactory.registerSingleton(APPLICATION_STARTUP_BEAN_NAME, getApplicationStartup());  
     }  
 }
 ```

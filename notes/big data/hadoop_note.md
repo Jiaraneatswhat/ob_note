@@ -8479,10 +8479,25 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 - 20 HDFS 回收站
 	- 默认回收站不开启
 	- 修改 core-site.xml
-		- `fs.trash.interval` 单位 min，为 0 时表示禁用
-		- `fs.trash.checkpoint.interval` 创建 ck 的间隔
-### 6.27 HDFS 用哪种存储格式
-### 6.28 HDFS 修改文件名是不是一个原子性过程
+		- `fs.trash.interval` 单位 `min`，为 0 时表示禁用
+		- `fs.trash.checkpoint.interval` 创建 `ck` 的间隔
+	- 删除的文件会进入 `/user/${user.name}/.Trash/` 目录
+- 21 HDFS 存储格式
+	- SequenceFile
+		- 存储 `KV` 的二进制文件
+		- 由一个 `Header` 和多个 `Record` 组成
+		- 通常作为中间数据存储格式
+	- Text
+		- 纯文本，行式存储
+		- 不支持块级别压缩
+	- ORC(Optimized Row Columnar)
+		- 支持多种压缩方式，可切分
+		- 以二进制方式存储，不可以直接读取
+	- Parquet
+		- 支持嵌套结构的列式存储格式
+		- 适用于 `OLAP` 场景，按列存储和扫描
+- 22 HDFS 修改文件名是不是一个原子性过程
+	- HDFS 创建文件，删除文件，重命名，创建目录都是原子性操作
 ### 6.29 HDFS 写过程中，某个 Namenode 挂掉会发生什么？原来的传输通道会断掉，还是连着只是不传数据了   
 ### 6.30 MR 有没有遇到过没有只有 Map 没有 Reduce 的业务
 ### 6.31 MR 怎么实现去重，hql 去重底层原理是什么

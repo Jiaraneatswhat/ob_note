@@ -8415,6 +8415,7 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 		- `hdfs dfsadmin -report`：提供了 `HDFS` 的健康状态报告，包括数据节点的状态和块的复制因子
 		- `yarn node -list -all`：查看所有 `NodeManager` 的状态
 		- `hdfs dfsadmin -safemode get`：检查是否处于安全模式
+	- 通过 `Prometheus + Grafana` 监控
 2 Hadoop 高可用
 3 Hadoop 遇到的问题，集群多大
 4 Hadoop 的详细加载顺序

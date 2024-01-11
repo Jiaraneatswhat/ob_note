@@ -8416,7 +8416,14 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 		- `yarn node -list -all`：查看所有 `NodeManager` 的状态
 		- `hdfs dfsadmin -safemode get`：检查是否处于安全模式
 	- 通过 `Prometheus + Grafana` 监控
-2 Hadoop 高可用
+- 2 Hadoop 高可用
+	- `NameNode` 高可用
+		- core-site.xml
+			- `fs.defaultFS -> hdfs://{group_name}`
+			- `ha.zookeeper.quarum: zookeeper` 
+		- hdfs-site.xml
+			- `dfs.nameservices nn 组名称`
+			- `dfs.ha.namenodes.{group_name} -> nn1,nn2`
 3 Hadoop 遇到的问题，集群多大
 4 Hadoop 的详细加载顺序
 5 NameNode 加载哪些信息，启动过程中，元数据信息保存在哪里

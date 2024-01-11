@@ -8445,12 +8445,12 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 	- 副本机制：每个数据块都会被复制到多个节点进行保存
 	- 主节点定期与数据节点进行心跳同步数据
 	- 写入和读取的一致性
-### 6.12 日志放到 Hadoop 怎么用
-### 6.13 Flume 到 Hadoop 有延迟吗
-### 6.14 从官网把 zip 下载下来,放在 Hadoop 的任意一台机器上,我需要修改什么,才能做到写个 sql 就可以执行
-### 6.15 Hadoop 和 flink 部署的时候，是安装在同一服务器吗
-### 6.16 做部署的时候，Hadoop 和 Flink 的版本有没有做兼容
-### 6.17 Hadoop 节点退役
+- 11 Hadoop 节点退役
+	- 设置黑名单来实现退役
+		- 在 `/etc/hadoop` 下创建 `dfs.hosts.exclude` 文件，添加黑名单节点
+		- 在 `hdfs-site.xml` 中增加 `dfs.hosts.exclude` 指向其路径
+		- 刷新 `NameNode`：`hdfs dfsadmin -refreshNodes`
+		- 更新 `RM` 节点：`yarn rmadmin -refreshNodes`
 ### 6.18 HDFS 磁盘均衡
 ### 6.19 HDFS 能不能并发写入？如何解决并发问题的
 ### 6.20 为什么是文件块大小是128m？Hdfs 中平均寻址的时间？

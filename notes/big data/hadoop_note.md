@@ -8455,9 +8455,17 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 	- 生成均衡计划：`hdfs diskbalancer -plan host_name`
 	- 执行：`hdfs diskbalancer -execute host_name.plan.json`
 	- 查看执行情况：`hdfs diskbalancer -query host_name`
-### 6.19 HDFS 能不能并发写入？如何解决并发问题的
-### 6.20 为什么是文件块大小是128m？Hdfs 中平均寻址的时间？
-### 6.21 HDFS 文件系统缺点
+- 13 HDFS 能不能并发写入？如何解决并发问题的
+	- 不支持并发写
+- 14 为什么是文件块大小是128m？HDFS 中平均寻址的时间？
+	- `HDFS` 平均寻址时间大概为 `10ms`
+	- 寻址时间为传输时间的 `1%` 时为最佳状态
+	- 磁盘的传输速率普遍为 `100MB/s`
+	- 最佳 `block` 的大小：`100MB/s * 1s = 100MB`
+ - 15 HDFS 文件系统缺点
+	 - 不适合低延迟数据访问
+	 - 无法高效对大量小文件进行存储
+	 - 不支持并发写入和随机修改
 ### 6.22 现在提交不同的应用到 Hdfs，有的要2副本，有的要3副本，怎么指定
 ### 6.23 HDFS 什么情况下会进入安全模式
 ### 6.24 HDFS 的 DataNode 挂了怎么办

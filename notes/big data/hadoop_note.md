@@ -8394,6 +8394,7 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 -get [-f] [-p] <src> <localdst>
 ```
 # 5 复习
+## 5.1 Linux
 # 6 面试
 - 1 如何检测 `Hadoop` 集群的健康状态
 	- 执行命令
@@ -8544,8 +8545,16 @@ hadoop job -kill job_id
 ```
 - 35 Hadoop 高可用以及热备份和冷备份
 	- HA 的主从模式是冷备
-		- Active 接待你提
-### 6.50 Hadoop 怎么迁移
-### 6.51 Hadoop 更改副本数
-### 6.52 Hadoop 故障排错步骤
-### 6.53 Yarn 日志有哪四类
+		- `Active` 节点提供对外服务，另一台 `Standby` 节点用于和 `Active` 节点进行数据同步
+		- 主节点出现故障，从节点自动提升为主节点
+	- 双机热备
+- 36 Hadoop 迁移
+	- `hadoop distcp src dst`
+- 37 Hadoop 故障排错步骤
+- 38 Yarn 日志有哪几类
+	- 服务类日志
+		- `RM`, `NM` 等自带服务的输出日志
+	- 作业统计日志
+		- 作业用了多少个 `Map`，`Reduce`，提交时间，完成时间等
+	- 作业运行日志
+		- `Container` 启动脚本，`AppMaster` 的日志等

@@ -186,3 +186,17 @@ select * from t1 left join t2 on t1.id = t2.id where t2.age > 50
 		- 单值分区每个分区对应分区键的一个值
 		- 范围分区每个分区对应分区键的一个区间
 		- `partitioned by range(key) (partition p1 values less than (v1))`
+- 2 Hive 的事务
+	- 不支持 `BEGIN, COMMIT, ROLLBACK`，所有操作都会自动提交
+	- 只支持 `ORC` 存储格式
+	- 只支持快照级别隔离，不支持脏读、读提交、可重复读或可序列化
+- 3 Hive 的文件存储格式
+	- text file
+	- sequence file
+	- rcfile
+	- orc
+	- parquet
+- 4 `hive on spark`，`spark` 挂了怎么分析错误
+	- 访问 `Spark Web UI` 的地址(4040)
+	- 找到 `HIve on Spark` 对应的程序
+	- 点击 `stderr` 查看错误日志

@@ -200,3 +200,16 @@ select * from t1 left join t2 on t1.id = t2.id where t2.age > 50
 	- 访问 `Spark Web UI` 的地址(4040)
 	- 找到 `HIve on Spark` 对应的程序
 	- 点击 `stderr` 查看错误日志
+- 5 删除分区的命令
+```shell
+# 删除指定条件分区
+ALTER TABLE table_name DROP PARTITION (partition_column1='value1', ...)
+# 删除全部分区
+ALTER TABLE table_name DROP PARTITION (partition_column1, ...)
+```
+- 6 orc 和 parquet 的区别
+	- `orc` 在写入和读取方面更加高效，可以读取特定的行或列，减少读取大量无用数据的时间和开销
+	- `orc` 可以处理多种的复杂数据类型
+	- 而 `parquet` 在支持跨平台查询方面更好
+- 7 hive 索引
+	- 

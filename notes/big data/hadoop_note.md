@@ -8527,6 +8527,8 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 - 30 HDFS 删除文件的过程
 	- `Client` 发起请求，`NN` 检查权限，是否处于安全模式
 	- `NN` 从命名空间删除相应的文件，并收集该文件要删除的块
+	- `BlockManager` 将要删除的块标记为无效，下次心跳时生成删除命令
+	- `DN` 删除相应的块向 `NN` 汇报
 ### 6.42 调整 HDFS 的三个参数解决小文件问题,具体设置的参数是怎样的
 ### 6.43 HDFS 满足 CAP 原则吗
 ### 6.44 Hadoop 是怎样实现权限的管控和资源的隔离的

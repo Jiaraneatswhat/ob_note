@@ -8521,8 +8521,8 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 	- 修改 yarn-site.xml，启用 `DominantResourceCalculator`
 	- 修改 yarn-site.xml
 		- `yarn.nodemanager.resource-plugins -> yarn.io/gpu`
-### 6.37 Yarn 可以到达什么粒度的资源分配
-### 6.38 Yarn 日志很长怎么定位 error
+- 28 Yarn 可以到达什么粒度的资源分配
+	- 基于 `MB` 的内存和 `VCore`
 ### 6.39 在 YARN 分配资源的时候 ,因为资源不足,会杀死优先级低的任务,这个问题如何解决
 ### 6.41 HDFS 删除文件的过程？ NN, DN 是怎么操作的
 ### 6.42 调整 HDFS 的三个参数解决小文件问题,具体设置的参数是怎样的

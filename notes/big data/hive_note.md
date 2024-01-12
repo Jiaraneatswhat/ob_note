@@ -174,4 +174,6 @@ select * from t1 left join t2 on t1.id = t2.id where t2.age > 50
 	
 - 去重原理
 	- 指定 distinct 时，Hive 会首先将数据从文件中读取到内存缓冲区
-	- Hive 按照指定的列或表达式dui'shu
+	- Hive 按照指定的列或表达式对数据进行分组
+	- 组内按 Hash 算法或排序算法对数据进行排序或分桶，以便快速锁定重复行
+	- 选择其中一个重复的行输出

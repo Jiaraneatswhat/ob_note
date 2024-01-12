@@ -8509,16 +8509,21 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 		- `lease recovery`
 		- `lease recovery` 时如果有文件的 `Block` 在多个 `DN` 上处于不一致的状态，首先需要将其恢复到一致长度的状态，称为 `block recovery` 
 - 24 MR 有没有遇到过没有只有 Map 没有 Reduce 的业务
-### 6.31 MR 怎么实现去重，hql 去重底层原理是什么
-### 6.32 Yarn 任务执行中，maptask 已完成100%，reduce task 完成60%，applicationMaster 挂掉会发生什么
-### 6.33 Yarn 三种引擎和三种调度器
-### 6.34 Yarn 资源配置
-### 6.35 Yarn 高可用
-### 6.36 Yarn 可以调用 GPU 吗
+- 25 Yarn 任务执行中，reduce task 完成 60%，applicationMaster 挂掉会发生什么
+	- `AppMaster` 有重试次数
+	- `mapreduce.am.max-attempts，默认 2`
+	- 重试失败后会在新的 NM 中开启新的 AppMaster
+	- 使用作业历史恢复任务状态，需要开启 `yarn.app.mapreduce.am.job.revocery.enable`
+- 26 Yarn 资源配置
+- 27 Yarn 调用 GPU
+	- 修改 resource-types.xml
+		- `yarn.resource-types -> yarn.io/gpu`
+	- 修改 yarn-site.xml，启用 `DominantResourceCalculator`
+	- 修改 yarn-site.xml
+		- `yarn.nodemanager.resource-plugins -> yarn.io/gpu`
 ### 6.37 Yarn 可以到达什么粒度的资源分配
 ### 6.38 Yarn 日志很长怎么定位 error
 ### 6.39 在 YARN 分配资源的时候 ,因为资源不足,会杀死优先级低的任务,这个问题如何解决
-### 6.40 HDFS 的存储格式是什么
 ### 6.41 HDFS 删除文件的过程？ NN, DN 是怎么操作的
 ### 6.42 调整 HDFS 的三个参数解决小文件问题,具体设置的参数是怎样的
 ### 6.43 HDFS 满足 CAP 原则吗

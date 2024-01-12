@@ -8464,6 +8464,17 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 	- `reduce` 阶段可以提高去 `Map` 拉取数据的并行度，5 -> 10
 	- 可以提高 `copy` 阶段 `Buffer` 占 `Reducer` 内存的比例，0.7 -> 0.8
 ### 5.5 Yarn 工作机制
+- `Yarn` 基于服务化框架和事件驱动模型
+	- 设计定义了一个抽象服务类，用户只需要实现其中的 `serviceInit()`, `serviceStart()` 等方法即可
+	- 设计了一个接口事件类，所有事件都通过实现该接口来表示状态，产生的事件放在队列中，由消费者通过 `Handler` 进行处理
+	- 一个对象对应的所有的状态变化汇总起来就是状态机，`Handler` 会使用状态机来更新对象状态
+- 任务的执行流程
+	- `Client` 向 `Yarn` 申请提交 `Job`
+	- 进行切片，上传配置文件
+	- `YarnRunner` 封装启动 `AM` 的命令，申请开启一个 `Application`
+	- 状态机处理事件，`RMApp -> RMAppAttempt -> Container`
+	- 从 `RM` 申请到资源后，选择 `NodeManager` 启动 `AM`
+	- `AM` 启动后执行 `Job`，产生事件交给状态机处理，仍然是申请资源，选择 `NM` 开启 `YarnChild` 进程执行任务
 
 # 6 面试
 - 1 如何检测 `Hadoop` 集群的健康状态

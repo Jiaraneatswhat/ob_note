@@ -4397,8 +4397,7 @@ public void write(KEYOUT key, VALUEOUT value
 
 // 调用MapTask的write方法，送到环形缓冲区
 public void write(K key, V value) throws IOException, InterruptedException {
-      collector.collect(key, value,
-                        partitioner.getPartition(key, value, partitions));
+      collector.collect(key, value, partitioner.getPartition(key, value, partitions));
 }
 ```
 ## 2.3 Shuffle
@@ -8442,7 +8441,16 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 			- `hadoop archive -archiveName name <src> <dest>`
 	- 计算
 		- JVM 重用(只适用于 `MR` 进程)
-		- 
+		- `CombineTextInputFormat`
+### 5.4 Shuffle 优化
+- 流程
+	- `map` 方法中通过 `context` 写出后，数据通过分区器收集到环形缓冲区中
+		- 环形缓冲区是一个数组，存放着 `kv` 的序列化数据和 `kv` 的元数据信息，由 `equator` 进行分割
+		- `kv` 数据按索引增大的方向存储，`kvmeta` 按索引递减的方向存储
+	- 在环形缓冲区中进行写时会进行快排，实现分区内有序
+	- 达到 80% 的阈值后，进行归并排序生成单个大文件，向磁盘溢写
+	- Reduce 阶段分为三部分：copy, merge, reduce
+	- copy 阶段通过 `LocalFetcher` 线程拉取数据
 # 6 面试
 - 1 如何检测 `Hadoop` 集群的健康状态
 	- 执行命令

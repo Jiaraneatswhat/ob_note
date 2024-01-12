@@ -1199,3 +1199,6 @@ get 查看节点存储内容
 		- `Leader` 向 `Follower` 发送 `Proposal` 消息
 		- `Follower` 收到 `Proposal` 后，将其以事务日志的方式写入本地磁盘，发送 `ack`
 		- 收到半数以上的 `ack` 反馈后，向 `Follower` 发送 `Commit`，自身完成事务提交，`Follower` 接收到 `Commit` 消息后提交事务
+	- 崩溃恢复
+		- `Leader` 选举
+		- 数据同步

@@ -8529,14 +8529,22 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 	- `NN` 从命名空间删除相应的文件，并收集该文件要删除的块
 	- `BlockManager` 将要删除的块标记为无效，下次心跳时生成删除命令
 	- `DN` 删除相应的块向 `NN` 汇报
-### 6.42 调整 HDFS 的三个参数解决小文件问题,具体设置的参数是怎样的
-### 6.43 HDFS 满足 CAP 原则吗
-### 6.44 Hadoop 是怎样实现权限的管控和资源的隔离的
-### 6.45 MR 的 stage 是什么
-### 6.46 写一个脚本，杀掉 Yarn 上正在运行的程序
-### 6.47 下载 HDFS 上 Yarn 的错误日志该怎么做
-### 6.48 Hadoop 相对 MySQL 为什么可以做到分布式处理更大的数据量
-### 6.49 Hadoop 高可用以及热备份和冷备份
+- 31 Hadoop 满足 CAP 原则吗
+	- CAP: 分布式系统只能满足一致性，可用性和分区容错性中的两个
+	- `Hadoop` 满足 `CP`，多个节点发生故障时，不满足可用性
+- 32 Hadoop 是怎样实现权限的管控和资源的隔离
+	- 通过 ACL，用户认证实现权限管控
+	- 通过 Yarn 的多队列实现资源隔离
+- 33 MR 的 stage
+	- Spilt -> Map -> Shuffle -> Reduce
+- 34 写一个脚本，杀掉 Yarn 上正在运行的程序
+```shell
+hadoop job -list
+hadoop job -kill job_id
+```
+- 35 Hadoop 高可用以及热备份和冷备份
+	- HA 的主从模式是冷备
+		- Active 接待你提
 ### 6.50 Hadoop 怎么迁移
 ### 6.51 Hadoop 更改副本数
 ### 6.52 Hadoop 故障排错步骤

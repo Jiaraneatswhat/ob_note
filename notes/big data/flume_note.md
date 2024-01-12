@@ -1,4 +1,4 @@
-# 1. 启动
+# 1 启动
 ## 1.1 flume-ng
 ```shell
 # agent主类
@@ -439,7 +439,7 @@ public class SinkRunner implements LifecycleAware {
   }   
 }
 ```
-# 2. TailDirSource
+# 2 TailDirSource
 ## 2.1 加载 source 时进行配置
 ```java
 public synchronized void configure(Context context) {  
@@ -478,7 +478,7 @@ public synchronized void configure(Context context) {
 
 # 复习
 
-## .1 基本组成
+### .1 基本组成
 - `Source`
 	- `TailDirSource`
 	- `KafkaSource`
@@ -489,3 +489,27 @@ public synchronized void configure(Context context) {
 	- `KafkaChannel`
 - `Sink`
 	- `HDFSSink`
+### .2 自定义拦截器
+- 实现 `Interceptor` 接口
+- 重写四个方法
+	- initialize()
+	- intercept(Event e)
+	- intercept(List<\Event> events)
+	- close()
+- 创建一个内部类 `Builder` 实现 `Interceptor.Builder`，重写 `bulid()` 方法返回拦截器实例
+- 打包到 `Flume` 的 `lib` 目录中
+- 在配置信息中配置 `拦截器$Builder`
+### .3 Channel 选择器
+- 默认 Replicating，向每个 `Channel` 发送一份数据
+- Load Balancing：实现负载均衡，通过 `round robin` 或 `random` 选择 `Channel`
+- Multiplexing：配合拦截器一起使用，根据 `header` 的信息，发送给不同的 `Channel
+### .4 Flume 优化
+- 内存默认 `20M`，增大到 `4-6G`
+- HDFS Sink 小文件：设置滚动参数
+	- `hdfs.rollInterval，默认 30s`
+	- `hdfs.rollCount，默认 10`，滚动的事件数
+	- `hdfs.rollSize，默认 1024 bytes`
+- 提高吞吐量
+	- `Sink` 默认的 `batchSize` 是 `100`，调整至 `2-3k`
+- 丢数据
+	- 

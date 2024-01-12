@@ -8475,7 +8475,13 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 	- 状态机处理事件，`RMApp -> RMAppAttempt -> Container`
 	- 从 `RM` 申请到资源后，选择 `NodeManager` 启动 `AM`
 	- `AM` 启动后执行 `Job`，产生事件交给状态机处理，仍然是申请资源，选择 `NM` 开启 `YarnChild` 进程执行任务
-
+### 5.6 调度器特点
+- FIFO：单队列，不用
+- Capacity：多队列，队列内部 `FIFO`，用于并行度不高的场景
+- Fair：多队列，按照缺额分配，并行度高
+- 在 `yarn-site.xml` 中配置队列
+- 队列的设置
+	- 框架，业务线，部门，人员
 # 6 面试
 - 1 如何检测 `Hadoop` 集群的健康状态
 	- 执行命令

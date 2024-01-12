@@ -8523,8 +8523,10 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 		- `yarn.nodemanager.resource-plugins -> yarn.io/gpu`
 - 28 Yarn 可以到达什么粒度的资源分配
 	- 基于 `MB` 的内存和 `VCore`
-### 6.39 在 YARN 分配资源的时候 ,因为资源不足,会杀死优先级低的任务,这个问题如何解决
-### 6.41 HDFS 删除文件的过程？ NN, DN 是怎么操作的
+- 29 在 YARN 分配资源的时候 ,因为资源不足,会杀死优先级低的任务,如何解决
+- 30 HDFS 删除文件的过程
+	- `Client` 发起请求，`NN` 检查权限，是否处于安全模式
+	- `NN` 从命名空间删除相应的文件，并收集该文件要删除的块
 ### 6.42 调整 HDFS 的三个参数解决小文件问题,具体设置的参数是怎样的
 ### 6.43 HDFS 满足 CAP 原则吗
 ### 6.44 Hadoop 是怎样实现权限的管控和资源的隔离的

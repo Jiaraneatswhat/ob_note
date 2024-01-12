@@ -8394,7 +8394,31 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 -get [-f] [-p] <src> <localdst>
 ```
 # 5 复习
-## 5.1 Linux
+### 5.1 Linux 高级命令
+- 查看内存
+	- `top`
+	- `free -m`
+		- 默认使用 `kb` 显示大小
+		- `-m` 指定使用 `mb` 显示大小
+	- `jmap -heap` 查看 `java` 进程的堆内存
+- 查看磁盘
+	- `df -h` ：`-h`: `human-readable`
+	- `du -sh`：`-s`: `summary`
+- 查看端口
+	- `netstat -anp`
+		- `-a`: all
+		- `-n`: 不显示别名
+		- `-p`: 显示 `pid, pname`
+- 查看进程
+	- `ps -ef`
+		- `-e`: 显示全部
+		- `-f`: 显示全部字段
+### 5.2 读写流程
+- 写流程
+	- `Client` 创建一个 `DataStreamer` 用于后续写数据
+	- `Client` 通过 `RPCServer` 向 `NN` 发起写请求
+	- `NN` 检查客户端的权限，确认目录树中不存在要写的文件时，创建一个 `INode` 节点
+	- 
 # 6 面试
 - 1 如何检测 `Hadoop` 集群的健康状态
 	- 执行命令

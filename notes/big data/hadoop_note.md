@@ -8451,7 +8451,7 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 	- 达到 80% 的阈值后，进行归并排序生成单个大文件，向磁盘溢写
 	- Reduce 阶段分为三部分：copy, merge, reduce
 	- copy 阶段通过 `LocalFetcher` 线程拉取数据
-	- merge 阶段开启两个 Merge 线程，一个向
+	- merge 阶段开启两个 `Merge` 线程，一个向内存溢写，一个向磁盘溢写
 # 6 面试
 - 1 如何检测 `Hadoop` 集群的健康状态
 	- 执行命令

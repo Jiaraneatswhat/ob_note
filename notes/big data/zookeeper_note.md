@@ -1188,4 +1188,14 @@ get 查看节点存储内容
 	- `ZK` 通过每个线程在同一父目录下创建临时有序节点，通过比较节点 `id` 的大小来实现分布式锁功能
 	- 通过 `ZK` 的 `Watch` 机制来实时获取节点的状态，业务执行完释放锁，删除节点后立即重新争抢锁
 - 4 选举机制
-	- 启动 `QuorumPeer` 进程，
+	- 启动 `QuorumPeer` 进程，初始状态为 `LOOKING`，创建一个 `Vote` 对象
+	- 准备选举阶段，开启两个线程 `WorkerSender` 和 `WorkerReceiver`，分别用于接收别人的选票和发送自己的选票
+	- 每个节点上线时会先投自己一票，然后将选票进行广播，当一个节点收到其他节点广播的选票时，会进行比较
+	- 先比较 `epoch`, 再比较 `zxid`, 最后比较 `myid`，更新选票
+	- 选票超过半数后，将 `peerId` 与选票推选的 `Leader` 相同的节点设置为 `Leader`，其他的为 `Follower` 
+- 5 ZAB(ZK 原子广播)
+	- 消息广播：
+		- `Leader` 将 `Client` 的请求转换为 `Proposal`
+		- `Leader` 向 `Follower` 发送 `Proposal` 消息
+		- `Follower` 收到 `Proposal` 后，将其以事务日志的方式写入本地磁盘，发送 `ack`
+		- 收到半数以上的 `ack` 反馈后，向 `Follower` 发送 `Commit`，自身完成事务提交，`Follower` 接收到 `Commit` 消息后提交事务

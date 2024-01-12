@@ -185,3 +185,4 @@ select * from t1 left join t2 on t1.id = t2.id where t2.age > 50
 	- 范围分区
 		- 单值分区每个分区对应分区键的一个值
 		- 范围分区每个分区对应分区键的一个区间
+		- `partitioned by range(key) (partition p1 values less than (v1))`

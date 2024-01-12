@@ -72,7 +72,7 @@ esac
 - reduce 阶段，可以提高 Reduce 去 Map 拉取数据的并行度，默认 5，可以提高到 10
 - 可以提高 copy 阶段 Buffer 占 Reducer 内存的比例，默认 0.7, 可以增加到 0.8
 #### 4. Yarn 工作机制
-
+- Yarn 基于服务化框架和事件驱动模型来设计，定义了一个抽象服务类，所有组件都来
 - 客户端向 Yarn 申请提交 Job
 - Yarn 向 RM 申请一个 Application，RM 返回资源提交路径
 - Yarn 提交 job 运行所需资源(jar 包，切片文件，配置文件)

@@ -8463,6 +8463,8 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 	- 增加 `Container` 的内存和 `CPU` 资源
 	- `reduce` 阶段可以提高去 `Map` 拉取数据的并行度，5 -> 10
 	- 可以提高 `copy` 阶段 `Buffer` 占 `Reducer` 内存的比例，0.7 -> 0.8
+### 5.5 Yarn 工作机制
+
 # 6 面试
 - 1 如何检测 `Hadoop` 集群的健康状态
 	- 执行命令

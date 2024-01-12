@@ -512,4 +512,5 @@ public synchronized void configure(Context context) {
 - 提高吞吐量
 	- `Sink` 默认的 `batchSize` 是 `100`，调整至 `2-3k`
 - 丢数据
-	- 
+	- 通过监控器观察 `Source` 成功 `Put` 的事件数 = `Channel` 中的事件数 + `Sink` 成功 `Take` 的事件数
+	- 采用 `TailDirSource`, `KakfaChannel`, 以及 `KafkaSource`, `FileChannel`, `HDFSSink` 组件，组件间的数据传输有事务保证，没有丢数据

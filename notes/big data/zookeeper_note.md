@@ -1162,18 +1162,6 @@ private void processEvent(Object event) {
 	}
 }
 ```
-
-
-
-
-
-
-
-
-
-
-
-
 # 4. Shell 操作
 ```shell
 # 创建节点 
@@ -1190,3 +1178,7 @@ ls 查看子节点名称
 get 查看节点存储内容
 ```
 # 5. 面试
+- 1 ZK 是否满足 CAP 
+	- `ZK` 可以保证 `CP`
+	- `ZK` 不能保证每次服务请求的可用性
+	- `ZK` 在选举 `Leader` 时是不可用状态

@@ -212,4 +212,21 @@ ALTER TABLE table_name DROP PARTITION (partition_column1, ...)
 	- `orc` 可以处理多种的复杂数据类型
 	- 而 `parquet` 在支持跨平台查询方面更好
 - 7 hive 索引
-	- 
+	- 内部索引
+		- 针对于分区表而言，采用 `hash` 表的方式进行索引
+		- 内部索引将分区表的每个分区都存储在不同的文件夹中，每个文件夹包含一个索引文件和一个数据文件
+	- 向分区表添加索引
+		- `alter table table_name add index idx_name on column (col_name)`
+	- 查看分区表索引
+		- `show indexes on table_name`
+	- 外部索引
+		- 表数据存储在 HDFS 文件中，每个数据块之间的偏移量存储在索引文件中
+		- 查询时先找索引文件，根据索引文件获取到相应数据块的位置，从数据块中获取到需要的数据
+	- 向外部表添加索引
+		- `create index idx_name on table_name (col_name)`
+	- 索引失效的情况
+		- where 条件中出现了 or
+		- where 条件中索引列参与了运算
+		- where 条件列使用了函数
+		- like 模糊匹配以 % 开始
+		- 

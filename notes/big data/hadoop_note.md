@@ -8418,7 +8418,31 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 	- `Client` 创建一个 `DataStreamer` 用于后续写数据
 	- `Client` 通过 `RPCServer` 向 `NN` 发起写请求
 	- `NN` 检查客户端的权限，确认目录树中不存在要写的文件时，创建一个 `INode` 节点
-	- 
+	- `Client` 开始写，生成 `packet` 后，`DataStreamer` 会建立管道向 `NN` 请求块地址
+	- `NN` 根据机架感知将块所在的 `DN` 地址返回给 `Client`
+		- 优先同机架
+		- 其次另一个机架
+		- 最后另一个机架的另一个节点
+	- `Client` 和 `DN` 建立连接，获取到契约后开始写数据，`DN` 通过 `DataXceiver` 接收数据，返回 `ack`，将数据持久化到磁盘
+- 读流程
+	- 客户端创建输入流，向 `NN` 建立连接获取块地址
+	- `NN` 检查权限和目录树后，返回块地址
+	- 客户端和 `DN` 建立连接读取数据
+### 5.3 小文件问题
+- 危害
+	- 存储：每个块对应 150byte 的元数据信息，会占用 NN 内存
+	- 计算：每个小文件切一片
+- 解决
+	- 源头：
+		- 通过 Flume 向 HDFS 写时
+			- 设置三个滚动参数来避免小文件
+		- ADS 层的 SQL：今日数据 `union all` 昨天之前的数据进行 `overwrite`
+		- 手动合并
+		- `har` 归档
+			- `hadoop archive -archiveName name <src> <dest>`
+	- 计算
+		- JVM 重用(只适用于 `MR` 进程)
+		- 
 # 6 面试
 - 1 如何检测 `Hadoop` 集群的健康状态
 	- 执行命令

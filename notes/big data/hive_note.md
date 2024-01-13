@@ -211,6 +211,17 @@ ALTER TABLE table_name DROP PARTITION (partition_column1, ...)
 	- `orc` 在写入和读取方面更加高效，可以读取特定的行或列，减少读取大量无用数据的时间和开销
 	- `orc` 可以处理多种的复杂数据类型
 	- 而 `parquet` 在支持跨平台查询方面更好
+	- orc 格式
+		- 根据块大小分成多个 `Stripe` ，一个 `File Footer` 和 `Postscript`
+			- `Stripe` 内部按列存储，每一个 `column` 由多个 `stream` 组成
+				- 索引数据
+				- 行数据
+			- `Stripe Footer`：保存 `Stripe` 的元数据信息
+		- `File Footer` 保存文件层级，列统计信息等
+		- `Postscript` 保存文件的必要信息
+	- parquet 格式
+		- 包含一个 `Header`，`Data Block` 以及 `Footer`
+		- 一个 `Data` 包含多个 `Row Group`
 - 7 hive 索引
 	- 内部索引
 		- 针对于分区表而言，采用 `hash` 表的方式进行索引
@@ -244,11 +255,7 @@ ALTER TABLE table_name DROP PARTITION (partition_column1, ...)
 - 10 Hive 内部表存储路径
 	- `hive-site.xml` 中配置 `hive.metastore.warehouse.dir`
 	- 默认值 `/user/hive/warehouse`
-- 11 orc 格式
-	- 根据块大小分成多个 `Stripe` ，一个 `File Footer` 和 `Postscript`
-		- `Stripe` 内部按列存储
-			- 索引数据
-			- 行数据：每一个 `column` 由多个 `stream` 组成
-			- `Stripe Footer`：保存 `Stripe` 的元数据信息
-		- `File Footer` 保存文件层级，列统计信息等
-		- `Postscript` 保存文件的必要信息
+- 11 Hive 转大小写函数，取两位小数
+	- `upper`, `ucase`
+	- `lower`, `lcase`
+	- `round(num, 2)` 或 `decimal(precision, 2)`

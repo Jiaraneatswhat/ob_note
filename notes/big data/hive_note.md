@@ -244,4 +244,8 @@ ALTER TABLE table_name DROP PARTITION (partition_column1, ...)
 - 10 Hive 内部表存储路径
 	- `hive-site.xml` 中配置 `hive.metastore.warehouse.dir`
 	- 默认值 `/user/hive/warehouse`
-- 11 
+- 11 orc 格式
+	- 根据块大小分成多个 `stripe`
+	- stripe 内部按列存储
+		- 索引数据
+		- 行数据：每一个 column 由多个 stream 组成

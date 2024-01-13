@@ -228,5 +228,6 @@ ALTER TABLE table_name DROP PARTITION (partition_column1, ...)
 		- where 条件中出现了 or
 		- where 条件中索引列参与了运算
 		- where 条件列使用了函数
-		- like 模糊匹配以 % 开始
-		- 
+- 8 Hive 元数据包括什么
+	- Hive 创建的 database，table，表位置，类型，属性，字段顺序，字段类型等
+- 9 Hive 的数据类型

@@ -259,3 +259,8 @@ ALTER TABLE table_name DROP PARTITION (partition_column1, ...)
 	- `upper`, `ucase`
 	- `lower`, `lcase`
 	- `round(num, 2)` 或 `decimal(precision, 2)`
+- 12 HiveInputFormat
+	- 用于指定 Hive 读取数据时的输入格式
+	- 通过 `set hive.input.format = FQCN` 来设置
+	- 默认是 `org.apache.hadoop.hive.ql.io.CombineHiveInputFormat`
+- 13 

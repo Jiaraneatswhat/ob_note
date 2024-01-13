@@ -220,7 +220,7 @@ ALTER TABLE table_name DROP PARTITION (partition_column1, ...)
 	- 查看分区表索引
 		- `show indexes on table_name`
 	- 外部索引
-		- 表数据存储在 HDFS 文件中，每个数据块之间的偏移量存储在索引文件中
+		- 表数据存储在 `HDFS` 文件中，每个数据块之间的偏移量存储在索引文件中
 		- 查询时先找索引文件，根据索引文件获取到相应数据块的位置，从数据块中获取到需要的数据
 	- 向外部表添加索引
 		- `create index idx_name on table_name (col_name)`
@@ -229,5 +229,19 @@ ALTER TABLE table_name DROP PARTITION (partition_column1, ...)
 		- where 条件中索引列参与了运算
 		- where 条件列使用了函数
 - 8 Hive 元数据包括什么
-	- Hive 创建的 database，table，表位置，类型，属性，字段顺序，字段类型等
+	- Hive 创建的 `database`，`table`，表位置，类型，属性，字段顺序，字段类型等
 - 9 Hive 的数据类型
+	- 原始类型
+		- 数值型
+		- boolean
+		- 字符串
+		- 时间戳
+	- 复杂类型
+		- array
+		- map
+		- struct
+		- union
+- 10 Hive 内部表存储路径
+	- `hive-site.xml` 中配置 `hive.metastore.warehouse.dir`
+	- 默认值 `/user/hive/warehouse`
+- 11 

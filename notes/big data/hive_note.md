@@ -333,3 +333,5 @@ select
 	- 对任务进行编译优化后转为物理计划
 	- Driver 将最终的计划提交给 ExecutionEngine 执行，提交给 RM 执行
 	- 获取执行结果并返回
+![[hive_sql.svg]]
+

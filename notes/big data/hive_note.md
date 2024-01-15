@@ -190,6 +190,7 @@ select * from t1 left join t2 on t1.id = t2.id where t2.age > 50
 	- 不支持 `BEGIN, COMMIT, ROLLBACK`，所有操作都会自动提交
 	- 只支持 `ORC` 存储格式
 	- 只支持快照级别隔离，不支持脏读、读提交、可重复读或可序列化
+	- 将 `hive.txn.manager` 配置为 `org.apache.hadoop.hive.ql.lockmgr.DbTxnManager` 提供对事务表的支持
 - 3 Hive 的文件存储格式
 	- text file
 	- sequence file

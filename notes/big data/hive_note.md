@@ -335,3 +335,13 @@ select
 	- 获取执行结果并返回
 ![[hive_sql.svg]]
 
+- 20 CombineTextHiveInputFormat 是逻辑优化还是物理优化
+- 21 Hive 数据迁移
+	- 元数据迁移
+		- `show create table` 获取创建 `table` 的 `SQL` 语句，在新集群执行
+		- 通过 `import` 拷贝数据
+	- 数据迁移
+		- `hadoop distcp`
+		- 先 `get` 到本地，再上传
+	- 生成新表
+- 22 

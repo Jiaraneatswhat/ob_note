@@ -326,3 +326,10 @@ select
 			- 更改适用于所有分区，在表上获得一个 X 锁
 	- `alter table T1 add partition P1 -> S on T1, X on T1, P1`
 	- `alter table T1 add cols -> X on T1`
+- 19 Hive 执行时进程名 -> CliDriver
+	- Cli 提交作业给 Driver
+	- 编译器获得该用户的 Plan
+	- 编译器去 MetaStore 获取需要的 Hive 元数据信息
+	- 对任务进行编译优化后转为物理计划
+	- Driver 将最终的计划提交给 ExecutionEngine 执行，提交给 RM 执行
+	- 获取执行结果并返回

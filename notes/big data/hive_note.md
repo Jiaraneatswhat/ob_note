@@ -263,4 +263,4 @@ ALTER TABLE table_name DROP PARTITION (partition_column1, ...)
 	- 用于指定 Hive 读取数据时的输入格式
 	- 通过 `set hive.input.format = FQCN` 来设置
 	- 默认是 `org.apache.hadoop.hive.ql.io.CombineHiveInputFormat`
-- 13 
+- 13 Hive AB 表关联，A 表 10 条 B 表 5 条，关联后怎么有12条

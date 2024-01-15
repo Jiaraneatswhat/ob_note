@@ -344,4 +344,10 @@ select
 		- `hadoop distcp`
 		- 先 `get` 到本地，再上传
 	- 生成新表
-- 22 
+- 22 Hive 自定义函数在 MR 的哪个位置执行
+- 23 Hive 导出数据的方式
+	- `insert overwrite [local] directory`
+	- `export table table_name to
+	- `hive -e "select ..." > file`
+- 24 spark on hive 和 hive on spark 的区别
+	- spark on hive：Hive 作为存储，Spark 负责 SQL 的解析和优化

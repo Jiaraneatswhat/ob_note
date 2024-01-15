@@ -284,4 +284,31 @@ select
 ```
 - 15 为什么用 SuperSet 对接 MySQL 而不是直接对接 Hive
 - 16 Hive explain
-	- 
+	- 一个 Hive 查询会被转换为多个 Stage 组成的 DAG 图
+		- MapReduce Stage
+		- 元数据存储的 Stage
+		- 文件系统操作的 Stage
+	- Map Reduce :
+		- Map Operator Tree
+			- Map 第一个操作肯定是读表，即 TableScan
+				- alias：表别名
+				- Statistics：表统计信息
+			- Selector Operator
+				- expressions：需要的字段名称和类型
+				- outputColumnNames: 输出的列名称
+			- Group By Operator
+				- aggregations: 聚合函数 
+				- mode: hash, partial, final
+				- keys: 分组字段
+				- outputColumnNames
+			- Reduce Output Operator
+				- sort order
+					- 空：不排序
+					- +：正序
+					- -：倒序
+		- Reduce Operator Tree
+			- Filter Operator
+				- predicate：过滤条件
+	- Stage: Stage-0
+		- Fetch Operator
+			- limit: -1：不限制条数

@@ -263,4 +263,20 @@ ALTER TABLE table_name DROP PARTITION (partition_column1, ...)
 	- 用于指定 Hive 读取数据时的输入格式
 	- 通过 `set hive.input.format = FQCN` 来设置
 	- 默认是 `org.apache.hadoop.hive.ql.io.CombineHiveInputFormat`
-- 13 Hive AB 表关联，A 表 10 条 B 表 5 条，关联后怎么有12条
+- 13 Hive AB 表关联，A 表 10 条 B 表 5 条，关联后怎么有 12条
+- 14 Hive 解析 JSON
+```SQL
+-- get_json_object(json_string, '$.key') 根据 key 获取 value
+-- 只能返回一个字段
+select 
+	get_json_object('{"name":"lisi","age":"13"}', '$.name')
+	
+	+------+
+	| name |
+	+------+
+	| lisi |
+	+------+
+
+
+
+```

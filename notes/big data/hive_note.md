@@ -278,5 +278,6 @@ select
 	+------+
 
 -- json_tuple(json_string, k1, k2 ...) 指定多个 key
-
+select 
+	json_tuple('{"name":"lisi","age":"12"}', 'name', 'age')
 ```

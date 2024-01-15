@@ -312,3 +312,17 @@ select
 	- Stage: Stage-0
 		- Fetch Operator
 			- limit: -1：不限制条数
+- 17 Hive 分割符指定的什么(其他层不清楚，为什么用这种分隔符也不清楚)
+	- DWD：通过 '\t' 分割
+- 18 Hive 中的锁
+	- S 锁(Shared) 和 X 锁(Exclusive)
+	- 非分区表：
+		- 读取表时，需要一个 S 锁
+		- 插入修改等需要一个 X 锁
+	- 分区表：
+		- 读操作时，表和相关分区需要一个 S 锁
+		- 其他操作在分区上获取 X 锁
+			- 更改只适用于更新的分区：在表上获取一个 S 锁
+			- 更改适用于所有分区，在表上获得一个 X 锁
+	- `alter table T1 add partition P1 -> S on T1, X on T1, P1`
+	- `alter table T1 add cols -> X on T1`

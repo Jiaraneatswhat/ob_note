@@ -281,3 +281,5 @@ select
 select 
 	json_tuple('{"name":"lisi","age":"12"}', 'name', 'age')
 ```
+- 15 为什么用 SuperSet 对接 MySQL 而不是直接对接 Hive
+- 16 

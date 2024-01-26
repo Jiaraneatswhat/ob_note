@@ -1,9 +1,9 @@
 # 1 读取数据
 - PyTorch 中的加载数据流程
-	- 加载数据，提取出特征和标签，封装成 tensor
-	- 创建一个 DataSet 对象
-	- 创建一个 DataLoader 对象，用于实现数据加载的方式
-	- 循环 DataLoader，训练数据
+	- 加载数据，提取出特征和标签，封装成 `tensor`
+	- 创建一个 `DataSet` 对象
+	- 创建一个 `DataLoader` 对象，用于实现数据加载的方式
+	- 通过 `enumerate` 迭代 `DataLoader`，调用其 `__iter__ `方法加载数据
 ## 1.1 DataSet
 - `torch.utils.data.dataset.py` 中定义了 `DataSet` 类：
 ```python
@@ -69,6 +69,7 @@ class DataLoader(Generic[T_co]):
 		...
 ```
 ### 1.2.1 读取数据逻辑
+- 将一个 `batch` 的数据进行合并
 ```python
 # DataLoader 在迭代时使用 _SingleProcessDataLoaderIter, 继承自 _BaseDataLoaderIter
 class _SingleProcessDataLoaderIter(_BaseDataLoaderIter):  
@@ -108,6 +109,11 @@ class _IterableDatasetFetcher(_BaseDatasetFetcher):
                     break            
         else:  
             data = next(self.dataset_iter)  
-        # 
+        # 默认的 collate_fn 将 data 转为 tensor
         return self.collate_fn(data)
+```
+### 1.2.2 shuffle
+- `shuffle` 参数用于打乱数据，使数据更具有独立性，一般用于训练集
+```python
+
 ```

@@ -237,3 +237,12 @@ class ToTensor:
 	def __call__(self, pic):  
 	    return F.to_tensor(pic)
 ```
+## 2.7 ToPILImage
+```python
+class ToPILImage:
+	def __init__(self, mode=None):  
+		# color space & input depth
+	    self.mode = mode
+    def __call__(self, pic):
+	    return F.to_pil_image(pic, self.mode)
+```

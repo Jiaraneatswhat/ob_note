@@ -140,6 +140,10 @@ if batch_size is not None and batch_sampler is None:
 ```
 # 2 transforms
 - `torchvision.transforms` 主要定义了一些与图像增广相关的操作
+- 图像常见的打开方式
+	- `PIL -> Image.open()`
+	- `tensor -> ToTensor()`
+	- `ndarray -> cv2.imread()`
 ## 2.1 Compose
 ```python
 class Compose:

@@ -142,6 +142,98 @@ if batch_size is not None and batch_sampler is None:
 - `torchvision.transforms` 主要定义了一些与图像增广相关的操作
 ## 2.1 Compose
 ```python
+class Compose:
+	def __init__(self, transforms):  
+    # 将传入的 transforms 列表组合在一起
+    self.transforms = transforms
 
+	def __call__(self, img):  
+	# 循环调用
+    for t in self.transforms:  
+        img = t(img)  
+    return img
 ```
+## 2.2 Normalize
+```python
+class Normalize(torch.nn.Module):
+	def __init__(self, mean, std, inplace=False):  
+	    super().__init__()  
+	    self.mean = mean  
+	    self.std = std  
+	    self.inplace = inplace
 
+	def forward(self, tensor: Tensor) -> Tensor:
+		# 调用 torch.functional 实现标准化
+		return F.normalize(tensor, self.mean, self.std, self.inplace)
+```
+## 2.3 Resize
+```python
+class Resize(torch.nn.Module):
+	# 默认双线性插值
+	def __init__(self, size, interpolation=InterpolationMode.BILINEAR, max_size=None, antialias="warn"):  
+    super().__init__()  
+    self.size = size  
+    self.max_size = max_size  
+  
+    self.interpolation = interpolation  
+    # 平滑
+    self.antialias = antialias
+
+	def forward(self, img):  
+		return F.resize(img, 
+						self.size, 
+						self.interpolation, 
+						self.max_size, self.antialias)
+```
+## 2.4 RandomCrop
+```python
+class RandomCrop(torch.nn.Module):
+	def __init__(self, size, padding=None, pad_if_needed=False, fill=0, padding_mode="constant"):  
+	    super().__init__()  
+	  
+	    self.size = tuple(_setup_size(size, error_msg="Please provide only two dimensions (h, w) for size."))  
+	  
+	    self.padding = padding  
+	    self.pad_if_needed = pad_if_needed  
+	    self.fill = fill  
+	    self.padding_mode = padding_mode
+
+	def forward(self, img):  
+	    if self.padding is not None:  
+	        img = F.pad(img, self.padding, self.fill, self.padding_mode)  
+	  
+	    _, height, width = F.get_dimensions(img)  
+	    # pad the width if needed  
+	    if self.pad_if_needed and width < self.size[1]:  
+			# 宽度不够用 0 填充
+	        padding = [self.size[1] - width, 0]  
+	        img = F.pad(img, padding, self.fill, self.padding_mode)  
+	    # pad the height if needed  
+	    if self.pad_if_needed and height < self.size[0]:  
+	        padding = [0, self.size[0] - height]  
+	        img = F.pad(img, padding, self.fill, self.padding_mode)  
+	  
+	    i, j, h, w = self.get_params(img, self.size)  
+  
+	    return F.crop(img, i, j, h, w)
+```
+## 2.5 RandomHorizontalFlip
+```python
+class RandomHorizontalFlip(torch.nn.Module):
+	def __init__(self, p=0.5):  
+	    super().__init__()  
+	    # 翻转概率  
+	    self.p = p
+
+	def forward(self, img):  
+	    if torch.rand(1) < self.p:  
+	        return F.hflip(img)  
+	    return img
+```
+## 2.6 ToTensor
+```python
+# 将 PIL 图像或 numpy.ndarray 转换为 tensor
+class ToTensor:
+	def __call__(self, pic):  
+	    return F.to_tensor(pic)
+```

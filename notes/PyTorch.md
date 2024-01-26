@@ -158,6 +158,7 @@ class Compose:
     return img
 ```
 ## 2.2 Normalize
+- `output[channel] = (input[channel] - mean[channel]) / std[channel]`
 ```python
 class Normalize(torch.nn.Module):
 	def __init__(self, mean, std, inplace=False):  

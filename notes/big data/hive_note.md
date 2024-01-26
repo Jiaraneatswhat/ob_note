@@ -350,4 +350,5 @@ select
 	- `export table table_name to
 	- `hive -e "select ..." > file`
 - 24 spark on hive 和 hive on spark 的区别
-	- spark on hive：Hive 作为存储，Spark 负责 SQL 的解析和优化
+	- spark on hive：`Hive` 作为存储，`Spark` 负责 `SQL` 的解析和优化及执行
+	- hive on spark: `Hive` 既作为存储也负责 `SQL` 的解析优化，`Spark` 负责执行

@@ -138,3 +138,10 @@ if batch_size is not None and batch_sampler is None:
     # auto_collation without custom batch_sampler  
     batch_sampler = BatchSampler(sampler, batch_size, drop_last)
 ```
+# 2 transforms
+- `torchvision.transforms` 主要定义了一些与图像增广相关的操作
+## 2.1 Compose
+```python
+
+```
+

@@ -5,7 +5,7 @@
 	- 创建一个 DataLoader 对象，用于实现数据加载的方式
 	- 循环 DataLoader，训练数据
 ## 1.1 DataSet
-- `torch.utils.data.dataset` 中定义了 `DataSet` 类：
+- `torch.utils.data.dataset.py` 中定义了 `DataSet` 类：
 ```python
 class Dataset(Generic[T_co]):
 	# 定义的 __getitem__ 方法需要子类实现
@@ -31,8 +31,9 @@ class MyData(Dataset):
         self.root_dir = root_dir  
         self.label_dir = label_dir  
         self.path = os.path.join(self.root_dir, self.label_dir)  
+        # 将图像地址封装在 list 中，后续可以通过 __getitem__ 直接索引
         self.img_path = os.listdir(self.path)  
-          
+        
     def __getitem__(self, index):  
         img_name =  self.img_path[index]  
         img_item_path = os.path.join(self.root_dir, self.label_dir, img_name)  
@@ -43,3 +44,27 @@ class MyData(Dataset):
     def __len__(self):  
         return len(self.img_path)
 ```
+## 1.2 DataLoader
+-  `torch.utils.data.dataloader.py` 中定义了 `DataLoader` 类：
+```python
+class DataLoader(Generic[T_co]):
+	dataset: Dataset[T_co]  
+	batch_size: Optional[int] # 默认 1  
+	num_workers: int # 线程数 0 -> main 线程
+	pin_memory: bool # 内存寄存, 默认 False, 表示在数据返回前，是否复制到 CUDA 内存中
+	drop_last: bool # 样本数不能被 batch_size 整除时，舍弃最后一批数据
+	timeout: float # 读数据超时时间 
+
+	def __init__(self, 
+		dataset: Dataset[T_co], 
+		batch_size: Optional[int] = 1,  
+		shuffle: Optional[bool] = None, # 打乱每个 epoch 的数据
+		sampler: Union[Sampler, Iterable, None] = None,  
+		batch_sampler: Union[Sampler[List], Iterable[List], None] = None, 
+        num_workers: int = 0, collate_fn: Optional[_collate_fn_t] = None,  
+		pin_memory: bool = False, 
+		drop_last: bool = False,  
+        timeout: float = 0, 
+		pin_memory_device: str = ""):
+		...
+	

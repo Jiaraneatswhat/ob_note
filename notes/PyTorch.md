@@ -185,6 +185,7 @@ class Resize(torch.nn.Module):
     self.antialias = antialias
 
 	def forward(self, img):  
+		# size 只给一个 int 时，用短边匹配
 		return F.resize(img, 
 						self.size, 
 						self.interpolation, 

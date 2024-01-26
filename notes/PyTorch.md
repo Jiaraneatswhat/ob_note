@@ -72,6 +72,14 @@ class DataLoader(Generic[T_co]):
 - 将一个 `batch` 的数据进行合并
 ```python
 # DataLoader 在迭代时使用 _SingleProcessDataLoaderIter, 继承自 _BaseDataLoaderIter
+# enumerate 进入 _get_iterator() 方法，返回一个 _SingleProcessDataLoaderIter
+def _get_iterator(self) -> '_BaseDataLoaderIter':  
+    if self.num_workers == 0:  
+        return _SingleProcessDataLoaderIter(self)  
+    else:  
+        self.check_worker_number_rationality()  
+        return _MultiProcessingDataLoaderIter(self)
+        
 class _SingleProcessDataLoaderIter(_BaseDataLoaderIter):  
     def __init__(self, loader):  
         super().__init__(loader)  
@@ -81,7 +89,7 @@ class _SingleProcessDataLoaderIter(_BaseDataLoaderIter):
   
     def _next_data(self):  
         index = self._next_index()  # may raise StopIteration  
-        # 通过 fetcher 读取数据
+        # 通过 fetcher 传入 index 读取数据
         data = self._dataset_fetcher.fetch(index)  # may raise StopIteration  
         if self._pin_memory:  
             data = _utils.pin_memory.pin_memory(data, self._pin_memory_device)  
@@ -115,5 +123,18 @@ class _IterableDatasetFetcher(_BaseDatasetFetcher):
 ### 1.2.2 shuffle
 - `shuffle` 参数用于打乱数据，使数据更具有独立性，一般用于训练集
 ```python
-
+# 通过 sampler 来实现 shuffle
+if sampler is None:  # give default samplers  
+    if self._dataset_kind == _DatasetKind.Iterable:  
+        # See NOTE [ Custom Samplers and IterableDataset ]  
+        sampler = _InfiniteConstantSampler()  
+    else:  # map-style  
+        if shuffle:  
+            sampler = RandomSampler(dataset, generator=generator)  # type: ignore[arg-type]  
+        else:  
+            sampler = SequentialSampler(dataset)  # type: ignore[arg-type]  
+  
+if batch_size is not None and batch_sampler is None:  
+    # auto_collation without custom batch_sampler  
+    batch_sampler = BatchSampler(sampler, batch_size, drop_last)
 ```

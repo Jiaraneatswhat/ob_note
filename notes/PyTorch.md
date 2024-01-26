@@ -67,4 +67,47 @@ class DataLoader(Generic[T_co]):
         timeout: float = 0, 
 		pin_memory_device: str = ""):
 		...
-	
+```
+### 1.2.1 读取数据逻辑
+```python
+# DataLoader 在迭代时使用 _SingleProcessDataLoaderIter, 继承自 _BaseDataLoaderIter
+class _SingleProcessDataLoaderIter(_BaseDataLoaderIter):  
+    def __init__(self, loader):  
+        super().__init__(loader)  
+		## 根据 _DatasetKind 定义一个 map 的 fetcher 或 iter 的 fetcher
+        self._dataset_fetcher = _DatasetKind.create_fetcher(  
+            self._dataset_kind, self._dataset, self._auto_collation, self._collate_fn, self._drop_last)  
+  
+    def _next_data(self):  
+        index = self._next_index()  # may raise StopIteration  
+        # 通过 fetcher 读取数据
+        data = self._dataset_fetcher.fetch(index)  # may raise StopIteration  
+        if self._pin_memory:  
+            data = _utils.pin_memory.pin_memory(data, self._pin_memory_device)  
+        return data
+
+# fetch.py
+class _IterableDatasetFetcher(_BaseDatasetFetcher):  
+    def __init__(self, dataset, auto_collation, collate_fn, drop_last):  
+        super().__init__(dataset, auto_collation, collate_fn, drop_last)  
+        self.dataset_iter = iter(dataset)  
+        self.ended = False  
+  
+    def fetch(self, possibly_batched_index):  
+        if self.ended:  
+            raise StopIteration  
+  
+        if self.auto_collation:  
+            data = []  
+            for _ in possibly_batched_index:  
+                try:  
+		            # 自动通过 append 方法合并
+                    data.append(next(self.dataset_iter))  
+                except StopIteration:  
+                    self.ended = True  
+                    break            
+        else:  
+            data = next(self.dataset_iter)  
+        # 
+        return self.collate_fn(data)
+```

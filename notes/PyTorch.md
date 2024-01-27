@@ -28,9 +28,37 @@ torch.zeros(_*size_, _*_, _out=None_, _dtype=None_, _layout=torch.strided_,�
 
 torch.ones(_*size_, _*_, _out=None_, _dtype=None_, _layout=torch.strided_, _device=None_, _requires_grad=False_) → Tensor
 
+# 创建高斯分布的 tensor
+torch.randn(_*size_, _*_, _generator=None_, _out=None_, _dtype=None_, _layout=torch.strided_, _device=None_, _requires_grad=False_, _pin_memory=False_) → Tensor
+
+# 和 numpy 转换
+torch.from_numpy()
+torch.Tensor()
+```
+## 1.2 Tensor 属性
+```python
+# 存储数据类型
+tensor.dtype
+
+# shape 和维度
+tensor.shape
+tensor.ndim
+
+# 存储设备
+tensor.device
+tensor.is_cuda
+
+# 梯度
+tensor.grad
+```
+## 1.3 常用方法
+### 1.3.1 squeeze()
+```python
+# torch.squeeze(_input_, _dim=None_) -> Tensor
+# 移除 dim = 1 的维度，如果指定了 dim，指定 dim 为 1 时才会移除
+torch.squeeze(torch.empty((2, 1, 2, 1))).shape = (2, 2)
 
 ```
-
 # 2 读取数据
 - PyTorch 中的加载数据流程
 	- 加载数据，提取出特征和标签，封装成 `tensor`

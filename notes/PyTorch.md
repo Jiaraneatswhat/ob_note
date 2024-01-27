@@ -486,6 +486,8 @@ class ModuleList(Module):
 # ParameterDict ParameterList 
 ```
 # 5 卷积层
+- no padding, no stride
+<img src="D:\Doc\ob_note\images_dl\no_padding_no_strides.gif" style="zoom:60%;" />
 ## 5.1 Conv2d
 ```python
 # 卷积的父类是 _ConvNd
@@ -540,5 +542,14 @@ torch.nn.functional.conv2d(input, weight, bias=None, stride=1, padding=0, d
 	- weight：`shape` 为 $(out\_channels, \frac{in_channels}{groups}, kH, kW)$ 的 `filters`
 	- stride: 卷积核移动的步长
 	- padding
-
+## 5.2 创建一个卷积层
+- `nn.Conv2d`
+	- in_channels: 输入通道数
+	- out_channels
+	- kernel_size(int or tuple)
+	- stride: 默认 1
+	- padding: 默认 0
+	- padding_mode: 默认 'zero'
+	- dilation: 默认 1
+	- bias：默认 True
 

@@ -1,6 +1,22 @@
 # 1 Tensor
 - `tensor` 是标量，向量，矩阵的高维扩展
 - `numpy` 不能在 `gpu` 上加速，`tensor` 可以
+- tensor 的属性
+	- data
+	- grad
+	- grad_fn：创建 tensor 使用的函数
+	- requires_grad：是否需要梯度
+	- is_leaf：是否为计算图中的叶节点
+	- dtype
+	- shape
+	- device
+## 1.1 创建 tensor
+```python
+# 直接创建 tensor
+torch.tensor(data: Any, dtype: Optional[_dtype] = None, device: Device = None, requires_grad: _bool = False)
+
+
+```
 
 # 2 读取数据
 - PyTorch 中的加载数据流程

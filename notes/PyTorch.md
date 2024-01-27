@@ -84,8 +84,32 @@ torch.tensor([1, 2]).repeat((2, 2, 1)) = [[[1, 2], [1, 2]],
 ```
 ## 1.4 运算
 ```python
+a + b
+torch.add_(a, b) 等价于 a += b，会改变 a
 
+a - b
+torch.sub(a, b)
+
+a * b
+torch.mul(a, b)
+
+a / b
+torch.div(a, b)
 ```
+## 1.5 自动求导
+- 可以用 `torch.autograd.backward()` 来自动计算变量的梯度
+	- 定义 `tensor` 时加上 `requires_grad=True` 表示需要求偏导
+```python
+x = torch.randn(3, requires_grad=True)  
+y = x + 2  
+z = y * y * 3   
+z = z.mean()  
+z.backward()  
+x.grad = 2 * (x + 2)
+```
+- 停止计算梯度
+- `tensor.requires_grad_(False)`
+- `可求导的 tensor.detach()` 会返回一个内容相同，不能计算梯度的新 `tensor`
 # 2 读取数据
 - PyTorch 中的加载数据流程
 	- 加载数据，提取出特征和标签，封装成 `tensor`

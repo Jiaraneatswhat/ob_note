@@ -531,4 +531,14 @@ def _conv_forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]):
 def forward(self, input: Tensor) -> Tensor:  
     return self._conv_forward(input, self.weight, self.bias)
 ```
+- 底层调用 `functional` 中的 `conv2d` 函数：
+```python
+torch.nn.functional.conv2d(input, weight, bias=None, stride=1, padding=0, dilation=1, groups=1)
+```
+- 参数：
+	- **input**: `shape` 为 $(minibatch, in\_channels, iH, iW)$ 的 tensor
+	- weight：`shape` 为 $(out\_channels, \frac{in_channels}{groups}, kH, kW)$ 的 `filters`
+	- stride: 卷积核移动的步长
+	- padding
+
 

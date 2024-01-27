@@ -68,6 +68,22 @@ torch.permute(torch.empty((2, 4, 6)), dims=(1, 0, 2)).shape = (4, 2, 6)
 ```
 ### 1.3.3 expand()
 ```python
+# 将维度为 1 的 dim 扩展至其他维
+# -1 表示不扩展
+# 扩展的 tensor 不会分配新的内存，只在原来的基础上创建新的视图
+torch.empty((1, 3, 6)).expand(2, -1, -1).shape = (2, 3, 6)
+torch.empty((1, 1, 6)).expand(2, 3, -1).shape = (2, 3, 6)
+```
+### 1.3.4 repeat()
+```python
+# Tensor.repeat(_*sizes_) → Tensor
+# 在指定维度复制数据
+torch.tensor([1, 2]).repeat((2, 1)) = [[1, 2], [1, 2]]
+torch.tensor([1, 2]).repeat((2, 2, 1)) = [[[1, 2], [1, 2]],
+									 [[1, 2], [1, 2]]]
+```
+## 1.4 运算
+```python
 
 ```
 # 2 读取数据

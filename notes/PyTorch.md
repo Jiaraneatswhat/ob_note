@@ -558,4 +558,17 @@ torch.nn.functional.conv2d(input, weight, bias=None, stride=1, padding=0, d
 	- padding_mode: 默认 'zero'
 	- dilation: 默认 1
 	- bias：默认 True
+```python
+class MyModule(nn.Module):  
+    def __init__(self):  
+        super(MyModule, self).__init__()  
+        self.conv1 = nn.Conv2d(in_channels=3,  
+                               out_channels=6,   
+                               kernel_size=3,   
+                               stride=1, padding=0)  
+    def forward(self, x):  
+        return self.conv1(x)
+```
+# 6 池化层
+
 

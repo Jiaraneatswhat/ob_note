@@ -366,3 +366,19 @@ class ToPILImage:
     def __call__(self, pic):
 	    return F.to_pil_image(pic, self.mode)
 ```
+# 4 torch.nn
+## 4.1 Containers
+### 4.1.1 Module
+```python
+# 所有 nn 模块的基类
+class Module:
+	# 子类在继承时
+	# __init__ 方法中首先要调用父类的构造
+	# 子类需要重写 forward 方法
+	forward: Callable[..., Any] = _forward_unimplemented
+	def _forward_unimplemented(self, *input: Any) -> None:
+		raise NotImplementedError(f"Module [{type(self).__name__}] is missing the required \"forward\" function")
+
+	def 
+		
+```

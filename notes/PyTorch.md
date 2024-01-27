@@ -108,8 +108,10 @@ z.backward()
 x.grad = 2 * (x + 2)
 ```
 - 停止计算梯度
-- `tensor.requires_grad_(False)`
-- `可求导的 tensor.detach()` 会返回一个内容相同，不能计算梯度的新 `tensor`
+	- `tensor.requires_grad_(False)`
+	- `可求导的 tensor.detach()` 会返回一个内容相同，不能计算梯度的新 `tensor`
+	- `with torch.no_grad():` 作用域中定义的都是不需要求导的 `tensor`
+- `tensor.grad.zero_()` 可以清空梯度
 # 2 读取数据
 - PyTorch 中的加载数据流程
 	- 加载数据，提取出特征和标签，封装成 `tensor`

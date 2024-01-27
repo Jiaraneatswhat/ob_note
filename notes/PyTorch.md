@@ -54,9 +54,20 @@ tensor.grad
 ## 1.3 常用方法
 ### 1.3.1 squeeze()
 ```python
-# torch.squeeze(_input_, _dim=None_) -> Tensor
+# torch.squeeze(_input_, _dim=None_) → Tensor
 # 移除 dim = 1 的维度，如果指定了 dim，指定 dim 为 1 时才会移除
 torch.squeeze(torch.empty((2, 1, 2, 1))).shape = (2, 2)
+torch.squeeze(torch.empty((2, 1, 2, 1)), dim=0).shape = (2, 1, 2, 1)
+torch.squeeze(torch.empty((2, 1, 2, 1)), dim=1).shape = (2, 2, 1)
+```
+### 1.3.2 permute()
+```python
+# torch.permute(_input_, _dims_) → Tensor
+# dim 指定维度的顺序
+torch.permute(torch.empty((2, 4, 6)), dims=(1, 0, 2)).shape = (4, 2, 6)
+```
+### 1.3.3 expand()
+```python
 
 ```
 # 2 读取数据

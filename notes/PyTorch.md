@@ -378,30 +378,83 @@ class ToPILImage:
 ```python
 # 所有 nn 模块的基类
 class Module:
-	# 子类在继承时
-	# __init__ 方法中首先要调用父类的构造
-	# 子类需要重写 forward()
-	forward: Callable[..., Any] = _forward_unimplemented
-	def _forward_unimplemented(self, *input: Any) -> None:
-		raise NotImplementedError(f"Module [{type(self).__name__}] is missing the required \"forward\" function")
+	# 表示 Module 处于 train 或 eval 模式，部分算子在不同模式下表现不同
+	training: bool
+	# 可学习的需要 GD 来更新的，如 weight, bias
+	_parameters: Dict[str, Optional[Parameter]]
+	# 不需要学习的参数
+	_buffers: Dict[str, Optional[Tensor]]
+	# 一些 hook 函数，用于在 BP FP 前后调用
+	_forward_hooks: Dict[int, Callable]
+	_backward_hooks: Dict[int, Callable]
+	# 子 Module
+	_modules: Dict[str, Optional['Module']]
+```
+#### 4.1.1.2 方法
+```python
+# 子类在继承时
+# __init__ 方法中首先要调用父类的构造
+# 子类需要重写 forward()
+forward: Callable[..., Any] = _forward_unimplemented
+def _forward_unimplemented(self, *input: Any) -> None:
+	raise NotImplementedError(f"Module [{type(self).__name__}] is missing the required \"forward\" function")
 
-	# 将所有的参数和 buffer 移动到 CPU, GPU 上
-	# _apply() 会对所有子模块调用传入的 lambda 表达式
-	def cpu(self: T) -> T:
-		return self._apply(lambda t: t.cpu())
-		 
-	def cuda(self: T, device: Optional[Union[int, device]] = None) -> T:	
-		return self._apply(lambda t: t.cuda(device))
+# 将所有的参数和 buffer 移动到 CPU, GPU 上
+# _apply() 会对所有子模块调用传入的 lambda 表达式
+def cpu(self: T) -> T:
+	return self._apply(lambda t: t.cpu())
+	 
+def cuda(self: T, device: Optional[Union[int, device]] = None) -> T:	
+	return self._apply(lambda t: t.cuda(device))
 
-	# to() 可以原地修改 Module
-	def to(self, *args, **kwargs):
-		# 解析参数
-		device, dtype, non_blocking, convert_to_format = torch._C._nn._parse_to(*args, **kwargs)
-		def convert(t):  
-		    if convert_to_format is not None and t.dim() in (4, 5):  
-		        return t.to(device, dtype if t.is_floating_point() or t.is_complex() else None, non_blocking, memory_format=convert_to_format)  
-		    return t.to(device, dtype if t.is_floating_point() or t.is_complex() else None, non_blocking)  
-		# 对所有的子 Module 调用 convert
-		return self._apply(convert)
+# to() 可以原地修改 Module
+def to(self, *args, **kwargs):
+	# 解析参数
+	device, dtype, non_blocking, convert_to_format = torch._C._nn._parse_to(*args, **kwargs)
+	def convert(t):  
+		if convert_to_format is not None and t.dim() in (4, 5):  
+			return t.to(device, dtype if t.is_floating_point() or t.is_complex() else None, non_blocking, memory_format=convert_to_format)  
+		return t.to(device, dtype if t.is_floating_point() or t.is_complex() else None, non_blocking)  
+	# 对所有的子 Module 调用 convert
+	return self._apply(convert)
+
+# 转换数据类型
+	type(dst_type)
+	float()
+	double()
+	half() # 转为 half 类型
+	bfloat16()
+
+# 注册 hook 函数
+#可以统计权重，对网络进行剪枝等，可以在不修改原模型 的情况下实现
+register_xxx_hook(hook)
+```
+### 4.1.2 Container
+```python
+# Container 是 Module 的子类
+class Container(Module):  
+    def __init__(self, **kwargs: Any) -> None:  
+        super().__init__()  
+		# 调用父类的 add_module(): self._modules[name] = module
+		# 将模块添加到子 Module 列表中
+        for key, value in kwargs.items():  
+            self.add_module(key, value)
+```
+### 4.1.3 Sequential
+- 可以按顺序添加 Module
+```python
+class Sequential(Module):
+	_modules: Dict[str, Module]  # type: ignore[assignment]
+
+def __init__(self, *args):  
+    super().__init__()  
+    if len(args) == 1 and isinstance(args[0], OrderedDict):  
+        for key, module in args[0].items():  
+            self.add_module(key, module)  
+    else:  
+        for idx, module in enumerate(args):  
+            self.add_module(str(idx), module)
+
+
 ```
 

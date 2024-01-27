@@ -1,10 +1,14 @@
-# 1 读取数据
+# 1 Tensor
+- `tensor` 是标量，向量，矩阵的高维扩展
+- `numpy` 不能在 `gpu` 上加速，`tensor` 可以
+
+# 2 读取数据
 - PyTorch 中的加载数据流程
 	- 加载数据，提取出特征和标签，封装成 `tensor`
 	- 创建一个 `DataSet` 对象
 	- 创建一个 `DataLoader` 对象，用于实现数据加载的方式
 	- 通过 `enumerate` 迭代 `DataLoader`，调用其 `__iter__ `方法加载数据
-## 1.1 DataSet
+## 2.1 DataSet
 - `torch.utils.data.dataset.py` 中定义了 `DataSet` 类：
 ```python
 class Dataset(Generic[T_co]):
@@ -44,7 +48,7 @@ class MyData(Dataset):
     def __len__(self):  
         return len(self.img_path)
 ```
-## 1.2 DataLoader
+## 2.2 DataLoader
 -  `torch.utils.data.dataloader.py` 中定义了 `DataLoader` 类：
 ```python
 class DataLoader(Generic[T_co]):
@@ -68,7 +72,7 @@ class DataLoader(Generic[T_co]):
 		pin_memory_device: str = ""):
 		...
 ```
-### 1.2.1 读取数据逻辑
+### 2.2.1 读取数据逻辑
 - 将一个 `batch` 的数据进行合并
 ```python
 # DataLoader 在迭代时使用 _SingleProcessDataLoaderIter, 继承自 _BaseDataLoaderIter
@@ -120,7 +124,7 @@ class _IterableDatasetFetcher(_BaseDatasetFetcher):
         # 默认的 collate_fn 将 data 转为 tensor
         return self.collate_fn(data)
 ```
-### 1.2.2 shuffle
+### 2.2.2 shuffle
 - `shuffle` 参数用于打乱数据，使数据更具有独立性，一般用于训练集
 ```python
 # 通过 sampler 来实现 shuffle
@@ -138,13 +142,13 @@ if batch_size is not None and batch_sampler is None:
     # auto_collation without custom batch_sampler  
     batch_sampler = BatchSampler(sampler, batch_size, drop_last)
 ```
-# 2 transforms
+# 3 transforms
 - `torchvision.transforms` 主要定义了一些与图像增广相关的操作
 - 图像常见的打开方式
 	- `PIL -> Image.open()`
 	- `tensor -> ToTensor()`
 	- `ndarray -> cv2.imread()`
-## 2.1 Compose
+## 3.1 Compose
 ```python
 class Compose:
 	def __init__(self, transforms):  
@@ -157,7 +161,7 @@ class Compose:
         img = t(img)  
     return img
 ```
-## 2.2 Normalize
+## 3.2 Normalize
 - `output[channel] = (input[channel] - mean[channel]) / std[channel]`
 ```python
 class Normalize(torch.nn.Module):
@@ -171,7 +175,7 @@ class Normalize(torch.nn.Module):
 		# 调用 torch.functional 实现标准化
 		return F.normalize(tensor, self.mean, self.std, self.inplace)
 ```
-## 2.3 Resize
+## 3.3 Resize
 ```python
 class Resize(torch.nn.Module):
 	# 默认双线性插值
@@ -191,7 +195,7 @@ class Resize(torch.nn.Module):
 						self.interpolation, 
 						self.max_size, self.antialias)
 ```
-## 2.4 RandomCrop
+## 3.4 RandomCrop
 ```python
 class RandomCrop(torch.nn.Module):
 	def __init__(self, size, padding=None, pad_if_needed=False, fill=0, padding_mode="constant"):  
@@ -223,7 +227,7 @@ class RandomCrop(torch.nn.Module):
   
 	    return F.crop(img, i, j, h, w)
 ```
-## 2.5 RandomHorizontalFlip
+## 3.5 RandomHorizontalFlip
 ```python
 class RandomHorizontalFlip(torch.nn.Module):
 	def __init__(self, p=0.5):  
@@ -236,14 +240,14 @@ class RandomHorizontalFlip(torch.nn.Module):
 	        return F.hflip(img)  
 	    return img
 ```
-## 2.6 ToTensor
+## 3.6 ToTensor
 ```python
 # 将 PIL 图像或 numpy.ndarray 转换为 tensor
 class ToTensor:
 	def __call__(self, pic):  
 	    return F.to_tensor(pic)
 ```
-## 2.7 ToPILImage
+## 3.7 ToPILImage
 ```python
 class ToPILImage:
 	def __init__(self, mode=None):  

@@ -10,10 +10,23 @@
 	- dtype
 	- shape
 	- device
+- `tensor` 在物理上连续存储，通过 `stride` 转换索引
+- `c10::TensorImpl` 表示数据的逻辑操作，实际的操作在 `c10::StorageImpl` 中进行
 ## 1.1 创建 tensor
 ```python
 # 直接创建 tensor
 torch.tensor(data: Any, dtype: Optional[_dtype] = None, device: Device = None, requires_grad: _bool = False)
+
+# 创建未初始化的 tensor
+torch.empty(_*size_, _*_, _out=None_, _dtype=None_, _layout=torch.strided_, _device=None_, _requires_grad=False_, _pin_memory=False_, _memory_format=torch.contiguous_format_) → Tensor
+
+# 创建均匀分布的 tensor
+torch.rand(_*size_, _*_, _generator=None_, _out=None_, _dtype=None_, _layout=torch.strided_, _device=None_, _requires_grad=False_, _pin_memory=False_) → Tensor
+
+# 创建全 0 和全 1 的 tensor
+torch.zeros(_*size_, _*_, _out=None_, _dtype=None_, _layout=torch.strided_, _device=None_, _requires_grad=False_) → Tensor
+
+torch.ones(_*size_, _*_, _out=None_, _dtype=None_, _layout=torch.strided_, _device=None_, _requires_grad=False_) → Tensor
 
 
 ```

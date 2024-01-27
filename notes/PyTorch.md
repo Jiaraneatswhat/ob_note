@@ -486,8 +486,14 @@ class ModuleList(Module):
 # ParameterDict ParameterList 
 ```
 # 5 卷积层
-- no padding, no stride
+- no padding, no stride(default 1)
 <img src="D:\Doc\ob_note\images_dl\no_padding_no_strides.gif" style="zoom:60%;" />
+- arbitrary padding, no stride
+<img src="D:\Doc\ob_note\images_dl\arbitrary_padding_no_strides.gif" style="zoom:30%;" />
+- half padding, no stride
+<img src="D:\Doc\ob_note\images_dl\same_padding_no_strides.gif" style="zoom:40%;" />
+- full padding, no stride
+<img src="D:\Doc\ob_note\images_dl\full_padding_no_strides.gif" style="zoom:30%;" />
 ## 5.1 Conv2d
 ```python
 # 卷积的父类是 _ConvNd

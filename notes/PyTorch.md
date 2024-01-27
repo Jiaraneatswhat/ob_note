@@ -369,16 +369,39 @@ class ToPILImage:
 # 4 torch.nn
 ## 4.1 Containers
 ### 4.1.1 Module
+- 主要作用：
+	- 记录模型需要的数据
+	- 网络传播
+	- 加载和保存模型数据
+	- 设备转换，数据类型转换等
+#### 4.1.1.1 属性
 ```python
 # 所有 nn 模块的基类
 class Module:
 	# 子类在继承时
 	# __init__ 方法中首先要调用父类的构造
-	# 子类需要重写 forward 方法
+	# 子类需要重写 forward()
 	forward: Callable[..., Any] = _forward_unimplemented
 	def _forward_unimplemented(self, *input: Any) -> None:
 		raise NotImplementedError(f"Module [{type(self).__name__}] is missing the required \"forward\" function")
 
-	def 
-		
+	# 将所有的参数和 buffer 移动到 CPU, GPU 上
+	# _apply() 会对所有子模块调用传入的 lambda 表达式
+	def cpu(self: T) -> T:
+		return self._apply(lambda t: t.cpu())
+		 
+	def cuda(self: T, device: Optional[Union[int, device]] = None) -> T:	
+		return self._apply(lambda t: t.cuda(device))
+
+	# to() 可以原地修改 Module
+	def to(self, *args, **kwargs):
+		# 解析参数
+		device, dtype, non_blocking, convert_to_format = torch._C._nn._parse_to(*args, **kwargs)
+		def convert(t):  
+		    if convert_to_format is not None and t.dim() in (4, 5):  
+		        return t.to(device, dtype if t.is_floating_point() or t.is_complex() else None, non_blocking, memory_format=convert_to_format)  
+		    return t.to(device, dtype if t.is_floating_point() or t.is_complex() else None, non_blocking)  
+		# 对所有的子 Module 调用 convert
+		return self._apply(convert)
 ```
+

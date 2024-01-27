@@ -494,9 +494,8 @@ class ModuleList(Module):
 <img src="D:\Doc\ob_note\images_dl\same_padding_no_strides.gif" style="zoom:40%;" />
 - full padding, no stride
 <img src="D:\Doc\ob_note\images_dl\full_padding_no_strides.gif" style="zoom:30%;" />
-## 5.1 Conv2d
+- 卷积的父类是 `_ConvNd`
 ```python
-# 卷积的父类是 _ConvNd
 class _ConvNd(Module):
 	in_channels: int
 	out_channels: int
@@ -506,7 +505,9 @@ class _ConvNd(Module):
 	padding_mode: str  
 	weight: Tensor  
 	bias: Optional[Tensor]
-
+```
+## 5.1 Conv2d
+```python
 class Conv2d(_ConvNd):
 	def __init__(  
     self,  
@@ -570,5 +571,51 @@ class MyModule(nn.Module):
         return self.conv1(x)
 ```
 # 6 池化层
+- 最大池化的父类是 `_MaxPoolNd`
+```python
+class _MaxPoolNd(Module):  
+    __constants__ = ['kernel_size', 'stride', 'padding', 'dilation',  
+                     'return_indices', 'ceil_mode']  
+    return_indices: bool  
+    ceil_mode: bool  
+  
+    def __init__(self, kernel_size: _size_any_t, 
+			    stride: Optional[_size_any_t] = None,  
+                 padding: _size_any_t = 0, 
+                 dilation: _size_any_t = 1,  
+                 return_indices: bool = False, 
+                 ceil_mode: bool = False) -> None:  
+        super().__init__()  
+        self.kernel_size = kernel_size  
+        self.stride = stride if (stride is not None) else kernel_size  
+        self.padding = padding  
+        self.dilation = dilation  
+        self.return_indices = return_indices  
+        self.ceil_mode = ceil_mode
+```
+## 6.1 MaxPool2d
+- 
+```python
+class MaxPool2d(_MaxPoolNd):
+	kernel_size: _size_2_t  
+	stride: _size_2_t  
+	padding: _size_2_t  
+	dilation: _size_2_t  
+
+	def forward(self, input: Tensor):  
+	    return F.max_pool2d(input, self.kernel_size, 
+						    self.stride,  
+	                        self.padding, self.dilation, 
+	                        ceil_mode=self.ceil_mode,  
+	                        return_indices=self.return_indices)
+```
+- 创建一个 MaxPool2d 层：
+	- kernel_size
+	- stride
+	- padding
+	- ceil_mode: 默认 True，无 padding 遇到空值时正常计算
+```python
+
+```
 
 

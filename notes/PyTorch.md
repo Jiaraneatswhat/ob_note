@@ -765,6 +765,12 @@ class CrossEntropyLoss(weight=None,
 '''
 ```
 # 10 Optimizer
+
+<img src="D:\Doc\ob_note\images_dl\optimizers.gif" style="zoom:60%;" />
+
+- Adagrad, Adadelta 和 RMSprop 几乎直接朝正确方向前进
+- Momentum 和 NAG 偏离了轨道，但 NAG 很快就可以纠正
+
 - 优化器的基类是 Optimizer
 ```python
 class Optimizer:
@@ -798,5 +804,9 @@ class SGD(Optimizer):
 	- params(iterable)
 	- lr(float)
 	- momentum(float, optional)
+		- SGD 在遇到沟壑时会陷入震荡
+		- 在计算梯度时，当前时刻的梯度等于目前为止梯度的指数加权平均，即让梯度保留之前的一部分速度和方向，称为含动量的 SGD
+		- Nesterov Accelerated Gradient 是对含动量 SGD 的一种改进，能够防止大幅震荡 
 	- dampening
-	- nesterov
+	- nesterov(bool, optional)
+	- maxmize(bool, optional)

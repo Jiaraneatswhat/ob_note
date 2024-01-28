@@ -765,3 +765,38 @@ class CrossEntropyLoss(weight=None,
 '''
 ```
 # 10 Optimizer
+- 优化器的基类是 Optimizer
+```python
+class Optimizer:
+	# params: 需要优化的网络参数
+	def __init__(self, 
+				params: params_t, 
+				defaults: Dict[str, Any]) -> None:  
+	    self.defaults = defaults  
+		# 一些 hook
+	# 一次参数更新
+	def step(self, closure: Callable[[], float]) -> float:
+		...
+```
+## 10.1 SGD
+```python
+class SGD(Optimizer):
+	def __init__(self, params, lr=required, momentum=0, 
+				dampening=0, weight_decay=0, nesterov=False, *, 
+				maximize: bool = False, 
+				foreach: Optional[bool] = None,  
+	            differentiable: bool = False):  
+    defaults = dict(lr=lr, momentum=momentum, dampening=dampening,  
+                    weight_decay=weight_decay, nesterov=nesterov,  
+                    maximize=maximize, foreach=foreach,  
+                    differentiable=differentiable)  
+    if nesterov and (momentum <= 0 or dampening != 0):  
+        raise ValueError("Nesterov momentum requires a momentum and zero dampening")  
+    super().__init__(params, defaults)
+```
+- 参数
+	- params(iterable)
+	- lr(float)
+	- momentum(float, optional)
+	- dampening
+	- nesterov

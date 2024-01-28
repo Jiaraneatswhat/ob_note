@@ -721,3 +721,30 @@ torch.nn.LayerNorm(normalized_shape, eps=1e-05, elementwise_affine=True, bias
 ## 8.4 Transformer Layer
 ## 8.5 Dropout Layer
 # 9 loss & BP
+## 9.1 L1Loss
+- 计算 x 和 y 的 MAE
+$$\ell(x,y)=L=\{l_1,...,l_N\}^T,~~~l_n=|x_n-y_n|$$
+```python
+class L1Loss(size_average=None,
+			reduce=None,
+			reduction='mean')
+''' shape:
+		input(*)
+		target(*): same as input
+		output: scalar
+'''
+```
+## 9.2 MSELoss
+- 计算 x 和 y 的均方 L2 范数
+$$\ell(x,y)=L=\{l_1,...,l_N\}^T,~~~l_n=(x_n-y_n)^2$$
+```python
+class MSELoss(size_average=None,
+			reduce=None,
+			reduction='mean')
+''' shape:
+		input(*)
+		target(*): same as input
+		output: scalar
+'''
+```
+## 9.3 CrossEntropyLoss

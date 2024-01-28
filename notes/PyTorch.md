@@ -720,7 +720,7 @@ torch.nn.LayerNorm(normalized_shape, eps=1e-05, elementwise_affine=True, bias
 ## 8.3 Recurrent Layer
 ## 8.4 Transformer Layer
 ## 8.5 Dropout Layer
-# 9 loss & BP
+# 9 Loss 
 ## 9.1 L1Loss
 - 计算 x 和 y 的 MAE
 $$\ell(x,y)=L=\{l_1,...,l_N\}^T,~~~l_n=|x_n-y_n|$$
@@ -764,3 +764,4 @@ class CrossEntropyLoss(weight=None,
 		output: (), (N)
 '''
 ```
+# 10 Optimizer

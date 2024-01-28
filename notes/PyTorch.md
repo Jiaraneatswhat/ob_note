@@ -428,6 +428,9 @@ def to(self, *args, **kwargs):
 # 注册 hook 函数
 #可以统计权重，对网络进行剪枝等，可以在不修改原模型 的情况下实现
 register_xxx_hook(hook)
+
+# 将自定义的参数保存在网络中
+register_parameter
 ```
 ### 4.1.2 Container
 ```python
@@ -684,3 +687,7 @@ class Sigmoid(Module):
     return torch.sigmoid(input)
 ```
 <img src="D:\Doc\ob_note\images_dl\activation\sigmoid.png" style="zoom:60%;" />
+# 8 其他层
+## 8.1 归一化层
+- BN, LN, IN, GN
+	- BN：批量归一化

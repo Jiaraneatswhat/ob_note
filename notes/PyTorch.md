@@ -760,5 +760,7 @@ class CrossEntropyLoss(weight=None,
 					label_smoothing=0.0)
 ''' shape:
 		input: (C), (N, C) 
-	'''
+		target: (), (N)
+		output: (), (N)
+'''
 ```

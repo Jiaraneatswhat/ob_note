@@ -430,7 +430,10 @@ def to(self, *args, **kwargs):
 register_xxx_hook(hook)
 
 # 将自定义的参数保存在网络中
-register_parameter
+register_parameter()
+# 保存在 buffer 中
+register_buffer()
+
 ```
 ### 4.1.2 Container
 ```python
@@ -689,5 +692,9 @@ class Sigmoid(Module):
 <img src="D:\Doc\ob_note\images_dl\activation\sigmoid.png" style="zoom:60%;" />
 # 8 其他层
 ## 8.1 归一化层
-- BN, LN, IN, GN
-	- BN：批量归一化
+### 8.1.1 BatchNorm
+- 每个 `channel` 中像素值通常有不同的分布和范围，会导致不收敛，通过归一化将每个 `channel` 的分布标准化为 `Gaussian` 分布
+- 理论上需要对每一层的 `feature map` 中的每个 `channel` 计算均值和方差，非常耗费时间，因此采用 `BN`，对当前的 `batch` 计算，并进行归一化
+- 通常采用从 ImageNet 数据集中计算出的均值和方差
+	- `transform.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])`
+- 

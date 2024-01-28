@@ -807,6 +807,7 @@ class SGD(Optimizer):
 		- SGD 在遇到沟壑时会陷入震荡
 		- 在计算梯度时，当前时刻的梯度等于目前为止梯度的指数加权平均，即让梯度保留之前的一部分速度和方向，称为含动量的 SGD
 		- Nesterov Accelerated Gradient 是对含动量 SGD 的一种改进，能够防止大幅震荡 
+	- weight_decay(float, optional)
 	- dampening
 	- nesterov(bool, optional)
 	- maxmize(bool, optional)

@@ -751,3 +751,14 @@ class MSELoss(size_average=None,
 $$
 loss\left( x,class \right) =-\log \left( \frac{\exp \left[ x\left[ class \right] \right]}{\sum_j{\exp \left( x\left[ j \right] \right)}} \right) =-x\left[ class \right] +\log \left( \sum_j{\exp \left( x\left[ j \right] \right)} \right) 
 $$
+```python
+class CrossEntropyLoss(weight=None,
+					size_average=None,
+					ignore_index=-100,
+					reduce=None,
+					reduction='mean',
+					label_smoothing=0.0)
+''' shape:
+		input: (C), (N, C) 
+	'''
+```

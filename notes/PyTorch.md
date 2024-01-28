@@ -658,4 +658,29 @@ class AvgPool2d(_AvgPoolNd):
 	- count_include_pad: 默认 True，在计算时包括 pad 中的 0
 	- divisor_override：默认 None，用池化区域进行计算
 # 7 非线性激活
-
+## 7.1 ReLU
+$$
+ReLU(x) = max(0, x)
+$$
+```python
+class ReLU(Module):
+	inplace: bool  
+  
+	def __init__(self, inplace: bool = False):  
+	    super().__init__()  
+	    self.inplace = inplace  
+	  
+	def forward(self, input: Tensor) -> Tensor:  
+	    return F.relu(input, inplace=self.inplace)
+```
+<img src="D:\Doc\ob_note\images_dl\activation\relu.png" style="zoom:60%;" />
+## 7.2 Sigmoid
+$$
+Sigmoid(x)=\sigma(x)=\frac{1}{1+exp(-x)}
+$$
+```python
+class Sigmoid(Module):
+	def forward(self, input: Tensor) -> Tensor:  
+    return torch.sigmoid(input)
+```
+<img src="D:\Doc\ob_note\images_dl\activation\sigmoid.png" style="zoom:60%;" />

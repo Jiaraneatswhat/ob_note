@@ -748,3 +748,6 @@ class MSELoss(size_average=None,
 '''
 ```
 ## 9.3 CrossEntropyLoss
+$$
+loss\left( x,class \right) =-\log \left( \frac{\exp \left[ x\left[ class \right] \right]}{\sum_j{\exp \left( x\left[ j \right] \right)}} \right) =-x\left[ class \right] +\log \left( \sum_j{\exp \left( x\left[ j \right] \right)} \right) 
+$$

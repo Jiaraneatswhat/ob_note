@@ -692,9 +692,25 @@ class Sigmoid(Module):
 <img src="D:\Doc\ob_note\images_dl\activation\sigmoid.png" style="zoom:60%;" />
 # 8 其他层
 ## 8.1 归一化层
+
+![[norms.png]]
 ### 8.1.1 BatchNorm
+
+<img src="D:\Doc\ob_note\images_dl\BN.png" style="zoom:50%;" />
+
+- 针对某个 channel，对该 channel 的所有特征进行标准化
 - 每个 `channel` 中像素值通常有不同的分布和范围，会导致不收敛，通过归一化将每个 `channel` 的分布标准化为 `Gaussian` 分布
 - 理论上需要对每一层的 `feature map` 中的每个 `channel` 计算均值和方差，非常耗费时间，因此采用 `BN`，对当前的 `batch` 计算，并进行归一化
 - 通常采用从 ImageNet 数据集中计算出的均值和方差
 	- `transform.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])`
 ### 8.1.2 LayerNorm
+- LN 对每个样本计算均值和方差，然后归一化
+- LN 适用于 RNN，transformer 等，因为 sequence 可能是长度不一致的
+
+<img src="D:\Doc\ob_note\images_dl\LN.png" style="zoom:50%;" />
+
+```python
+torch.nn.LayerNorm(normalized_shape, eps=1e-05, elementwise_affine=True, bias=True, device=None, dtype=None)
+```
+- InstanceNorm 与 LayerNorm
+	- 

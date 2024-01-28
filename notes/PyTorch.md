@@ -594,7 +594,6 @@ class _MaxPoolNd(Module):
         self.ceil_mode = ceil_mode
 ```
 ## 6.1 MaxPool2d
-- 
 ```python
 class MaxPool2d(_MaxPoolNd):
 	kernel_size: _size_2_t  
@@ -615,7 +614,48 @@ class MaxPool2d(_MaxPoolNd):
 	- padding
 	- ceil_mode: 默认 True，无 padding 遇到空值时正常计算
 ```python
-
+class MyModule(nn.Module):  
+    def __init__(self):  
+        super(MyModule, self).__init__()  
+        self.pool = nn.MaxPool2d(kernel_size=3,  
+                                 ceil_mode=False)  
+          
+    def forward(self, input):  
+        return self.pool(input)
 ```
-
+## 6.2 AvgPool2d
+- 平均池化的父类是 `_AvgPoolNd`
+```python
+class AvgPool2d(_AvgPoolNd):
+	kernel_size: _size_2_t  
+	stride: _size_2_t  
+	padding: _size_2_t  
+	ceil_mode: bool  
+	count_include_pad: bool
+	def __init__(self, kernel_size: _size_2_t, 
+				stride: Optional[_size_2_t] = None, 
+				padding: _size_2_t = 0,  
+	             ceil_mode: bool = False) -> None:  
+	    super().__init__()  
+	    self.kernel_size = kernel_size  
+	    self.stride = stride if (stride is not None) else kernel_size  
+	    self.padding = padding  
+	    self.ceil_mode = ceil_mode  
+	    self.count_include_pad = count_include_pad  
+	    self.divisor_override = divisor_override  
+  
+	def forward(self, input: Tensor) -> Tensor:  
+	    return F.avg_pool2d(input, self.kernel_size, self.stride,  
+	                        self.padding, self.ceil_mode, 
+	                        self.count_include_pad, 
+	                        self.divisor_override)
+```
+- 参数
+	- kernel_size
+	- stride
+	- padding
+	- ceil_mode
+	- count_include_pad: 默认 True，在计算时包括 pad 中的 0
+	- divisor_override：默认 None，用池化区域进行计算
+# 7 非线性激活
 

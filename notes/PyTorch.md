@@ -491,7 +491,7 @@ class ModuleList(Module):
 
 # ParameterDict ParameterList 
 ```
-# 5 卷积层
+# 5 Convolution Layer
 - no padding, no stride(default 1)
 <img src="D:\Doc\ob_note\images_dl\no_padding_no_strides.gif" style="zoom:60%;" />
 - arbitrary padding, no stride
@@ -576,7 +576,7 @@ class MyModule(nn.Module):
     def forward(self, x):  
         return self.conv1(x)
 ```
-# 6 池化层
+# 6 Pooling Layer
 - 最大池化的父类是 `_MaxPoolNd`
 ```python
 class _MaxPoolNd(Module):  
@@ -663,7 +663,7 @@ class AvgPool2d(_AvgPoolNd):
 	- ceil_mode
 	- count_include_pad: 默认 True，在计算时包括 pad 中的 0
 	- divisor_override：默认 None，用池化区域进行计算
-# 7 非线性激活
+# 7 Non-lineal Activation
 ## 7.1 ReLU
 $$
 ReLU(x) = max(0, x)
@@ -691,7 +691,7 @@ class Sigmoid(Module):
 ```
 <img src="D:\Doc\ob_note\images_dl\activation\sigmoid.png" style="zoom:60%;" />
 # 8 其他层
-## 8.1 归一化层
+## 8.1 Normalization Layer
 
 ![[norms.png]]
 ### 8.1.1 BatchNorm
@@ -713,4 +713,11 @@ class Sigmoid(Module):
 torch.nn.LayerNorm(normalized_shape, eps=1e-05, elementwise_affine=True, bias=True, device=None, dtype=None)
 ```
 - InstanceNorm 与 LayerNorm
-	- 
+	- IN 通常作用在每个 channel 上，而 LN 作用在整个样本上
+	- LN 经常用于 NLP 中，且会使用仿射变换
+
+## 8.2 Linear Layer
+## 8.3 Recurrent Layer
+## 8.4 Transformer Layer
+## 8.5 Dropout Layer
+# 9 loss & BP

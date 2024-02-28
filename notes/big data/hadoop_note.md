@@ -1653,10 +1653,10 @@ protected DFSOutputStream(DFSClient dfsClient, String src,
   }
 }
 ```
-
 ### 1.2.2 开启 Rpc 服务，与 NN 交互
 #### 1.2.2.1 开启 Rpc 服务，向 NN 申请创建文件
 ```java
+// newStreamForCreate() 中
 public HdfsFileStatus create(String src, FsPermission masked,
       String clientName, EnumSetWritable<CreateFlag> flag,
       boolean createParent, short replication, long blockSize,
@@ -2261,7 +2261,6 @@ public void run() {
     }
 }
 ```
-
 #### 1.2.3.3 发送数据
 ##### 1.2.3.3.1 write()
 ```java

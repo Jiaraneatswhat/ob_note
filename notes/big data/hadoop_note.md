@@ -132,7 +132,7 @@ fi
 hadoop_generic_java_subcmd_handler
 ```
 #### 1.1.3 hadoop-functions.sh
-```java 
+```shell
 function hadoop_generic_java_subcmd_handler
 {
   ...
@@ -1448,7 +1448,6 @@ void updateHeartbeatState(StorageReport[] reports, long cacheCapacity,
     rollBlocksScheduled(getLastUpdateMonotonic());
   }
 ```
-
 ## 1.2 写流程
 
 ### 1.2.1 创建 DataStreamer，用于后续传输数据
@@ -1600,10 +1599,7 @@ static DFSOutputStream newStreamForCreate(DFSClient dfsClient, String src,
       DataChecksum checksum, String[] favoredNodes, String ecPolicyName,
       String storagePolicy)
       throws IOException {
-    try (TraceScope ignored =
-             dfsClient.newPathTraceScope("newStreamForCreate", src)) {
-      HdfsFileStatus stat = null;
-
+      
       // Retry the create if we get a RetryStartFileException up to a maximum
       // number of times
       boolean shouldRetry = true;
@@ -1618,9 +1614,7 @@ static DFSOutputStream newStreamForCreate(DFSClient dfsClient, String src,
               blockSize, SUPPORTED_CRYPTO_VERSIONS, ecPolicyName,
               storagePolicy);
           break; // 成功break否则抛异常并重试
-        } catch (RemoteException re) {
-          ...
-      }
+        } catch (RemoteException re) {...}
       Preconditions.checkNotNull(stat, "HdfsFileStatus should not be null!");
       final DFSOutputStream out;
       if(stat.getErasureCodingPolicy() != null) {

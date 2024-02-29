@@ -154,7 +154,7 @@ public synchronized void startLeaderElection() {
         }  
     }
     // 选举算法
-    // 
+    // 配置类 QuorumPeerConfig 中指定了 int electionType = 3
     this.electionAlg = createElectionAlgorithm(electionType);  
 }
 

@@ -956,7 +956,6 @@ public enum EphemeralType {
      TTL() {...}
 }
 ```
-
 # 3. Watcher 监听流程
 - `DataTree` 中有两个 `IWatchManager` 对象，`dataWatches` 和 `childWatches`，针对不同事件，会交给不同的 `Watcher` 进行处理
 - `dataWatches` 管理的是触发节点本身，而 `childWatches` 管理的则是触发节点的父节点
@@ -1196,12 +1195,17 @@ get 查看节点存储内容
 		- `FastLeaderElection` 实例化时
 			- 创建两个阻塞队列 `sendQueue` 和 `recvQueue` 用于存放选票
 			- 创建两个线程 `WorkerSender` 和 `WorkerReceiver`
-		- `FastLeaderElection` 的
-	- 启动 `QuorumPeer` 进程，初始状态为 `LOOKING`，创建一个 `Vote` 对象
-	- 准备选举阶段，开启两个线程 `WorkerSender` 和 `WorkerReceiver`，分别用于接收别人的选票和发送自己的选票
-	- 每个节点上线时会先投自己一票，然后将选票进行广播，当一个节点收到其他节点广播的选票时，会进行比较
-	- 先比较 `epoch`, 再比较 `zxid`, 最后比较 `myid`，更新选票
-	- 选票超过半数后，将 `peerId` 与选票推选的 `Leader` 相同的节点设置为 `Leader`，其他的为 `Follower` 
+		- `FastLeaderElection` 的 `start()` 会启动上述两个线程
+		- `WorkerSender` 从 `sendQueue` 中取出 `ToSend` 对象，决定发送给别人还是放在自己的 `recvQueue` 中
+		- `WorkerReceiver` 保存选票到 `recvQueue` 中
+	- 开始选举
+		- 初始化选票时，投自己一票
+		- 广播选票，创建一个 `ToSend` 对象放入 `sendQueue` 中
+		- 交换选票，从 `recvQueue` 中取出选票，先比较 `epoch`, 再比较 `zxid`, 最后比较 `myid`，更新选票并广播
+		- 选票超过半数后，将 `peerId` 与选票推选的 `Leader` 相同的节点设置为 `Leader`，其他的为 `Follower` 
+	- 选举收尾
+		- `Peer` 成为 `follower` 后，创建 `Follower` 对象，与 `leader` 建立连接
+		- `Peer` 成为 `leader` 后，创建 `Leader` 对象，与 `follower` 保持心跳
 - 5 ZAB(ZK 原子广播)
 	- 消息广播：
 		- `Leader` 将 `Client` 的请求转换为 `Proposal`

@@ -28,8 +28,9 @@ start)
 ## 1.2 QuorumPeerMain.main()
 ```java
 public static void main(String[] args) {  
-    QuorumPeerMain main = new QuorumPeerMain();    
-ServiceUtils.requestSystemExit(ExitCode.EXECUTION_FINISHED.getValue()); 
+    QuorumPeerMain main = new QuorumPeerMain();
+    try {  
+    main.initializeAndRun(args);}
 }
 
 protected void initializeAndRun(String[] args) throws ConfigException, IOException, AdminServerException {  
@@ -52,7 +53,7 @@ public void runFromConfig(QuorumPeerConfig config) throws IOException, AdminServ
     try {   
         ServerCnxnFactory cnxnFactory = null;  
         ServerCnxnFactory secureCnxnFactory = null;  
-	    // 1. 服务端的通信组件 的初始化
+	    // 1. 服务端的通信组件的初始化
         if (config.getClientPortAddress() != null) { 
 	         // 通过反射创建一个ServerCnxnFactory对象
             cnxnFactory = ServerCnxnFactory.createFactory();  

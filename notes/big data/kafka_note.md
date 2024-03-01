@@ -2186,7 +2186,7 @@ override def markExpand(): Unit = {
 	- 一个 .index 文件
 	- 一个 .timeindex 文件
 - Segment 分段时机
-	- `Segment` 中消息的最大时间戳与当前系统的时间戳的差值 > `log.roll.ms` 或 `log.roll.ms`
+	- `Segment` 中消息的最大时间戳与当前系统的时间戳的差值 > `log.roll.ms`
 	- 当 `Segment` 的大小超过了 `log.segment.bytes` 默认 `1G`
 	- 偏移量索引文件或时间戳索引文件的大小达到了 `log.index.size.max.bytes 默认 10MB`
 - 日志查找步骤
@@ -2483,9 +2483,6 @@ def flush(offset: Long): Unit = {
       segment.flush()  
     }  
 }
-
-
-
 ```
 ## 2.5 Controller 选举 Partition 的 leader
 ### 2.5.1 Partition 的状态

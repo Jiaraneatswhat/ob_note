@@ -1735,7 +1735,7 @@ override def process(event: ControllerEvent): Unit = {
 
 private def processStartup(): Unit = {
 	// 注册 ControllerChangeHandler 监听器
-	zkClient.registerZNodeChangeHandlerAndCheckExistence(controllerChangeHandler) 
+		zkClient.registerZNodeChangeHandlerAndCheckExistence(controllerChangeHandler) 
 	// 选举
 	elect()  
 }

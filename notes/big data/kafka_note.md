@@ -3798,9 +3798,21 @@ public void onSuccess(ClientResponse resp) {
 return this.interceptors.onConsume(new ConsumerRecords<>(fetch.records()));
 ```
 # 4 时间轮
-# 5 复习
-## 5.1 基本信息
-### 5.1.1 生产流程
+# 5 Shell 操作
+```shell
+kafka-topics.sh --bootstrap-server hadoop102:9092
+# 查看所有主题
+--list 
+# 创建主题
+--create --topic [topic_name] --partitions 3 --replication-factor 3 
+# 修改分区数
+--alter --topic [topic_name] --partitions # 分区数只能增加
+# 删除 topic
+--delete --topic [topic_name]
+```
+# 6 复习
+## 6.1 基本信息
+### 6.1.1 生产流程
 - 两个线程：`main`， `sender`
 - 拦截器
 - 序列化器
@@ -3814,7 +3826,7 @@ return this.interceptors.onConsume(new ConsumerRecords<>(fetch.records()));
 	- -1(all): `Leader` 和 `ISR` 队列中全部的副本收到数据，进行响应
 	- 0：生产者发送过来的数据不需要等待数据落盘应答
 	- 1：生产者发送过来的数据，`Leader`收到数据后应答
-### 5.1.2 Broker 相关
+### 6.1.2 Broker 相关
 - 主题：逻辑上的分类
 - 主题名-分区号作为目录名进行物理存储
 - 分区：提高吞吐量，增加了负载均衡的能力
@@ -3827,7 +3839,7 @@ return this.interceptors.onConsume(new ConsumerRecords<>(fetch.records()));
 		- 第一次启动时(新的消费者组), 没有初始的 `offset` 时也会触发
 		- 保证了存储数据的一致性
 
-### 5.1.3 消费者
+### 6.1.3 消费者
 - 分区分配策略
 	- `RangeAssignor`：按范围分
 	- `RoundRobinAssignor`：对消费者进行排序后，轮询消费
@@ -3836,7 +3848,7 @@ return this.interceptors.onConsume(new ConsumerRecords<>(fetch.records()));
 	- 老版本：`zk`
 	- 新版本：`__consumer_offsets` 50 个分区
 	- 手动维护：`Flink：Checkpoint`
-### 5.1.4 生产环境相关
+### 6.1.4 生产环境相关
 - 数据量(高峰期以 100W 为例)
 	- 100W 日活，每个用户 100 条数据共计 1 亿条数据
 	- 1 条 / k  共计 100G 左右
@@ -3870,11 +3882,11 @@ return this.interceptors.onConsume(new ConsumerRecords<>(fetch.records()));
 	- 生产、消费速度
 	- lag: 消费数据与 `Kafka` 中 `offset` 的差值，是否存在数据积压问题
 - 保存天数更改为 3 天
-## 5.2 挂了
+## 6.2 挂了
 - 多副本可以保证数据不丢
 - Flume，日志文件解耦
 - 大部分情况下是内存的原因
-## 5.3 数据丢失
+## 6.3 数据丢失
 - 生产者丢数据
 	- `ack` 不是 -1
 	- 解决：将 `ack` 设置为 -1，如果此时 `follower` 副本超过了同步时间，进入 `osr` 队列时，此时只会有 `leader` 进行响应，相当于 `ack` 变为了 1
@@ -3883,7 +3895,7 @@ return this.interceptors.onConsume(new ConsumerRecords<>(fetch.records()));
 	- 消费者消费到数据后，先保存 `offset`，再保存数据
 	- 保存 `offset` 后，任务挂掉，重启后会接着 `offset` 进行消费，导致数据丢失
 	- 解决：先保存数据，再保存 `offset`
-## 5.4 数据重复
+## 6.4 数据重复
 - 生产者
 	- `ack` 设置为-1 时有可能导致数据重复
 	- 解决：幂等，事务
@@ -3891,14 +3903,14 @@ return this.interceptors.onConsume(new ConsumerRecords<>(fetch.records()));
 	- 先保存数据，再 保存 offset 有可能导致数据重复
 	- 解决：事务写出，下游去重(幂等性)
 	- `doris` `有replace`
-## 5.5 数据积压
+## 6.5 数据积压
 - 生产速度 > 消费速度
 - 生产环境只能提高消费速度
 	- 提高单次拉取 `ConsumerRecord` 的个数 `max.poll.records, 默认500`
 	- 提高单次拉取的数据量大小 `fetch.max.bytes, 默认50 * 1024 * 1024`
 	- 数据的处理速度跟不上(数据倾斜，反压，关联维表)，不会去 fetch 下一次数据
 	- 提高下游处理能力：增大资源，旁路缓存，异步 IO
-## 5.6 其他
+## 6.6 其他
 - Kafka 使用了两个系统调用
 	- 直接内存映射 MMAP
 	- sendFile 零拷贝
@@ -3929,19 +3941,21 @@ return this.interceptors.onConsume(new ConsumerRecords<>(fetch.records()));
 	- 仅限于 `HBase`：将事件时间作为版本写入到 `HBase` 中
 - 来一条 2M 的数据，`Kafka` 会产生什么现象
 	- 卡死，默认的最大的数据大小为 1M
-## 5.7 生产流程
+## 6.7 生产流程
 - 创建一个 `KafkaProducer` 对象，给 `Producer` 配置拦截器，序列化器，分区器，创建一个 `RecordAccumulator` 对象以及一个线程池，开启 `Sender` 线程，创建 `NetworkClient` 用于连接 `Broker`
 - 调用 `send` 方法，数据经过拦截器，序列化器，分区器后发送到 `RecordAccumulator` 中，未达到数据发送条件时，`sender` 线程会阻塞
 - 当数据达到 `batchSize` (`batch.size 默认16k`) 或到达等待时间(`linger.ms 默认0s`)，会唤醒 `Sender` 线程，通过 `Selector` 选择 `Channel` 向 `Leader` 发送 `ProducerRequest`
 - `Leader` 响应 `Producer` 的请求，完成写入，返回 `ack`
-## 5.8 Broker 工作流程
+## 6.8 Broker 工作流程
 - `KafkaServer` 在启动时会创建 `Controller`，`ReplicaManager`，`LogManager`，`GroupCoordinator` 等组件并启动
 - `Controller` 启动后会去 `Zk` 创建节点并注册 `Watcher`，先创建节点的成为 `leader`，如果 `leader` 节点挂了，`zk` 监听到节点的变化，就会触发重选举
 - `Leader` `Controller` 所在节点的 `ReplicaManager` 会选举 `Partition` 的 `leader`，以 `isr` 中存活为前提，按照 `AR` 排在前面的优先
 - `ReplicaManager` 会获取 `isr`，由 `controller` 将节点信息上传到 `zk`
-## 5.9 消费者组消费流程
+## 6.9 消费者组消费流程
 - `Consumer` 向 `GroupCoordinator` 发起 `joinGroup` 请求，先发送的成为 `leader` `consumer`
 - `GroupCoordinator` 向 `leader consumer` 发送待消费主题的信息
 - `leader consumer` 制定消费方案发给 `GroupCoordinator`
 - `GroupCoordinator` 将消费方案发送给每个 `Consumer`
 - 每个 `Consumer` 和 `GroupCoordinator` 保持心跳，一旦超时，或者处理消息时间过长，就会被移除并触发再平衡
+# 6 面试
+- 1 

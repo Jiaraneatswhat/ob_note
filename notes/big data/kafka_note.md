@@ -3958,4 +3958,13 @@ kafka-topics.sh --bootstrap-server hadoop102:9092
 - `GroupCoordinator` 将消费方案发送给每个 `Consumer`
 - 每个 `Consumer` 和 `GroupCoordinator` 保持心跳，一旦超时，或者处理消息时间过长，就会被移除并触发再平衡
 # 6 面试
-- 1 
+- 1 Kafka 创建过多的 topic 会有什么影响
+	- topic 数量过多，总分区数也会增加，影响磁盘读写
+	- 存储在 zk 中的元数据会占很大空间
+	- 日志文件过多，选举分区的 leader 时所需要的时间也会大大增加
+- 2 leader 和 follower 的数据同步
+	- 每个 partition 有多个 replica
+	- partition 接收消息和消费消息在 leader 中进行，follower 的作用是备份 leader 的消息
+	- partition 中的所有副本称为 AR，所有与 leader 副本保持同步的副本组成 ISR
+	- follower 数据落后太多或长时间未向 leader 发起同步的，移除 ISR
+- 3 消费者组中的消费者数量超过分区数怎么办

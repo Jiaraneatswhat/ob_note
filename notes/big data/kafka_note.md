@@ -3968,3 +3968,6 @@ kafka-topics.sh --bootstrap-server hadoop102:9092
 	- partition 中的所有副本称为 AR，所有与 leader 副本保持同步的副本组成 ISR
 	- follower 数据落后太多或长时间未向 leader 发起同步的，移除 ISR
 - 3 消费者组中的消费者数量超过分区数怎么办
+	- 同一消费者组的消费者数量超过分区数时，多余的消费者会处于空闲状态，只有当其中一个消费者离开消费者组后，其他消费者才会重新进行分区分配
+- 4 kafka 事务机制
+	- 

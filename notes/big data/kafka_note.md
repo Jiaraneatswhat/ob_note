@@ -3970,4 +3970,5 @@ kafka-topics.sh --bootstrap-server hadoop102:9092
 - 3 消费者组中的消费者数量超过分区数怎么办
 	- 同一消费者组的消费者数量超过分区数时，多余的消费者会处于空闲状态，只有当其中一个消费者离开消费者组后，其他消费者才会重新进行分区分配
 - 4 kafka 事务机制
-	- 
+	- KafkaProducer 初始化时会创建 `TransactionManager`
+	- `TransactionManager` 通过 `transactional.id`

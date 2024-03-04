@@ -590,9 +590,7 @@ def main(args: Array[String]): Unit = {
 def run(  
     arguments: Arguments,  
     backendCreateFn: (RpcEnv, Arguments, SparkEnv, ResourceProfile) =>  
-      CoarseGrainedExecutorBackend): Unit = {  
-  
-  
+      CoarseGrainedExecutorBackend): Unit = { 
   SparkHadoopUtil.get.runAsSparkUser { () =>  
   
     // Bootstrap to fetch the driver's Spark properties.  

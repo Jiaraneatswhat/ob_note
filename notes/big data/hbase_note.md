@@ -741,7 +741,7 @@ BucketAllocator(long availableSpace, int[] bucketSizes)
 - 写流程
 	- 将 `Block` 写入 `RamCache`，根据 `blockKey` 的 `hash` 值存储在不同的 `RamCache` 中
 	- `WriteThread` 从 `RAMCache` 中取出所有的 `Block`，每个 `WriteTheead` 对应一个 `RAMCache`
-	- 每个 `WriteTheead` 会遍历 `RAMCache` 中所有 `Block`，分别调用 `bucketAllocator` 为这些 `Block` 分配内存空间
+	- 每个 `WriteTheead` 会遍历 `RAMCache` 中所有 `Block`，分别调用 `BucketAllocator` 为这些 `Block` 分配内存空间
 	- `BucketAllocator` 会选择与 `Block` 大小对应的 `Bucket` 进行存放，并且返回对应的物理地址偏移量 `offset`
 	- `WriteThread` 将 `Block` 以及分配好的 offset 传给 `IOEngine` 模块，执行具体的内存写入操作
 	- 写入成功后，将 `blockKey` 和 `offset` 的对应关系存在 `BackingMap` 中，便于之后查找

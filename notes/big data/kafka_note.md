@@ -3977,4 +3977,5 @@ kafka-topics.sh --bootstrap-server hadoop102:9092
 	- `TransactionManager` 通过 `beginTransaction()` 方法开启事务
 	- `TransactionManager` 通过 `beginCommit()` 方法提交事务，生成一个 `EndTxnRequest` 发送给 `Broker`
 	- `TransactionCoordinator` 通过 `endTransaction` () 方法进行提交，结束事务
-- 5 
+- 5 新增消费者如何执行再平衡
+	- 

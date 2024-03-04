@@ -1559,11 +1559,11 @@ protected def getPreferredLocations(split: Partition): Seq[String] = Nil
 ```
 ### 6.2.2 算子
 #### 6.2.2.1 常用的算子
-	- `map`
-	- `flatMap`
-	-  `mapValues`
-	- `filter`
-	- `foreach`
+	map
+	flatMap
+	mapValues
+	filter
+	foreach
 - 重分区算子：`repartition`
 - 聚合算子：`sortByKey`，`reduceByKey`，`groupByKey`
 - RDD 交互：`intersection`，`union`，`join`

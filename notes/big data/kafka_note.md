@@ -3919,7 +3919,7 @@ kafka-topics.sh --bootstrap-server hadoop102:9092
 - 消费者
 	- 先保存数据，再 保存 offset 有可能导致数据重复
 	- 解决：事务写出，下游去重(幂等性)
-	- `doris` `有replace`
+	- `doris` `replace`
 ## 6.5 数据积压
 - 生产速度 > 消费速度
 - 生产环境只能提高消费速度

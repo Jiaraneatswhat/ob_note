@@ -4001,4 +4001,10 @@ kafka-topics.sh --bootstrap-server hadoop102:9092
 	- `GroupCoordinator` 处理请求，新的消费者的 `memberId` 为 `""`，通过 `doUnknownJoinGroup()` 方法处理
 	- 为 `consumer` 创建 `memberId`，加入组，第一个入组的成员成为 `leader`，执行重平衡
 	- 选择消费者组的分配协议，取 `member` 中票数最多的，完成平衡
-- 6 
+- 6 Kafka 和传统消息队列的区别
+	- 存储方式：
+		- 传统消息队列采用 FIFO 的方式存储消息
+		- Kafka 采用日志形式存储消息
+	- 扩展性
+	- 消息保证：Kafka 可以实现精准一次
+	- 消息存储时间

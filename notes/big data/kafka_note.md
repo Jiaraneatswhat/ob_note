@@ -3347,6 +3347,23 @@ def onCompleteJoin(group: GroupMetadata): Unit = {
     }  
   }  
 }
+
+// GroupMetadata.scala
+def initNextGeneration(): Unit = {  
+  if (members.nonEmpty) {  
+    generationId += 1  
+    protocolName = Some(selectProtocol)  
+    subscribedTopics = computeSubscribedTopics()  
+    transitionTo(CompletingRebalance)  
+  } else {  
+    generationId += 1  
+    protocolName = None  
+    subscribedTopics = computeSubscribedTopics()  
+    transitionTo(Empty)  
+  }  
+  receivedConsumerOffsetCommits = false  
+  receivedTransactionalOffsetCommits = false  
+}
 ```
 ### 3.3.9 处理 JoinGroupResponse
 ```java
@@ -3978,4 +3995,10 @@ kafka-topics.sh --bootstrap-server hadoop102:9092
 	- `TransactionManager` 通过 `beginCommit()` 方法提交事务，生成一个 `EndTxnRequest` 发送给 `Broker`
 	- `TransactionCoordinator` 通过 `endTransaction` () 方法进行提交，结束事务
 - 5 新增消费者如何执行再平衡
-	- 
+	- 新增消费者，消费者组状态变为 `PreparingRebalance`
+	- `ConsumerCoordinator` 寻找到 `GroupCoordinator`
+	- `consumer` 发起 `JoinGroup` 请求
+	- `GroupCoordinator` 处理请求，新的消费者的 `memberId` 为 `""`，通过 `doUnknownJoinGroup()` 方法处理
+	- 为 `consumer` 创建 `memberId`，加入组，第一个入组的成员成为 `leader`，执行重平衡
+	- 选择消费者组的分配协议，取 `member` 中票数最多的，完成平衡
+- 6 

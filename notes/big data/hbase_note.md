@@ -2178,7 +2178,7 @@ protected FlushResultImpl internalFlushcache(WAL wal, long myseqid,
 - 当一个 `Region` 中所有的 `memstore` 的大小达到了 `hbase.hregion.memstore.flush.size(默认128M) *  hbase.hregion.memstore.block.multiplier(默认4)` 时，会阻止继续往该 `Region` 写数据，进行所有 `memstore` 的刷写
 - 在进行 `Region` 级别的操作(`split, merge, compact`)前，都会执行 `requestFlush()`
 ## 5.3 RegionServer 级别
-- 当一个 `RegionServer` 中所有 `Memstore` 的大小总和达到了上限（`hbase.regionserver.global.memstore.upperLimit ＊ hbase_heapsize，默认 40%的 JVM 内存使用量`），会触发部分 `Memstore` 刷新
+- 当一个 `RegionServer` 中所有 `Memstore` 的大小总和达到了上限(`hbase.regionserver.global.memstore.upperLimit ＊ hbase_heapsize，默认 40%的 JVM 内存使用量`)，会触发部分 `Memstore` 刷新
 - flush 顺序是按照 `Memstore` 由大到小执行，直至总体内存使用量低于阈值（`hbase.regionserver.global.memstore.lowerLimit ＊ hbase_heapsize，默认 38%` ) 的 JVM 内存使用量）
 ![[RegionServerFlush.svg]]
 
@@ -2346,7 +2346,7 @@ private Result get(Get get, HRegion region, RegionScannersCloseCallBack closeCal
 - `StoreScanner` 会为当前 `Store` 中每个 `HFile` 创建一个 `StoreFileScanner`，用于执行对应文件的检索，也会为 `MemStore` 生成一个 `MemStoreScanner` 用于执行该 `MemStore` 的数据检索
 - 当创建完所有的 `Scanner` 后，需要通过 `key` 来过滤掉一些不满足查询条件的 `Scanner`
 - 每个 `Scanner` 去寻找 `startKey`
-- 最后将该 `Store` 中的所有 `Scanner` 合并成一个 `heap`
+- 最后将该 `Store` 中的所有 `Scanner` 合并成一个最小堆
 ```java
 public RegionScannerImpl getScanner(Scan scan) throws IOException {  
  return getScanner(scan, null);  
@@ -2619,7 +2619,7 @@ private boolean generalizedSeek(boolean isLazy, Cell seekKey,
   }
 }
 ```
-### 6.3.7 Scanner 构建 heap
+### 6.3.7 Scanner 构建最小堆
 ```java
 protected void resetKVHeap(List<? extends KeyValueScanner> scanners,  
     CellComparator comparator) throws IOException {  

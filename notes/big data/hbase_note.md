@@ -2887,3 +2887,10 @@ rk            column=colFamily:xxx, timestamp=ts2, value=val2
 	- 对于数据量大的表可以考虑预分区
 	- 使用 `MySQL` 维表的主键作为 `RowKey`
 	- 如果是预分区表，需要将主键 `Hash` 取分区号拼接原先的主键作为 `RowKey`
+# 10 面试
+- 1 HBase 协处理器
+	- 将业务计算代码放在 RS 的协处理器中，将处理好的数据返回给客户端
+	- 类型
+		- Observer
+			- 类似于关系型数据库中的触发器，发生某些事件时调用
+			- RegionObserver: 

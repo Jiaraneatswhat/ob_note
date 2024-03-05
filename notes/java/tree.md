@@ -478,3 +478,6 @@ private void fixAfterDeletion(Entry<K,V> x) {
 - Log-Structured-Merge-Tree
 - 利用顺序写提高写性能，分为内存和文件两部分，牺牲小部分读性能换高性能写
 ## 4.1 组成
+
+![[lsm.svg]]
+- Me'm

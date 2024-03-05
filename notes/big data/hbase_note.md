@@ -2743,7 +2743,7 @@ protected boolean shouldStop(Cell currentRowCell) {
 	- `StoreFile` 的 `Scanner` 
 		- 首先通过布隆过滤器读取文件的索引部分，对要检索的行的信息进行索引，判断文件中是否有要查询的行，接着根据信息找到行所在的数据块
 		- 根据 `Block` 的 `id` 判断是否已经在 `BlockCache` 中缓存过，缓存过的情况下不会读取 `StoreFile`，否则从 `StoreFile` 中扫描 `Block` 进行缓存
-	- 以为 `HBase` 中的数据存在版本，查到的数据不一定是版本最大的，因此将从 `MemStore`，`StoreFile`，`BlockCache` 中查到的所有数据进行合并
+	- 因为 `HBase` 中的数据存在版本，查到的数据不一定是版本最大的，因此将从 `MemStore`，`StoreFile`，`BlockCache` 中查到的所有数据进行合并
 		- 所有指数据是同一条数据的不同版本 (`ts`) 或不同的类型 (`PUT` / `DELETE`)
 	- 返回合并结果(非 `DELETE` 数据)
 ## 9.4 刷写
@@ -2751,14 +2751,12 @@ protected boolean shouldStop(Cell currentRowCell) {
 	- 达到堆内存的 40% 时会阻塞写入，直到降低到 38% 以下
 - Region 级别：
 	- 某个 `MemStore` 到达 128M 时，所在 `Region` 的所有 `MemStore` 都会进行刷写
-- MemStore 级别：
-	- `Region` 中任意一个 `MemStore` 的大小达到了 128M，会触发刷写操作(`hbase.hregion.memstore.flush.size 默认128M`)
 - HLog 文件数达到 32
 - 官方不建议使用过多 `ColumnFamily`，是因为当一个 `MemStore` 达到 128M，而其他 `MemStore` 的大小还很小时，刷写就会产生大量的小文件
 ## 9.5 合并
 - 合并是从一个 Region 的一个 Store 中选取部分 HFile 文件进行合并
 - 合并有两种：Minor Compaction 和 Major Compaction
-	- `MemStoreflush` 操作结束后会检查当前 `Store` 中 `StoreFile` 的个数，一旦超过了 ` hbase.hstore.compactionThreshold 默认3 `，就会触发合并
+	- `MemStore` flush操作结束后会检查当前 `Store` 中 `StoreFile` 的个数，一旦超过了 ` hbase.hstore.compactionThreshold 默认3 `，就会触发合并
 	- RS 会在后台启动一个 `CompactionChecker` 线程定期触发检查对应的 `Store` 是否需要执行合并，对应的参数
 		- `hbase.server.thread.wakefrequency` 默认 10000ms
 		- `hbase.server.compactchecker.interval.multiplier` 默认 1000

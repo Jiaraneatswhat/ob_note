@@ -2714,6 +2714,7 @@ protected boolean shouldStop(Cell currentRowCell) {
 ```
 # 7 Disruptor
 # 8 Shell 操作
+
 # 9 复习
 ## 9.1 架构
 - 外部：`ZK`,  `HDFS`
@@ -2811,7 +2812,7 @@ rk            column=colFamily:xxx, timestamp=ts2, value=val2
 ### 9.8.2 场景题
 #### 9.8.2.1 手机号查询指定事件通话记录
 - 预分区(散列性)
-	- 00|, 01|, 02|...       ‘|’的 `ascii` 码为 124
+	- 00|, 01|, 02|... ‘|’的 `ascii` 码为 124
 	- 评估数据量，保证未来单个 `Region` 不超过 10G，同时考虑机器台数，尽量让 `Region` 数为机器台数的整数倍，保证均匀分布
 - 分区号
 	- 00_, 01_, 02_,...     '\_'的 `ascii` 码为 95

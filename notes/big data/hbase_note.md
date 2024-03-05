@@ -1129,8 +1129,7 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
     // MemStore
     protected final MemStore memstore;
     
-    protected HStore(final HRegion region, final ColumnFamilyDescriptor family,
-      final Configuration confParam) throws IOException {
+    protected HStore(final HRegion region, final ColumnFamilyDescriptor family, final Configuration confParam) throws IOException {
 		
         // 实例化该store中使用的MemSrtore
         this.memstore = getMemstore();

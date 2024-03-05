@@ -2902,7 +2902,16 @@ rk            column=colFamily:xxx, timestamp=ts2, value=val2
 			- 类似于 `RDBMS` 中的存储过程
 			- 存储过程是一组完成特定功能的 SQL 语句集，类似于函数
 			- 可以实现聚合功能
-- HBase 过滤器
+- 2 HBase 过滤器
 	- 所有的过滤器在服务端生效，类似谓词下推
 	- 过滤器的基类是 FilterBase
-	- 
+	- 过滤器主要有三种
+		- 比较过滤器，继承自 CompareFilter
+		- 专用过滤器，用于小范围过滤，直接继承 FilterBase
+		- 包装过滤器
+	- 通过 `setFilter()` 方法传给 `Get` 或 `Scan` 对象即可
+- 3 HBase 模糊查询
+	- Scan 实现
+		- `Scan.setRowPrefixFilter()`
+	- Filter 实现
+		- `PrefixFilter`

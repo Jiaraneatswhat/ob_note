@@ -2735,10 +2735,11 @@ alter 'ns:t1', NAME => 'f1', VERSIONS => 5
 put 'ns:t1', 'r1', 'c1', 'value' # c1,  列族：列名
 # 读数据
 get 'ns:t1', 'c1'
-get 'ns:t1', 'c1', {COLUMN => 'cf:qualifier'} # 行列过滤
+get 'ns:t1', 'c1', {COLUMN => 'cf:q1'} # 行列过滤
 scan 'ns:t1'
 # 删除数据
-
+delete 'ns:t1', 'cf:q1' # 删除最新
+deleteall
 ```
 # 9 复习
 ## 9.1 架构

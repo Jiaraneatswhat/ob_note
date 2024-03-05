@@ -2714,7 +2714,32 @@ protected boolean shouldStop(Cell currentRowCell) {
 ```
 # 7 Disruptor
 # 8 Shell 操作
+```shell
+# 进入命令行
+hbase shell
+# 查看命名空间
+list_namespace
+# 创建命名空间
+create_namespace [namespace_name]
+# 创建表格
+create 'ns1:t1', 'cf1', 'cf2'
+create 'ns2:t1', {NAME => 'f1', VERSIONS => 5}, 保留5个版本
+# 删除表格
+disable 'ns:t1' # 先禁用
+drop 'ns:t1' 
+# 查看表信息
+describe 'ns:t1'
+# 修改表
+alter 'ns:t1', NAME => 'f1', VERSIONS => 5
+# 写数据
+put 'ns:t1', 'r1', 'c1', 'value' # c1,  列族：列名
+# 读数据
+get 'ns:t1', 'c1'
+get 'ns:t1', 'c1', {COLUMN => 'cf:qualifier'} # 行列过滤
+scan 'ns:t1'
+# 删除数据
 
+```
 # 9 复习
 ## 9.1 架构
 - 外部：`ZK`,  `HDFS`

@@ -477,7 +477,18 @@ private void fixAfterDeletion(Entry<K,V> x) {
 # 4 LSMTree
 - Log-Structured-Merge-Tree
 - 利用顺序写提高写性能，分为内存和文件两部分，牺牲小部分读性能换高性能写
+- 分为 level0, level1, ..., level n 多层子树，第 0 层在内存中，其余在磁盘中
+- level0 子树采用排序树，跳表等有序数据结构方便顺序写磁盘
 ## 4.1 组成
 
 ![[lsm.svg]]
-- Me'm
+- MemTable
+	- 内存中的数据结构，用于保存最近更新的数据
+	- 通过 `wal` 保证数据可靠性
+- Immutable MemTable
+	- MemTable 达到一定大小后转为 Immutable MemTable
+- SSTable(Sorted String Table)
+	- 磁盘中的数据结构
+	- 有序键值对集合
+## 4.2 删除
+- shu'ju

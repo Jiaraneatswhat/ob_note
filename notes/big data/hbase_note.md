@@ -2892,5 +2892,17 @@ rk            column=colFamily:xxx, timestamp=ts2, value=val2
 	- 将业务计算代码放在 RS 的协处理器中，将处理好的数据返回给客户端
 	- 类型
 		- Observer
-			- 类似于关系型数据库中的触发器，发生某些事件时调用
-			- RegionObserver: 
+			- 类似于 `RDBMS` 中的触发器，发生某些事件时调用
+			- RegionObserver: 观察 `Region` 上的事件，如 `Get` 和 `Put` 操作
+			- RegionServerObserver：观察与 `RS` 相关的事件，合并，启动等
+			- MasterObserver
+			- WalObserver
+			- 可以实现权限管理，监控，二级索引等
+		- Endpoint
+			- 类似于 `RDBMS` 中的存储过程
+			- 存储过程是一组完成特定功能的 SQL 语句集，类似于函数
+			- 可以实现聚合功能
+- HBase 过滤器
+	- 所有的过滤器在服务端生效，类似谓词下推
+	- 过滤器的基类是 FilterBase
+	- 

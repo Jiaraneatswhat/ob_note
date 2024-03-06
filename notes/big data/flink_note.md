@@ -1,4 +1,4 @@
-# 1. 提交 Job 流程
+# 1 提交 Job 流程
 
 - HDFS, Spark, Flink 提交对比
 
@@ -2936,7 +2936,7 @@ public void runMailboxLoop() throws Exception {
     }  
 }
 ```
-# 2. 四种 Graph 的转换
+# 2 四种 Graph 的转换
 - Flink 中有四种 Graph：
 	- **StreamGraph**：提交 Job 后生成的最初的 DAG 图
 	- **JobGraph**：经过算子链之后生成 `JobGrpah`
@@ -3197,29 +3197,6 @@ protected Collection<Integer> translateInternal(
     return Collections.singleton(transformationId);  
 }
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ### 2.1.5 一个 transformation 树的例子
 ```java
 env.socketTextStream().flatMap().shuffle().filter().print()
@@ -3236,7 +3213,7 @@ env.socketTextStream().flatMap().shuffle().filter().print()
 - **JobVertex**：多个 `StreamNode` 可能通过算子链组合起来形成一个 `JobVertex`，即一个 `JobVertex` 包括一个或多个 `operator`，`JobVertex` 的输入是 `JobEdge`，输出是 `IntermediateDataSet`
 - **IntermediateDataSet**：经过 `operator` 产生的数据集
 - **JobEdge**：代表 `JobGraph` 中的一条数据传输通道，数据通过 `IntermediateDataSet` 传向 `JobEdge`
-# 3. DataStream窗口
+# 3 DataStream窗口
 ## 3.1 窗口的定义
 - 窗口
 	- 窗口是 **Flink** 中的抽象类，有两个子类：
@@ -3691,7 +3668,7 @@ public interface WindowFunction<IN, OUT, KEY, W extends Window> extends Function
     }  
 })
 ```
-# 4. 水印
+# 4 水印
 ## 4.1 时间语义
 - Flink 中存在两种时间语义
 	- `ProcessingTime`：参考计算机时钟

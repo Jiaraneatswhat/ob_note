@@ -6474,7 +6474,7 @@ GROUP BY a
 - 运行模式：Yarn
 	- yarn-session: 先创建集群，再提交任务
 	- yarn-per-job: 先提交任务，再创建集群，`Driver` 在 `SparkSubmit` 中
-	- yarn-application：先提交任务，再创建集群，Driver 在 `JM` 中
+	- yarn-application：先提交任务，再创建集群，`Driver` 在 `JM` 中
 	- 创建四种 `Graph` 的位置不同
 - 提交方式：
 	- 脚本：封装启动任务命令

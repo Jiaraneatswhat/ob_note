@@ -2915,3 +2915,15 @@ rk            column=colFamily:xxx, timestamp=ts2, value=val2
 		- `Scan.setRowPrefixFilter()`
 	- Filter 实现
 		- `PrefixFilter`
+- 4 二级索引
+	- 索引种类
+		- 全局索引
+			- 适合读多写少
+			- 全局索引的性能损耗来自于写数据，数据的增删改都会更新相关索引表
+	- 本质是建立各列值与 `rowkey` 间的映射关系
+	- `HBase` 的一级索引是 `rowkey`
+	- 二级索引种类
+		- 单列索引
+		- 同时创建多个单列索引
+		- 创建联合索引
+		- 根据 `rowkey` 创建索引

@@ -2941,4 +2941,5 @@ rk            column=colFamily:xxx, timestamp=ts2, value=val2
 		- 数据优先缓存在内存，有效提升读取性能
 	- 预分区
 	- `WAL` 存储级别
-		- 
+		- 关闭或者异步写可以提高吞吐量
+	- RS 并发请求处理数量

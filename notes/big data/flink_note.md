@@ -1959,8 +1959,8 @@ private JobMasterService internalCreateJobMasterService(
     return jobMaster;
 }
 ```
-## 1.5 转换 StreamGraph，启动 JobMaster 连接到 RM
-### 1.5.1 转换 StreamGraph
+## 1.5 转换 JobGraph，启动 JobMaster 连接到 RM
+### 1.5.1 转换 JobGraph
 ```java
 public JobMaster(
     RpcService rpcService,

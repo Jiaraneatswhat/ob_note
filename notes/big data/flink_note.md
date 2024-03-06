@@ -788,7 +788,6 @@ ContainerLaunchContext setupApplicationMasterContainer(
 - 封装启动 `Container` 的命令后，执行 `default_container_executor.sh` 脚本
 - 调用` default_container_executor_session.sh`
 - 最后调用 `launch_container.sh` 启动 `AppMaster` 
-
 ## 1.2 启动集群，开始创建 JobManager 组件
 ### 1.2.1 YarnApplicationClusterEntryPoint.main()
 ```java

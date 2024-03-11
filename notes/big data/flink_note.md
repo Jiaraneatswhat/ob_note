@@ -4072,12 +4072,12 @@ public void initializeState(FunctionInitializationContext context) throws Except
     strs = stateStore.getListState(stringListStateDescriptor);  
 }
 ```
-### 5.1.2 ListUnionState
+### 6.1.2 ListUnionState
 - ListState 恢复状态后，会将状态尽量均匀地分配到多个 Task，每个 Task 只获取状态的一部分。而 UnionListState 则是将状态的<font color='red'>全部</font>，分配给所有的 Task
 ```java
 operatorStateStore.getUnionListState(strsListStateDescriptor); 
 ```
-### 5.1.3 BroadcastState
+### 6.1.3 BroadcastState
 - BroadcastState 用于在 `connect` 的两个流中广播配置信息
 ```java
 // 将配置存在MapState中
@@ -5993,7 +5993,6 @@ $$
 .sqlQuery("select ... from ... group by " +  
         " cube(a, b, ...)").execute().print();
 ```
-
 ### 8.4.5 over 窗口
 - `hive` 中的 `over()`:
 - `窗口函数() over(partition by xxx order by xxx rows | range between ... and)`

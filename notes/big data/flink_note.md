@@ -5249,7 +5249,7 @@ public CompletableFuture<Void> prepareSnapshot(
 ```
 ## 7.2 端到端精准一次
 - Source：可以多次重复读取数据
-		- 如果 `Source` 本身不能重复读取数据，结果仍然可能是不准确的
+	-  如果 `Source` 本身不能重复读取数据，结果仍然可能是不准确的
 - Flink：`Checkpoint` 精准一次
 - Sink：
 	- 幂等：
@@ -5257,7 +5257,7 @@ public CompletableFuture<Void> prepareSnapshot(
 		- 利用 `hbase` 的 `rowkey` 唯一
 	- 事务：外部系统提供，2PC, 预写日志
 		- 用事务向外部写，与检查点绑定在一起
-		- 当 `SInk` 遇到 `Barrier` 时，开启保存状态的同时开启一个事务，接下来所有的数据写入都在这个事务中
+		- 当 `Sink` 遇到 `Barrier` 时，开启保存状态的同时开启一个事务，接下来所有的数据写入都在这个事务中
 		- 等检查点保存完毕时，将事务提交，写入的数据就可以使用了
 		- 如果出现了问题，状态会回退到上一个 ck，而事务也会进行回滚
 		- 两阶段提交写 `Kafka`

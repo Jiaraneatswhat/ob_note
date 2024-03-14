@@ -6588,7 +6588,7 @@ GROUP BY a
 		- 至少一次
 			- 有 `Barrier` 到达后
 				- `Barrier` 已到达的 `Task` 在收到数据时继续计算，不缓存
-					- 挂掉之后会重复读
+				- 挂掉之后会重复读
 				- `Barrier` 未到达的 `Task` 来数据时，正常计算输出
 			- 所有的 `Barrier` 均到达后将状态保存
 	- 非 Barrier 对齐

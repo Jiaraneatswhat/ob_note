@@ -6265,12 +6265,12 @@ SET execution.savepoint.path='...' # 之前保存的路径
 	- 写 `Doris`：批处理，3s 开窗聚合，数据量小，并行度足够
 	- 写 `HBase`：缓慢变化维(`SCD`)
 ### 9.1.4 最终的资源配置
-- JobManager：1 `CPU` `2-4G`
+- JobManager: `1 CPU` `2-4G`
 - TaskManager：
 	- 根据 `Kafka` 分区决定并行度(一个 `Slot` 共享组)，`Slot 数 = 并行度`
-	- 资源充足或数据量大 `cpu ; slot = 1 : 1`
+	- 资源充足或数据量大 `cpu : slot = 1 : 1`
 	- 反之 `cpu : slot = 1 : 2`
-	- 一个 `CPU` `4G` 内存
+	- `1 CPU` `4G` 
 ## 9.2 状态及 Checkpoint 调优
 ### 9.2.1 RocksDB 大状态调优
 - `RocksDB` 是内存 + 内盘，可以存储大状态

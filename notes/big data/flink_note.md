@@ -6326,7 +6326,7 @@ SET execution.savepoint.path='...' # 之前保存的路径
 	- 多个 SubTask 可能全红，也有可能有红有绿
 
 ![[bkpressure.png]]
-- `WebUI` -> `Metrcis`
+- `WebUI` -> `Metrics`
 	- `outPoolUsage`：发送端 `Buffer` 的使用率
 	- `inPoolUsage`：接收端 `Buffer` 的使用率
 	- `floatingBuffersUsage`(1.9+)：接收端 `Floating Buffer` 的使用率

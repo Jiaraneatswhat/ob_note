@@ -8405,6 +8405,22 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 	- `ps -ef`
 		- `-e`: 显示全部
 		- `-f`: 显示全部字段
+- awk
+	- `awk '{pattern + action}' <file>`
+	- 默认分隔符是 `' '` 和 `tab`
+	- 用 -F 可以指定分割符
+		- `awk -F ':|,' 'action' <file>` 用 `:` 或 `,` 分割
+	- 内置变量
+		- `FILENAME`
+		- `$0`: 当前整行
+		- `NR`: 当前已读的行数
+		- `NF`: 当前行被分割的列数
+		- `BEGIN, END`: 在 `awk` 程序开始前和结束后执行一次
+			- 可以计算统计值
+			- `awk 'BEGIN {max=0} {if($2>max) max=$2} END {print "max: ", max}' <file>`
+- sed
+	- 
+
 ### 5.2 读写流程
 - 写流程
 	- `Client` 创建一个 `DataStreamer` 用于后续写数据

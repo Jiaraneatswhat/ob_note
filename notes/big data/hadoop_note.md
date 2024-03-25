@@ -8436,7 +8436,9 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 		- `p`: 打印
 		- `s/old/new/g`：将 old 替换 new, g 表示全局
 			- `sed 's/hello/HELLO/g' hello.txt` 
-
+- `' '` 和 `" "`
+	- 单引号不解析参数，双引号会
+	- 嵌套使用: `"' $1'", '"$1"'` 按照外层
 ### 5.2 读写流程
 - 写流程
 	- `Client` 创建一个 `DataStreamer` 用于后续写数据

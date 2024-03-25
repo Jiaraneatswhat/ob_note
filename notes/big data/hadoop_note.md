@@ -8419,7 +8419,23 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 			- 可以计算统计值
 			- `awk 'BEGIN {max=0} {if($2>max) max=$2} END {print "max: ", max}' <file>`
 - sed
-	- 
+	- 流编辑器，一次处理一行的内容
+	- 主要用于自动编辑一个或多个文件，简化操作
+	- `sed [options] '[地址定界] command' file`
+	- options
+		- `-n`: 只打印匹配到的行
+		- `-e`: 多次匹配
+		- `-i`: 直接将处理结果写入文件
+	- 地址定界
+		- 默认全文
+		- /pattern/
+			- `sed -n '/hello/p' hello.txt`
+		- 范围:  #,#
+	- command:
+		- `d`: 删除匹配到的行
+		- `p`: 打印
+		- `s/old/new/g`：将 old 替换 new, g 表示全局
+			- `sed 's/hello/HELLO/g' hello.txt` 
 
 ### 5.2 读写流程
 - 写流程

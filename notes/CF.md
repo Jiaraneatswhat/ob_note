@@ -16,11 +16,15 @@ output:
 
 `solution:`
 ```java
-int n;
-int m;
-int a;
-int out = Math.ceil(n / a) * Math.ceil(m / a);
-Sysytem.out.println("needed num of falgstones:" + out);
+	Scanner scanner = new Scanner(System.in);  
+	System.out.println("input n: ");  
+	int n = scanner.nextInt();  
+	System.out.println("input m: ");  
+	int m = scanner.nextInt();  
+	System.out.println("input a: ");  
+	int a = scanner.nextInt();  
+	int out = (int) (Math.ceil(n / a) * Math.ceil(m / a));  
+	System.out.println(out == 0 ? 1 : out);
 ```
 
 ### 1B. Spreadsheet

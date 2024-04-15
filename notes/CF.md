@@ -142,4 +142,5 @@ output:
 ```
 `solution:`
 海伦公式：
-	三角形的三条边 $a,b,c$，其面积为 $\sqrt{p(p-a)(p-b)(p-c)},p=$
+	三角形的三条边 $a,b,c$，其面积为 $$S=\sqrt{p(p-a)(p-b)(p-c)},\,p=\frac{a+b+c}{2}$$
+外接圆的半径为 $abc\,/\,4S$

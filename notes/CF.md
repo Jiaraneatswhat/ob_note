@@ -144,3 +144,39 @@ output:
 海伦公式：
 	三角形的三条边 $a,b,c$，其面积为 $$S=\sqrt{p(p-a)(p-b)(p-c)},\,p=\frac{a+b+c}{2}$$
 外接圆的半径为 $abc\,/\,4S$
+构成最小多边形的边数 $$n=\frac{\pi}{gcd(A,B,C)}$$
+多边形面积 $$S=\frac{n*r^2*sin(\frac{2\pi}{n})}{2}$$
+```cpp
+#include<bits/stdc++.h> 
+using namespace std; 
+const double eps = 1e-5; 
+const double pi = acos(-1.0);
+struct node {
+	double x,y; 
+}a,b,c; 
+double A,B,C; 
+double gcd(double x, double y) {
+	while (fabs(x) > eps && fabs(y) > eps) {
+	 if (x > y) 
+		 x -= floor(x / y) * y; 
+	 else y -= floor(y / x) * x; 
+	 } return x + y; } 
+double dis(node p1,node p2) { 
+	return sqrt((p1.x-p2.x)*(p1.x-p2.x)+(p1.y-p2.y)*(p1.y-p2.y)); }
+	
+int main() {
+	cin >> a.x >> a.y; 
+	cin >> b.x >> b.y; 
+	cin >> c.x >> c.y; 
+	A = dis(b,c); 
+	B = dis(a,c); 
+	C = dis(a,b); 
+	double p = (A + B + C) / 2.0; 
+	double S = sqrt(p * (p - A) * (p - B) * (p - C)); 
+	double AA = acos((B * B + C * C - A * A) / (2.0 * B * C)); 
+	double BB = acos((C * C + A * A - B * B) / (2.0 * A * C)); 
+	double CC = acos((A * A + B * B - C * C) / (2.0 * A * B)); 
+	double R = (A * B * C) / (4.0 * S); 
+	double n = (pi / (gcd(AA,gcd(BB,CC)))); 
+	printf("%.12f\n",n*R*R*sin(2.0*pi/n)/2.0); }
+```

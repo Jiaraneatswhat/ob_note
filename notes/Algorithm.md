@@ -60,3 +60,28 @@ public class SingleLinkedList {
     };  
 }
 ```
+### 1.1.4 addLast()
+```java
+	public Node findLast() {
+		Node p;
+		for (p = head; p.next != null; p = p.next) return p;
+	}
+
+	public void addLast(int value) {
+		if (head == null) {
+			addFirst(value);
+		} else {
+			Node last = findLast();
+			last.next = new Node(value, null);
+		}
+	}
+```
+### 1.1.5 get()
+```java
+	// 获取指定索引节点的值
+	public int get(int value) {
+		int i = 0;
+		// 遍历一次索引加 1
+		for (Node p = head; p != null; p = p.next; i++)
+	}
+```

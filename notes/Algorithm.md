@@ -129,7 +129,45 @@ public class SingleLinkedList {
 ```java
 public class SingleLinkedListWithSentinel {
 	Node head = null;
-	Node sentinel = new Node(0, null)
+	// 可以省去空链表判断
+	Node sentinel = new Node(%anyVal, null);
 
+	// addLast()
+	public void addLast(int value) {
+		Node last = findLast()
+		last.next = new Node(value, null);
+	}	
+
+	// traversal, 遍历从哨兵的 next 开始
+	public void traversal() {
+		for (Node p = head.next; p != null; p = p.next)
+	}
+
+	// insert
+	public void insert(int index, int value) {
+		// findNode index 从 -1 开始匹配
+		Node prev = findNode(index - 1);
+		prev.next = new Node(value, prev.next);
+	}
+
+	// remove
+	public void remove(int index) {
+		Node prev = findNode(index - 1);
+		prev.next = prev.next.next;
+	}
+}
+```
+## 1.2 双向 with Sentinel
+### 1.2.1 节点类
+```java
+public class BiLinkedList {
+	// 双哨兵
+	Node head;
+	Node tail;
+	class Node {
+		Node prev;
+		int value;
+		Node next;
+	}
 }
 ```

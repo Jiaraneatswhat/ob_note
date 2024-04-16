@@ -79,9 +79,57 @@ public class SingleLinkedList {
 ### 1.1.5 get()
 ```java
 	// 获取指定索引节点的值
-	public int get(int value) {
+	public Node findNode(int value) {
 		int i = 0;
 		// 遍历一次索引加 1
-		for (Node p = head; p != null; p = p.next; i++)
+		for (Node p = head; p != null; p = p.next; i++) {
+			if (i == index) {
+				return p;
+			}
+		}
+		return null;
 	}
+	public int get(int value) {
+		Node target = findNode(value);
+		if (target == null) {
+			// Exception
+		}
+		return target.value;
+	}
+```
+### 1.1.6 insert()
+```java
+	public void insert(int index, int value) {
+		if (index == 0) {
+			addFirst(value);
+			return;
+		}
+		// 找到上一个元素
+		Node prev = findNode(index - 1);
+		if (prev == null) // Exception
+		prev.next = new Node(value, prev.next);
+	}
+```
+### 1.1.7 remove()
+```java
+	public void removeFirst() {
+		if (head != null) head = head.next;
+	}
+
+	public void remove(int index) {
+		if (index == 0) {
+			removeFirst();
+			return;
+		}
+		Node prev = find(index - 1);
+		if (prev != null) prev.next = prev.next.next;
+	}
+```
+### 1.1.8 with Sentinel
+```java
+public class SingleLinkedListWithSentinel {
+	Node head = null;
+	Node sentinel = new Node(0, null)
+
+}
 ```

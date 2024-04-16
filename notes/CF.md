@@ -177,6 +177,6 @@ int main() {
 	double BB = acos((C * C + A * A - B * B) / (2.0 * A * C)); 
 	double CC = acos((A * A + B * B - C * C) / (2.0 * A * B)); 
 	double R = (A * B * C) / (4.0 * S); 
-	double n = (pi / (gcd(AA,gcd(BB,CC)))); 
-	printf("%.12f\n",n*R*R*sin(2.0*pi/n)/2.0); }
+	double n = (pi / (gcd(AA, gcd(BB, CC)))); 
+	printf("%.12f\n",n * R * R * sin(2.0 * pi / n) / 2.0); }
 ```

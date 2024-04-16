@@ -131,6 +131,7 @@ public class SingleLinkedListWithSentinel {
 	Node head = null;
 	// 可以省去空链表判断
 	Node sentinel = new Node(%anyVal, null);
+	head = sentinel;
 
 	// addLast()
 	public void addLast(int value) {
@@ -169,5 +170,41 @@ public class BiLinkedList {
 		int value;
 		Node next;
 	}
+
+	public BiLinkedList() {
+		head = new Node(null, &anyVal, null);
+		tail = new Node(null, &anyVal, null);
+		head.next = tail;
+		tail.prev = head;
+	}
+}
+```
+### 1.2.2 insert()
+```java
+public Node findNode(int index) {
+	int i = -1;
+	for (Node p = head; p != tail; p = p.next, i++) {
+		if (i == index) return p;
+	}
+	return null;
+}
+
+public insert(int index, int value) {
+	// prev 空值判断
+	Node prev = findNode(index - 1);
+	Node elem = new Node(prev, value, prev.next);
+	prev.next = elem;
+	prev.next.prev = elem;
+}
+```
+### 1.2.3 remove()
+```java
+public void remove(int index) {
+	Node prev = findNode(index - 1);
+	// 违法索引, prev == null, 抛异常
+	// prev 为最后一个元素时
+	if (prev.next == tail) // 不合法
+	prev.next = prev.next.next;
+	prev.next.prev = prev;
 }
 ```

@@ -234,12 +234,67 @@ public class CircularLinkedListWithSentinel {
 	}
 }
 ```
-### 1.3.1 addFirst()
+### 1.3.1 insert()
 ```java
 public addFirst(int value) {
 	Node first = s.next;
 	Node added = new Node(s, value, first);
 	s.next = added;
 	first.prev = added;
+}
+
+public addLast(int value) {
+	Node prev = s.prev;
+	Node added = new Node(prev, value, s);
+	s.prev = added;
+	prev.next = added;
+}
+```
+### 1.3.2 遍历
+```java
+public Iterator<Integer> iterator(){
+	return new Iterator<Integer>() {
+		Node p = s.next;
+		@Override
+		public boolean hasNext() {
+			return p != s;
+		}
+
+		@Override
+		public Integer next() {...}
+	}
+}
+```
+### 1.3.3 remove() 
+```java
+public void removeFirst() {
+	Node removed = s.next;
+	if (removed == s) // Exception
+	s.next = removed.next;
+	s.next.prev = s;
+}
+
+public removeLast() {
+	Node removed = s.prev;
+	s.prev = removed.prev;
+	s.prev.next = s;
+}
+
+public Node findByVal)(int value) {
+	Node p = s.next;
+	while(p != s) {
+		if (p.value == value) return p;
+		p = p.next;
+	}
+	return null;
+}
+
+public void removeByVal(int value) {
+	Node removed = findByValue(value);
+	if (removed != null) {
+		removed.prev.next = removed.next;
+		removed.next.prev = removed.prev;
+	}
+	
 }
 ```

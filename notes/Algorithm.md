@@ -299,7 +299,7 @@ public void removeByVal(int value) {
 }
 ```
 ## 1.4 LeetCode
-### 1.41. Q206(S) - 反转单向链表
+### 1.41 Q206(S) - 反转单向链表
 - 给定链表的头结点 `head`，反转链表并返回
 ```
 input:
@@ -311,8 +311,8 @@ output:
 input = []
 output: []
 ```
-- solution1:
-	从旧链表依次拿到每个节点，创建新节点添加到链表头部
+#### 1.4.1 solution1
+- 从旧链表依次拿到每个节点，创建新节点添加到链表头部
 ```java
 public Node reverseList(Node o1) {
 	Node n1 = null;
@@ -324,8 +324,8 @@ public Node reverseList(Node o1) {
 	return n1;
 }
 ```
-- solution2:
-	从旧链表头部移除节点添加到新链表头部
+#### 1.4.2 solution2
+- 从旧链表头部移除节点添加到新链表头部
 ```java
 public void addFirst(Node added) {
 	added.next = head;
@@ -349,8 +349,8 @@ public Node reverseList(Node head) {
 	}
 }
 ```
-- solution3:
-	递归反转
+#### 1.4.3 solution3
+- 递归反转
 ```java
 public Node reverseList(Node p) {
 	// p == null 直接返回
@@ -367,9 +367,32 @@ public Node reverseList(Node p) {
 	双指针
 	 从链表每次拿到第二个节点，将其从链表断开，插入头部直到`null`
 ```java
+/**
+ *  n1 o1   o2
+ *    1  -> 2 -> 3 -> 4 -> 5 -> null
+ *  n1 o1                        o2
+ *    1  -> 3 -> 4 -> 5 -> null, 2
+ *   o2   n1 o1
+ *    2 ->  1  -> 3 -> 4 -> 5 -> null
+ *  n1 o2  o1
+ *    2  -> 1 -> 3 -> 4 -> 5 -> null
+ *   n1  o1   o2
+ *   2 -> 1 -> 3 -> 4 -> 5 -> null
+ */
 public Node reverseList(Node o1) {
 	Node o2 = o1.next;
-	Node n1 = null;
-	
+	Node n1 = o1;
+	while(o2 != null) {
+		// 断开 o2
+		o1.next = o2.next;
+		// o2 插入头部
+		o2.next = n1;
+		n1 = o2;
+		// o2 指向 o1 的下一个节点
+		o2 = o1.next;
+	}
+	return n1;
 }
 ```
+- solution5:
+	 

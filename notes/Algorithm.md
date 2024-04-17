@@ -1,7 +1,6 @@
 # 1 LinkedList
 - 随机访问的复杂度为 $O(n)$
 ## 1.1 unidirectional
-### 1.1.1 节点类
 ```java
 public class SingleLinkedList {
 	Node head;
@@ -12,7 +11,7 @@ public class SingleLinkedList {
 	}
 }
 ```
-### 1.1.2 addFirst()
+### 1.1.1 addFirst()
 ```java
 // addFirst
 public void addFirst(int value) {
@@ -25,7 +24,7 @@ public void addFirst(int value) {
 	head = new Node(value, head);
 }
 ```
-### 1.1.3 遍历
+### 1.1.2 遍历
 ```java
 // traversal
 public void traversal() {
@@ -59,7 +58,7 @@ return new Iterator<Integer>() {
 	};  
 }
 ```
-### 1.1.4 addLast()
+### 1.1.3 addLast()
 ```java
 public Node findLast() {
 	Node p;
@@ -75,7 +74,7 @@ public void addLast(int value) {
 	}
 }
 ```
-### 1.1.5 get()
+### 1.1.4 get()
 ```java
 // 获取指定索引节点的值
 public Node findNode(int value) {
@@ -96,7 +95,7 @@ public int get(int value) {
 	return target.value;
 }
 ```
-### 1.1.6 insert()
+### 1.1.5 insert()
 ```java
 public void insert(int index, int value) {
 	if (index == 0) {
@@ -109,7 +108,7 @@ public void insert(int index, int value) {
 	prev.next = new Node(value, prev.next);
 }
 ```
-### 1.1.7 remove()
+### 1.1.6 remove()
 ```java
 public void removeFirst() {
 	if (head != null) head = head.next;
@@ -124,7 +123,7 @@ public void remove(int index) {
 	if (prev != null) prev.next = prev.next.next;
 }
 ```
-### 1.1.8 with sentinel
+### 1.1.7 with sentinel
 ```java
 public class SingleLinkedListWithSentinel {
 	Node head = null;
@@ -158,7 +157,6 @@ public class SingleLinkedListWithSentinel {
 }
 ```
 ## 1.2 bidirectional with sentinel
-### 1.2.1 节点类
 ```java
 public class BiLinkedList {
 	// 双哨兵
@@ -178,7 +176,7 @@ public class BiLinkedList {
 	}
 }
 ```
-### 1.2.2 insert()
+### 1.2.1 insert()
 ```java
 public Node findNode(int index) {
 	int i = -1;
@@ -203,7 +201,7 @@ public void addLast(int value) {
 		tail.prev = added;
 	}
 ```
-### 1.2.3 remove()
+### 1.2.2 remove()
 ```java
 public void remove(int index) {
 	Node prev = findNode(index - 1);
@@ -223,5 +221,25 @@ public void removeLast() {
 }
 ```
 ## 1.3 bidirectional circular with sentinel
+```java
+public class CircularLinkedListWithSentinel {
+	
+	class Node ...
 
+	private Node s = new Node(null, %anyVal, null) // sentinel
 
+	public CircularLinkedListWithSentinel{
+		s.prev = s;
+		s.next = s;
+	}
+}
+```
+### 1.3.1 addFirst()
+```java
+public addFirst(int value) {
+	Node first = s.next;
+	Node added = new Node(s, value, first);
+	s.next = added;
+	first.prev = added;
+}
+```

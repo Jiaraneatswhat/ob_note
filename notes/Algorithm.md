@@ -339,14 +339,37 @@ public Node removeFirst(Node removed) {
 	return first;
 }
 
-public re
-List list1 = new List(head);
-List list2 = new List(null);
-while(true) {
-	Node removed = list1.removeFirst();
-	if (removed == null) break;
-	list2.addFirst(removed);
+public Node reverseList(Node head) {
+	List list1 = new List(head);
+	List list2 = new List(null);
+	while(true) {
+		Node removed = list1.removeFirst();
+		if (removed == null) break;
+		list2.addFirst(removed);
+	}
 }
 ```
 - solution3:
+	递归反转
+```java
+public Node reverseList(Node p) {
+	// p == null 直接返回
+	if (p == null || p.next == null) {
+		return p; // 最后一个节点
+	}
+	Node last = reverseList(p.next);
+	p.next.next = p; // 反向指
+	p.next = null; // 正向指置空 a -> b => b -> a -> null
+	return last;
+}
+```
+- soulution4:
+	双指针
+	 从链表每次拿到第二个节点，将其从链表断开，插入头部直到`null`
+```java
+public Node reverseList(Node o1) {
+	Node o2 = o1.next;
+	Node n1 = null;
 	
+}
+```

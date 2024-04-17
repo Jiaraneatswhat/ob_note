@@ -473,3 +473,38 @@ private Node remove(Node p, int n) {
 	return p;
 }
 ```
+#### solution2
+```java
+/**
+ *  n=2
+ *  p1 p2
+ *    s -> 1  -> 2 -> 3 -> 4 -> 5 -> null
+ *   p1              p2  
+ *    s -> 1 -> 2 -> 3 -> 4 -> 5 -> null
+ *                   p1              p2
+ *    s -> 1 -> 2 -> 3 -> 4 -> 5 -> null
+ *   p2 到达 null 时，p1 的位置为待删除节点的上一个节点
+ */
+
+public removeNthFromEnd(Node head, int n) {
+	Node s = new Node(-1, head);
+	Node p1 = s;
+	Node p2 = s;
+	for (int i = 0; i < n + 1; i++) p2 = p2.next;
+	while(p2 != null) {
+		p1 = p1.next;
+		p2 = p2.next;
+	}
+	p1.next = p1.next.next;
+	return s.next;
+}
+```
+### Q83
+- 有序链表去重(重复元素保留一个)
+- 双指针同时后移，比较值
+```java
+public Node removeDublicate(Node head) {
+	
+
+}
+```

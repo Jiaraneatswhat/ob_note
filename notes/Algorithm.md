@@ -447,10 +447,28 @@ public removeAllElems(Node p, int val) {
 
 }
 ```
-### Q19(M) - 删除倒数 N 个节点
+### Q19(M) - 删除倒数第 N 个节点
 ```
 input:
 head = [1, 2, 3, 4, 5], n = 2
-output:
 
+output: [1, 2, 3, 5]
+
+```
+#### solution1
+- 递归：null 返回 0，上一个节点返回 1, ...
+```java
+private int recursion(Node p, int n) {
+	if (p == null) return 0;
+	int nth = recursion(p.next, n); // 下一个节点的倒数位置
+	if (nth == n) {
+		p = p.next.next;
+	}
+	return nth + 1; // +1 得到当前节点的倒数位置
+}
+
+private Node remove(Node p, int n) {
+	recursion(p, n);
+	return p;
+}
 ```

@@ -299,7 +299,7 @@ public void removeByVal(int value) {
 }
 ```
 ## 1.4 LeetCode
-### 1.41 Q206(S) - 反转单向链表
+### Q206(S) - 反转单向链表
 - 给定链表的头结点 `head`，反转链表并返回
 ```
 input:
@@ -311,7 +311,7 @@ output:
 input = []
 output: []
 ```
-#### 1.4.1 solution1
+#### solution1
 - 从旧链表依次拿到每个节点，创建新节点添加到链表头部
 ```java
 public Node reverseList(Node o1) {
@@ -324,7 +324,7 @@ public Node reverseList(Node o1) {
 	return n1;
 }
 ```
-#### 1.4.2 solution2
+#### solution2
 - 从旧链表头部移除节点添加到新链表头部
 ```java
 public void addFirst(Node added) {
@@ -349,7 +349,7 @@ public Node reverseList(Node head) {
 	}
 }
 ```
-#### 1.4.3 solution3
+####  solution3
 - 递归反转
 ```java
 public Node reverseList(Node p) {
@@ -363,9 +363,9 @@ public Node reverseList(Node p) {
 	return last;
 }
 ```
-- soulution4:
-	双指针
-	 从链表每次拿到第二个节点，将其从链表断开，插入头部直到`null`
+####  solution4
+- 双指针
+- 从链表每次拿到第二个节点，将其从链表断开，插入头部直到 `null`
 ```java
 /**
  *  n1 o1   o2
@@ -394,5 +394,17 @@ public Node reverseList(Node o1) {
 	return n1;
 }
 ```
-- solution5:
-	 
+####  solution5
+- 链表 2 的头向链表 1 的头移动元素 
+ ```java
+ public Node reverseList(Node o1) {
+	Node n1 = null;
+	while(o1 != null) {
+		Node o2 = o1.next;
+		o1.next = n1;
+		n1 = o1;
+		o1 = o2;	
+	}
+	return n1;
+}
+```

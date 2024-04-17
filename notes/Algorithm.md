@@ -499,12 +499,41 @@ public removeNthFromEnd(Node head, int n) {
 	return s.next;
 }
 ```
-### Q83
-- 有序链表去重(重复元素保留一个)
+### Q83 - 有序链表去重(重复元素保留一个)
+#### solution1
 - 双指针同时后移，比较值
 ```java
 public Node removeDublicate(Node head) {
-	
-
+	// 节点数 > 2
+	if (head == null || head.next == null) return head;
+	Node p1 = head;
+	Node p2;
+	while((p2 = p1.next) != null) {
+		if (p1.val == p2.val) {
+			p1.next = p2.next;
+		} else p1 = p1.next;
+	}
+	return head;
 }
 ```
+#### solution2
+- 递归
+- `curr = next`, 返回 next 的递归结果
+- `curr != next`, 更新 next 为 next 的递归结果
+```java
+public Node removeDublicate(Node head) {
+	if (p == null || p.next == null) return p;
+	if (p.val = p.next.val) {
+		return removeDublicate(p.next);
+	} else {
+		p.next = removeDublicate(p.next);
+		return p;
+	}
+}
+```
+### Q82 - 有序链表去重(重复元素不保留)
+#### solution1
+- 递归
+- `curr = next`, 一直找到不重复的，返回其递归结果
+- `curr != next`, 更新 next 为 next 的递归结果
+- 

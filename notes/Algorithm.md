@@ -410,6 +410,47 @@ public Node reverseList(Node o1) {
 ```
 ### Q203 - 根据值删除节点
 - 存在多个重复的值时全部删除
+#### solution1
+- p1 指向哨兵，p2 指向下一个元素
+- p2 值相同，删除后，p2 向后移，p1 不变
+- 值不相同，两者均后移
 ```java
+public Node removeAllElems(Node head, int val) {
+	Node s = new Node(-1, head);
+	Node p1 = s;
+	Node p2;
+	while((p2 = p1.next) != null) {
+		if (p2.val == val) {
+			p1.next = p2.next;
+		} else {
+			p1 = p1.next;
+		}
+	} 
+	return s.next;
+}
+```
+#### solution2
+- 递归
+- `curr = val` 时，跳过当前值，返回 `next` 的递归结果
+- `curr != val` 时，返回当前值，`next` 进行递归后更新 `next`
+```java
+public removeAllElems(Node p, int val) {
+	if (p == null) {
+		return null;
+	}
+	if (p.val == val) {
+		return removeAllElems(p.next, val);
+	} else {
+		p.next = removeAllElems(p.next, val);
+		return p;
+	}
+
+}
+```
+### Q19(M) - 删除倒数 N 个节点
+```
+input:
+head = [1, 2, 3, 4, 5], n = 2
+output:
 
 ```

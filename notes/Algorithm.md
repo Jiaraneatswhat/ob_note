@@ -298,3 +298,44 @@ public void removeByVal(int value) {
 	
 }
 ```
+## 1.4 LeetCode
+### 1.41. Q206(S) - 反转单向链表
+- 给定链表的头结点 `head`，反转链表并返回
+```
+input:
+head = [1, 2, 3, 4, 5]
+
+output:
+[5, 4, 3, 2, 1] 循环打印
+
+input = []
+output: []
+```
+- solution1:
+	从旧链表依次拿到每个节点，创建新节点添加到链表头部
+```java
+public Node reverseList(Node o1) {
+	Node n1 = null;
+	Node p = o1;
+	while(p != null) {
+		n1 = new Node(p.val, n1); // 头插
+		p = p.next;
+	}
+	return n1;
+}
+```
+- solution2:
+	从旧链表头部移除节点添加到新链表头部
+```java
+public void addFirst(Node added) {
+	added.next = head;
+	head = added;
+}
+
+public Node removeFirst(Node removed) {
+	if (head != null) {
+		head = head.next;
+	}
+	return first;
+}
+```

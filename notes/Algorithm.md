@@ -536,4 +536,58 @@ public Node removeDublicate(Node head) {
 - 递归
 - `curr = next`, 一直找到不重复的，返回其递归结果
 - `curr != next`, 更新 next 为 next 的递归结果
-- 
+```java
+public Node removeDublicate(Node head) {
+	if (p == null || p.next == null) return p;
+	if (p.val = p.next.val) {
+		Node nextTo = p.next.next;
+		while (nextTo != null && nextTo.val = p.val) nextTo = nextTo.next;
+		return removeDublicate(nextTo)
+	} else {
+		p.next = removeDublicate(p.next);
+		return p;
+	}
+}
+```
+#### solution2
+```java
+/**
+ *  n=2
+ *  p1   p2   p3
+ *  s -> 1  -> 1 -> 1 -> 2 -> 3 -> null
+ *  p1   p2             p3  
+ *  s -> 1 -> 1 -> 1 -> 2 -> 3 -> null
+ *  p1   p3
+ *  s -> 2 -> 3 -> null
+ *  p1   p2   p3
+ *  s -> 2 -> 3 -> null 
+ */
+
+public Node removeDublicate(Node p) {
+	if (p == null || p.next == null) return p;
+	Node s = new Node(-1, p);
+	Node p1 = s;
+	Node p2, p3;
+	while((p2 = p1.next) != null && (p3 = p2.next) != null) {
+		if (p2.val == p3.val) {
+			while((p3 = p3.next) != null && p3.val == p2.val) 
+			p1.next = p3;
+		} else {
+			p1 = p1.next;
+		}
+	}
+	return s.next;
+}
+```
+### Q21 合并有序链表
+```
+input:
+l1 = [1, 2, 4], l2 =[1, 3, 4]
+
+output: [1, 1, 2, 3, 4, 4]
+
+input:
+l1 = [], l2 = []
+
+output: []
+```

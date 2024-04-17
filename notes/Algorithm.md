@@ -338,4 +338,15 @@ public Node removeFirst(Node removed) {
 	}
 	return first;
 }
+
+public re
+List list1 = new List(head);
+List list2 = new List(null);
+while(true) {
+	Node removed = list1.removeFirst();
+	if (removed == null) break;
+	list2.addFirst(removed);
+}
 ```
+- solution3:
+	

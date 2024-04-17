@@ -468,7 +468,8 @@ private int recursion(Node p, int n) {
 }
 
 private Node remove(Node p, int n) {
-	recursion(p, n);
+	Node s = new Node(-1, p); // 哨兵的下一个节点是倒数最后一个
+	recursion(s, n);
 	return p;
 }
 ```

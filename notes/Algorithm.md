@@ -657,9 +657,13 @@ public Node mergeKLists(Node[] lists) {
 
 // 返回合并后的链表, i, j 是左右边界
 public Node split(Node[] lists, int i, int j) {
+	// 只有一个链表
+	if (i == j) return lists[i];
 	int m = (i + j) >>> 1;
 	Node left = split(lists, i, m);
 	Node right = split(lists, m + 1, j);
-	return mergeList()
+	return mergeList(left, right);
 }
 ```
+### Q58 - 查找链表的中间节点
+- 快慢指针法: 一个走一步，一个走两步

@@ -668,6 +668,7 @@ public Node split(Node[] lists, int i, int j) {
 ### Q58 - 查找链表的中间节点
 - 快慢指针法: 一个走一步，一个走两步
 - 快指针走到尾，慢指针位置是中间节点
+#### solution
 ```java
 public findMidNode(Node head) {
 	Node p1 = head;
@@ -681,3 +682,46 @@ public findMidNode(Node head) {
 	
 }
 ```
+### Q234 - 判断回文
+```
+input:
+[1, 2]
+
+output: false
+```
+#### solution1
+- fan'zhuan
+```java
+public boolean isPalindrome(Node head) {
+	Node mid = findMidNode(head);
+	Node newHead = reverseNode(mid);
+	while (newHead != null) {
+		if (newHead.val != head.val) return false;
+		newHead = newHead.next;
+		head = head.next;
+	}
+	return true;
+}
+
+public Node findMidNode(Node head) {
+	Node p1 = head;
+	Node p2 = head;
+	while (p2 != null && p2.next != null) {
+		p1 = p1.next;
+		p2 = p2.next.next;
+	}
+	return p1;
+}
+
+public Node reverseNode (Node o1) {
+	Node n1 = null;
+	while (o1 != null) {
+		Node o2 = n1.next;
+		o1.next = n1;
+		n1 = o1;
+		o1 = o2;
+	}
+	return n1;
+}
+```
+

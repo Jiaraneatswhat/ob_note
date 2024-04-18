@@ -690,7 +690,7 @@ input:
 output: false
 ```
 #### solution1
-- fan'zhuan
+- 反转中间点后半部分链表对比
 ```java
 public boolean isPalindrome(Node head) {
 	Node mid = findMidNode(head);
@@ -724,4 +724,23 @@ public Node reverseNode (Node o1) {
 	return n1;
 }
 ```
+#### solution2 
+- 找中间点同时反转前半链表
+```java
+public boolean isPalindrome(Node head) {
+	Node p1 = head;
+	Node p2 = head;
+	Node n1 = null;
+	Node o1 = head;
+	while (p2 != null && p2.next != null) {
+		p1 = p1.next;
+		p2 = p2.next.next;
 
+		Node o2 = o1.next;
+		o1.next = n1;
+		n1 = o1;
+		o1 = o2;
+	}
+	return p1;
+}
+```

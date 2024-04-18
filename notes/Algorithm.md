@@ -579,7 +579,7 @@ public Node removeDublicate(Node p) {
 	return s.next;
 }
 ```
-### Q21 合并有序链表
+### Q21 - 合并两个有序链表
 ```
 input:
 l1 = [1, 2, 4], l2 =[1, 3, 4]
@@ -603,5 +603,63 @@ output: []
  *       p1
  *  1 -> 3-> 8 -> 9 -> null
  *  p1 和 p2 中小的链在 p 后, 同时和 p 向后移
+ *  有一个为 null 时，比较结束，将剩下的直接链在 p 后
  */
+
+public void mergeList(Node p1, Node p1) {
+	Node s = new Node(-1, null);
+	Node p = s;
+	while (p1 != null && p2 != null) {
+		if (p1.val < p2.val) {
+			p.next = p1;
+			p1 = p1.next;
+		} else {
+			p.next = p2;
+			p2 = p2.next;
+		}
+		p = p.next;
+	}
+	if (p1 != null) p.next = p1;
+	if (p2 != null) p.next = p2;
+	return s.next;
+}
+```
+#### solution2
+- 递归
+```java
+public void mergeList(Node p1, Node p2) {
+	if (p1 == null) return p2;
+	if (p2 == null) return p1;
+	if (p1.val < p2.val) {
+		p1.next = mergeList(p1.next, p2);
+		return p1;
+	} else {
+		p2.next = mergeList(p1, p2.next);
+		return p2;
+	}
+
+}
+```
+### Q23(H) - 合并 K 个升序链表
+```
+input:
+lists = [[1, 4, 5], [1, 3, 4], [2, 6]]
+
+output:
+[1, 1, 2, 3, 4, 4, 5, 6]
+```
+#### solution
+```java
+// 分治
+public Node mergeKLists(Node[] lists) {
+	return split(lists, 0, lists.length - 1);
+}
+
+// 返回合并后的链表, i, j 是左右边界
+public Node split(Node[] lists, int i, int j) {
+	int m = (i + j) >>> 1;
+	Node left = split(lists, i, m);
+	Node right = split(lists, m + 1, j);
+	return mergeList()
+}
 ```

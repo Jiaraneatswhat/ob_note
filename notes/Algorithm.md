@@ -667,3 +667,17 @@ public Node split(Node[] lists, int i, int j) {
 ```
 ### Q58 - 查找链表的中间节点
 - 快慢指针法: 一个走一步，一个走两步
+- 快指针走到尾，慢指针位置是中间节点
+```java
+public findMidNode(Node head) {
+	Node p1 = head;
+	Node p2 = head;
+	while (p2 != null && p2.next != null) { // 对应奇数 偶数情况
+		p1 = p1.next;
+		p2 = p2.next;
+		p2 = p2.next;
+	}
+	return p1;
+	
+}
+```

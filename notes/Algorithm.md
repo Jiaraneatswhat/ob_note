@@ -858,5 +858,33 @@ public static int fibonacci(int n) {
 }
 
 // 改进：只保存前两次计算结果
-
+public static int fibonacci(int n) {  
+  
+    if (n == 0) return 0;  
+    if (n == 1) return 1;  
+      
+    int a = 0;  
+    int b = 1; // 前两次的结果  
+  
+    for (int i = 2; i <= n; i++) {  
+        int c = a + b;  
+        a = b;  
+        b = c;  
+    }  
+    return b;  
+}
 ```
+## .2 BellmanFord
+- 开始时其他节点的最短距离设置为∞
+- 计算 v1 -> v4 的最短距离
+	- v1 -> v2 -> v4
+	- v1 -> v3 -> v4
+![[BellmanFord.svg]]
+- 递推公式 
+	- 初始
+		- f(v) == 0, v 为起点
+		- f(v) == ∞, v 不为起点
+	- 递推
+		- f(dist) = min(f(dist), f(src) + src.weight)
+- f(v4) = min(∞, f(v2) + v2.weight)
+- f(v4) = min(∞, f(v3) + v2.weight)

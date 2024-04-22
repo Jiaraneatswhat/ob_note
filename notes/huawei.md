@@ -140,4 +140,28 @@ public static void main(String[] args) {
 }
 ```
 ### 5 句子逆序
-- tiao'zhe
+- 调整单词的顺序而非字母
+- 句子不确定单词个数
+```
+example:
+input: I am a boy
+output: boy a am I
+```
+#### solution
+```java
+public static void main(String[] args) {  
+  
+    Scanner scanner = new Scanner(System.in);  
+  
+    String sentence = scanner.nextLine();  
+  
+    LinkedList<String> words = new LinkedList<>();  
+  
+    for (String word : sentence.split(" ")) {  
+        words.addFirst(word);  
+    }  
+  
+    System.out.println(String.join(" ", words));  
+  
+}
+```

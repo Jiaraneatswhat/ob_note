@@ -886,5 +886,6 @@ public static int fibonacci(int n) {
 		- f(v) == ∞, v 不为起点
 	- 递推
 		- f(dist) = min(f(dist), f(src) + src.weight)
-- f(v4) = min(∞, f(v2) + v2.weight)
-- f(v4) = min(∞, f(v3) + v2.weight)
+- 遍历更新
+	- f(v4) = min(∞, f(v2) + v2.weight) = 22
+	- f(v4) = min(22, f(v3) + v2.weight)) = 20

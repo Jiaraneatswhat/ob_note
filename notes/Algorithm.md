@@ -889,3 +889,55 @@ public static int fibonacci(int n) {
 - 遍历更新
 	- f(v4) = min(∞, f(v2) + v2.weight) = 22
 	- f(v4) = min(22, f(v3) + v2.weight)) = 20
+```java
+public class BellmanFord {  
+  
+    static class Edge {  
+        public int src;  
+        public int dist;  
+        public int weight;  
+  
+        public Edge(int src, int dist, int weight) {  
+            this.weight = weight;  
+            this.dist = dist;  
+            this.src = src;  
+        }  
+    }  
+  
+    public static void main(String[] args) {  
+  
+        List<Edge> edges = List.of(  
+                new Edge(6, 5, 9),  
+                new Edge(4, 5, 6),  
+                new Edge(1, 6, 14),  
+                new Edge(3, 6, 2),  
+                new Edge(3, 4, 11),  
+                new Edge(2, 4, 15),  
+                new Edge(1, 3, 9),  
+                new Edge(1, 2, 7)  
+        );  
+        // 保存从起点出发到每个顶点的最短距离  
+        int[] dp = new int[7];  
+        dp[1] = 0; // 起点在索引 1 的位置  
+        for (int i = 2; i < dp.length; i++) {  
+            dp[i] = Integer.MAX_VALUE;  
+        }  
+
+		// 初始更新: [0, 0, 7, 9, ∞, ∞, 14]
+        for (Edge edge : edges) {  
+            if (dp[edge.src] != Integer.MAX_VALUE) {  
+                dp[edge.dist] = Integer.min(dp[edge.dist], dp[edge.src] + edge.weight);  
+            }  
+        }  
+  
+        for (int i = 0; i < 5; i++) {  
+            for (Edge edge : edges) {  
+                if (dp[edge.src] != Integer.MAX_VALUE) {  
+                    dp[edge.dist] = Integer.min(dp[edge.dist], dp[edge.src] + edge.weight);  
+                }  
+            }  
+        }  
+        System.out.println(Arrays.toString(dp));  
+    }  
+}
+```

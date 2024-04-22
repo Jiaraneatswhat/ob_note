@@ -106,5 +106,38 @@ output: 2 2 3 3 5
 ```
 #### solution
 ```java
-
+public static void main(String[] args) {  
+  
+    ArrayList<String> resList = new ArrayList<>();  
+  
+    Scanner scanner = new Scanner(System.in);  
+  
+    long num = scanner.nextLong();  
+  
+    if (num > 2) {  
+  
+        while (num % 2 == 0) {  
+            num /= 2;  
+            resList.add(String.valueOf(2)); // 添加 2        }  
+  
+        for (int i = 3; i <= num; i++) {  
+            if (num % i == 0) {  
+                num /= i;  
+                resList.add(String.valueOf(i));  
+                i--; // 判断 i 的平方数  
+            }  
+        }  
+  
+        String res = "";  
+  
+        for(String str: resList) {  
+            res += str + " ";  
+        }  
+        System.out.println(res);  
+    } else {  
+        System.out.println(num);  
+    }  
+}
 ```
+### 5 句子逆序
+- tiao'zhe

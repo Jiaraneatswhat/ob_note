@@ -21,5 +21,31 @@ output:
 ```
 #### solution
 ```java
-
+public static void main(String[] args) {  
+  
+    Scanner scanner = new Scanner(System.in);  
+  
+    while (scanner.hasNext()) {  
+  
+        // 输入数字个数  
+        int num = scanner.nextInt();  
+  
+        ArrayList<Integer> list = new ArrayList<>();  
+  
+        for (int i = 0; i < num; i++) {  
+  
+            int in = scanner.nextInt();  
+  
+            if (!list.contains(in)) list.add(in);  
+        }  
+  
+        Collections.sort(list);  
+        for (Integer elem : list) {  
+            System.out.println(elem);  
+        }  
+  
+    }  
+    scanner.close();  
+}
 ```
+### 2 

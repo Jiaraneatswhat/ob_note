@@ -165,3 +165,9 @@ public static void main(String[] args) {
   
 }
 ```
+### 6 十进制转二进制
+- 输出 1 的个数
+#### solution
+```java
+
+```

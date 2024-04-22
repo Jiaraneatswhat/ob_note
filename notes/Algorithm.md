@@ -752,3 +752,16 @@ public boolean isPalindrome(Node head) {
 	return true;
 }
 ```
+
+# DP
+## 分数背包问题
+- n 个物品都是液体，有重量和价值
+- 取走 10L 液体，可以取一部分，求最高价值
+```
+编号 weight value
+0    4      24
+1    8      160
+2    2      4000
+3    6      108
+4    1      
+```

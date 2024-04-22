@@ -169,5 +169,20 @@ public static void main(String[] args) {
 - 输出 1 的个数
 #### solution
 ```java
-
+public static void main(String[] args) {  
+  
+	Scanner scanner = new Scanner(System.in);  
+  
+	int num = scanner.nextInt();  
+  
+    int cnt = num & 1;  
+  
+	// String bs = Integer.toBinaryString(num);   
+	// System.out.println(bs);  
+	// 8 位二进制, 2 次幂不停右移，最后有一个 1 
+	for (int i = 0; i < 7; i++) {  
+		cnt += (num >>>= 1) & 1;  
+	}  
+	System.out.println(cnt);  
+    }
 ```

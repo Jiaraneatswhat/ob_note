@@ -753,15 +753,87 @@ public boolean isPalindrome(Node head) {
 }
 ```
 
-# DP
+# Greedy
 ## 分数背包问题
 - n 个物品都是液体，有重量和价值
 - 取走 10L 液体，可以取一部分，求最高价值
 ```
-编号 weight value
-0    4      24
-1    8      160
-2    2      4000
-3    6      108
-4    1      
+编号 weight   value
+ 0     4       24      水
+ 1     8       160    牛奶
+ 2     2      4000    五粮液
+ 3     6      108     可乐
+ 4     1      4000    茅台
 ```
+- 贪心：每轮取最贵的
+	- `4000 + 4000 = 160 * 7/8`
+```java
+public class FracBackpack {  
+  
+    static class Item {  
+        int index;  
+        int weight;  
+        int value;  
+  
+        public Item(int index, int weight, int value) {  
+            this.index = index;  
+            this.weight = weight;  
+            this.value = value;  
+        }  
+  
+        @Override  
+        public String toString() {  
+            return "Item{" +  
+                    "index=" + index +  
+                    '}';  
+        }  
+  
+        public int unitValue() {  
+            return value / weight;  
+        }  
+    }  
+  
+    public static void main(String[] args) {  
+  
+        Item[] items = new Item[] {  
+                new Item(0, 4, 24),  
+                new Item(1, 8, 160),  
+                new Item(2, 2, 4000),  
+                new Item(3, 6, 108),  
+                new Item(4, 1, 4000),  
+        };  
+        select(items, 10);  
+    }  
+  
+    private static void select(Item[] items, int total) {  
+  
+        Arrays.sort(items, Comparator.comparingInt(Item::unitValue).reversed());  
+  
+        int maxVal = 0;  
+  
+        for (Item item : items) {  
+            // 全部拿完  
+            if (total >= item.weight) {  
+                total -= item.weight;  
+                maxVal += item.value;  
+            } else { // 只能拿一部分  
+                maxVal += item.unitValue() * total;  
+                break;  
+            }  
+        }  
+        System.out.println(maxVal);  
+    }  
+}
+```
+## 0-1 背包问题
+- n 个物体都是固体，有重量和价值
+- 需要取走不超过 10g 的物品
+- 求最大价值
+```
+编号 weight     value
+  0    1      1_000_000     diamond
+  1    4         1600       gold
+  2    8         2400       ruby
+  3    5          30        silver
+```
+- 贪心可能不会达到最优解

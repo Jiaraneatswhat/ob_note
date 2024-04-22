@@ -61,5 +61,50 @@ abc00000
 ```
 #### solution
 ```java
+public static void splitStr(StringBuilder str) {  
+    int lenDiv = str.length() / 8;  
+  
+    if (lenDiv == 0) {  
+        str.append("0".repeat(8 - str.length()));  
+        System.out.println(str);  
+    } else {  
+        System.out.println(str.substring(0, 8));  
+        splitStr(new StringBuilder(str.substring(8)));  
+    }  
+}
+```
+### 3 十六进制转十进制
+#### solution
+```java
+public static void main(String[] args) {  
+  
+    Scanner scanner = new Scanner(System.in);  
+  
+    String hex = scanner.next();  
+  
+    hex = hex.toUpperCase();  
+  
+    if (hex.startsWith("0X")) {  
+        hex = hex.substring(2);  
+    }  
+  
+    int digit = 0;  
+    int res = 0;  
+    for (int i = hex.length() - 1; i >= 0; i--, digit++) {  
+        res += (int) ((hex.charAt(i) - 55) * Math.pow(16.0, digit));  
+    }  
+  
+    System.out.println(res + "");  
+}
+```
+### 4 质数因子
+- 输入一个正整数，按照从小到大的顺序输出它的所有质因子(需要重复列举, 空格分割)
+```
+example:
+input: 180
+output: 2 2 3 3 5
+```
+#### solution
+```java
 
 ```

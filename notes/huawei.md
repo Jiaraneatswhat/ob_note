@@ -48,4 +48,18 @@ public static void main(String[] args) {
     scanner.close();  
 }
 ```
-### 2 
+### 2 字符串分隔
+- 输入一个字符串，按长度 8 拆分每个输入字符并输出
+- 长度不足的用 0 补足
+```
+example:
+input:
+abc
+
+output:
+abc00000
+```
+#### solution
+```java
+
+```

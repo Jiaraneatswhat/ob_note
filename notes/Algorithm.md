@@ -736,11 +736,19 @@ public boolean isPalindrome(Node head) {
 		p1 = p1.next;
 		p2 = p2.next.next;
 
-		Node o2 = o1.next;
 		o1.next = n1;
 		n1 = o1;
-		o1 = o2;
+		o1 = p1;
 	}
-	return p1;
+
+	if (p2 != null) { // 奇数 反转后慢指针需要后移
+		p1 = p1.next;
+	}
+	while (n1 != null) {
+		if (n1.val != p1.val) return false;
+		n1 = n1.next;
+		p1 = p1.next;
+	}
+	return true;
 }
 ```

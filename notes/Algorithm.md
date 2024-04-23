@@ -906,7 +906,48 @@ private static void bfs(Vertex start) {
 - 从图中删除该顶点和以它为起点的有向边
 - 重复 12 步，直到 DAG 图为空或者图中不存在无前驱的顶点(存在环)
 ```java
-
+public static void main(String[] args) {  
+  
+    Vertex v1 = new Vertex("web基础");  
+    Vertex v2 = new Vertex("java基础");  
+    Vertex v3 = new Vertex("javaWeb");  
+    Vertex v4 = new Vertex("spring");  
+    Vertex v5 = new Vertex("微服务");  
+    Vertex v6 = new Vertex("database");  
+    Vertex v7 = new Vertex("实战");  
+  
+    v1.edges = List.of(new Edge(v3));  
+    v2.edges = List.of(new Edge(v3));  
+    v3.edges = List.of(new Edge(v4));  
+    v6.edges = List.of(new Edge(v4));  
+    v4.edges = List.of(new Edge(v5));  
+    v5.edges = List.of(new Edge(v7));  
+    v7.edges = List.of();  
+  
+    List<Vertex> graph = new ArrayList<>(List.of(v1, v2, v3, v4, v5, v6, v7));  
+  
+    // 找到入度为 0 的顶点加入队列  
+    for (Vertex vertex : graph) {  
+        for (Edge edge : vertex.edges) {  
+            edge.linked.inDegree++;  
+        }  
+    }  
+    LinkedList<Vertex> queue = new LinkedList<>();  
+    for (Vertex v : graph) {  
+        if (v.inDegree == 0) {  
+            queue.offer(v);  
+        }  
+    }  
+    // 从队列移除顶点，每移除一个，相邻顶点入度 -1，减为 0 的入队  
+    while (!queue.isEmpty()) {  
+        Vertex polled = queue.poll();  
+        System.out.println(polled.name);  
+        for (Edge edge : polled.edges) {  
+            edge.linked.inDegree--;  
+            if (edge.linked.inDegree == 0) queue.offer(edge.linked);  
+        }  
+    }  
+}
 ```
 # Greedy
 ### 分数背包问题

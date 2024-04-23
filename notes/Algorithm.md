@@ -1045,6 +1045,52 @@ private static int select(Item[] items, int total) {
  * 放得下: max(dp[i-1][j], item.value + dp[i][j-item.weight])
  * 放不下: dp[i][j] = dp[i-1][j]
  */
+ 
+private static int select(Item[] items, int total) {  
+  
+    int[][] dp = new int[items.length][total + 1];  
+    Item item0 = items[0];  
+    // 初始化第一行  
+    for (int j = 0; j < total + 1; j++) {  
+        if(j >= item0.weight) {  
+            dp[0][j] = dp[0][j - item0.weight] + item0.value;  
+        }  
+        // else dp[0][j] = 0; 默认 0  
+    }  
+    for (int i = 1; i < items.length; i++) { // 第 0 个 item 已经初始化过了  
+        Item item = items[i];  
+        for (int j = 0; j < total + 1; j++) {  
+            if (j >= item.weight) {  
+                dp[i][j] = Integer.max(dp[i - 1][j], dp[i][j - item.weight] + item.value);  
+            } else {  
+                dp[i][j] = dp[i - 1][j];  
+            }  
+        }  
+    }  
+    return dp[items.length - 1][total];  
+}
+
+// 降维
+// 完全背包不用考虑上一行，直接正向遍历即可
+private static int selectSimplified(Item[] items, int total) {  
+  
+        int[] dp = new int[total + 1];  
+        Item item0 = items[0];  
+        // 初始化第一行  
+//        for (int j = 0; j < total + 1; j++) {  
+//            if(j >= item0.weight) {  
+//                dp[j] = dp[j - item0.weight] + item0.value;  
+//            }  
+//        }  
+        for (Item item : items) {   
+            for (int j = 0; j < total + 1; j++) {  
+                if (j >= item.weight) {  
+                    dp[j] = Integer.max(dp[j], dp[j - item.weight] + item.value);  
+                }  
+            }  
+        }  
+        return dp[total];  
+    }
 ```
 ## LeetCode
 ### Q62 - 不同路径

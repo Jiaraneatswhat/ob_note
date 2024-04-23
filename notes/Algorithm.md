@@ -974,6 +974,32 @@ public class BellmanFord {
  *   即：max(dp[i-1][j], item.value+dp[i-1][j-item.weight])
  */
 
+private static int select(Item[] items, int total) {  
+    int[][] dp = new int[items.length][total + 1];  
+    Item gold = items[0];  
+    // 初始化第 0 行  
+    for (int j = 0; j < total + 1; j++) {  
+        if (j >= gold.weight) {  
+            dp[0][j] = gold.value;  
+        } else {  
+            dp[0][j] = 0;  
+        }  
+    }  
+    // 二维数组 length 返回行数
+    for (int i = 1; i < dp.length; i++) {  
+        Item item = items[i];  
+        for (int j = 0; j < total + 1; j++) {  
+            if (j >= item.weight) {  
+                dp[i][j] = Integer.max(dp[i - 1][j], item.value + dp[i - 1][j - item.weight]);  
+            } else {  
+                dp[i][j] = dp[i - 1][j];  
+            }  
+        }  
+    }  
+    return dp[dp.length - 1][total];  
+}
+
+// 降维
 
 ```
 ## LeetCode

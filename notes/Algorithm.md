@@ -1111,7 +1111,40 @@ private static int selectSimplified(Item[] items, int total) {
   *     dp[i][j] = min(dp[i-1][j], 1+dp[i][j-coin.weight])
   */
 
+public int coinChange(int[] coins, int amount) {  
+    int[][] dp = new int[coins.length][amount + 1];  
+    for (int i = 1; i < amount + 1; i++) {  
+        if (i >= coins[0]) {  
+            dp[0][i] = dp[0][i - coins[0]] + 1;  
+        } else {  
+            dp[0][i] = amount + 1;  
+        }  
+    }  
+    for (int i = 1; i < coins.length; i++) {  
+        for (int j = 0; j < amount + 1; j++) {  
+            if (j >= coins[i]) {  
+                dp[i][j] = Integer.min(dp[i - 1][j], dp[i][j - coins[i]] + 1);  
+            } else {  
+                dp[i][j] = dp[i - 1][j];  
+            }  
+        }  
+    }  
+    return dp[coins.length - 1][amount] <= amount ? dp[coins.length - 1][amount] : -1;  
+}
 
+// 降维
+public int coinChange(int[] coins, int amount) {  
+    int[] dp = new int[amount + 1];  
+    Arrays.fill(dp, amount + 1);  
+    dp[0] = 0;  
+  
+    for (int coin : coins) {  
+        for (int j = coin; j < amount + 1; j++) {  
+            dp[j] = Integer.min(dp[j], dp[j - coin] + 1);  
+        }  
+    }  
+    return dp[amount] <= amount ? dp[amount] : -1;  
+}
 ```
 ## LeetCode
 ### Q62 - 不同路径
@@ -1164,4 +1197,16 @@ private static int uniquePaths(int m, int n) {
 	}  
 	return dp[n - 1];
 }
+```
+### Q518 - 零钱兑换
+- 凑金额有多少种凑法
+#### solution
+```java
+/*
+ *      0    1    2        3       4       5
+ *  1        1    11      111     1111   11111
+ *  2        1   2,11    12,111  22,211  
+ *  5
+ */
+
 ```

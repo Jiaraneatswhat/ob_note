@@ -763,9 +763,9 @@ public boolean isPalindrome(Node head) {
 - 边可以由权重, 顶点间的度量
 - 所有顶点都连通，称为连通图，子图连通称为连通分量
 ### 表示
-
+- 无向图
 ![[graph_present1.svg]]
-### 邻接矩阵
+- 邻接矩阵
 ```
    A  B  C  D
 A  0  1  1  0
@@ -773,8 +773,73 @@ B  1  0  0  1
 C  1  0  0  1
 D  0  1  1  0
 ```
+- 邻接表
+```
+A -> B -> C
+B -> A -> D
+C -> A -> D
+D -> B -> C
+```
+- 有向图
+![[graph_present2.svg]]
+- 邻接矩阵
+```
+   A  B  C  D
+A  0  1  1  0
+B  0  0  0  1
+C  0  0  0  1
+D  0  0  0  0
+```
+- 邻接表
+```
+A -> B -> C
+B -> D
+C -> D
+D
+```
+- Java 表示
+```java
+public class Vertex {  
+      
+    String name;  
+    List<Edge> edges;  
+  
+    public Vertex(String name) {  
+        this.name = name;  
+    }
+
+	public static void main(String[] args) {  
+  
+    Vertex a = new Vertex("A");  
+    Vertex b = new Vertex("B");  
+    Vertex c = new Vertex("C");  
+    Vertex d = new Vertex("D");  
+
+	// a -> b, a -> c  
+    a.edges = List.of(new Edge(b), new Edge(c)); 
+    b.edges = List.of(new Edge(d));  
+    c.edges = List.of(new Edge(d));  
+    d.edges = List.of();  
+}
+}
+
+public class Edge {  
+  
+    Vertex linked; // 连接的点  
+    int weight;  
+  
+    public Edge(Vertex linked) {  
+        this(linked, 1);  
+    }  
+  
+    public Edge(Vertex linked, int weight) {  
+        this.linked = linked;  
+        this.weight = weight;  
+    }  
+}
 
 
+```
 # Greedy
 ### 分数背包问题
 - n 个物品都是液体，有重量和价值

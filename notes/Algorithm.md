@@ -882,6 +882,30 @@ private static void dfs2(Vertex start) {
 4 -> 5(已遍历过)
 
 ```java
+private static void bfs(Vertex start) {  
+  
+    // bfs 需要队列  
+    LinkedList<Vertex> queue = new LinkedList<>();  
+    queue.offer(start);  
+    start.visited = true;  
+    while (!queue.isEmpty()) {  
+        Vertex polled = queue.poll();  
+        System.out.println(polled.name);  
+        for (Edge edge : polled.edges) {  
+            if (!edge.linked.visited) {  
+                edge.linked.visited = true;  
+                queue.offer(edge.linked);  
+            }  
+        }  
+    }  
+}
+```
+## 拓扑排序
+- 对一个 DAG 的顶点进行排序，对每一条有向边(u, v), 顶点 u 的排序都在 v 之前
+- 从 DAG 图中选择一个入度为 0 的顶点
+- 从图中删除该顶点和以它为起点的有向边
+- 重复 12 步，直到 DAG 图为空或者图中不存在无前驱的顶点(存在环)
+```java
 
 ```
 # Greedy

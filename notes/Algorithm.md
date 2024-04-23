@@ -949,6 +949,12 @@ public static void main(String[] args) {
     }  
 }
 ```
+- 检测环：`拓扑排序结果.size != graph.size` 说明存在环
+- DFS 实现拓扑排序
+- 走过的顶点放在栈中，弹栈的顺序就是拓扑排序的顺序
+```java
+
+```
 # Greedy
 ### 分数背包问题
 - n 个物品都是液体，有重量和价值

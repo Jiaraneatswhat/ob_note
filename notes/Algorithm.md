@@ -1000,7 +1000,46 @@ private static int select(Item[] items, int total) {
 }
 
 // 降维
+private static int select(Item[] items, int total) {  
+    int[] dp = new int[total + 1];  
+    Item gold = items[0];  
+    // 初始化  
+    for (int j = 0; j < total + 1; j++) {  
+        if (j >= gold.weight) {  
+            dp[j] = gold.value;  
+        } else {  
+            dp[j] = 0;  
+        }  
+    }  
+    // 从右向左防止覆盖
+    for (int i = 1; i < items.length; i++) {  
+        Item item = items[i];  
+        for (int j = total; j > 0; j--) {  
+            if (j >= item.weight) {  
+                dp[j] = Integer.max(dp[j], item.value + dp[j - item.weight]);  
+            } 
+        }  
+    }  
+    return dp[total];  
+}
+```
+## .4 完全背包
+- 每件物品的数量不限
+```
+编号 weight     value
+  1    2          3        bronze
+  2    3          4        silver
+  3    4          7        gold
+```
 
+```java
+/**
+ *      0     1     2     3     4     5     6
+ *  1   0     0     1B   1B   2B  2B   3B
+ *  2   0     0     1B   1S   1S1B
+ *  3   0     0
+ *  
+ */
 ```
 ## LeetCode
 ### Q62 - 不同路径

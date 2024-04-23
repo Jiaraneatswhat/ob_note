@@ -941,6 +941,33 @@ public class BellmanFord {
     }  
 }
 ```
+## .3 0-1 背包
+- n 个物体都是固体，有重量和价值
+- 需要取走不超过 10g 的物品
+- 求最大价值
+```
+编号 weight     value
+  1    4         1600       gold
+  2    8         2400       ruby
+  3    5          30        silver
+  4    1      1_000_000     diamond
+```
+
+```java
+/**
+ * 每一列对应当前重量下的最大价值, 行对应物品编号
+ * 装不下保持上次最大价值
+ * 
+ *     0    1    2    3    4    5    6    7    8    9    10
+ * 0   0    0    0    0    G    G    G    G    G    G     G
+ * 1   0    0    0    0    G    G    G    G    R    R     R
+ * 2   0    0    0    0    G    G    G    G    R    R     R
+ * 3   0    D    D    D    D   D+G  D+G  D+G  D+G  D+R   D+R 
+ * 
+*/
+
+
+```
 ## LeetCode
 ### Q62 - 不同路径
 - 机器人从左上角走到右下角，每次只能 → 或 ↓，有多少种走法
@@ -979,5 +1006,17 @@ private static int uniquePaths(int m, int n) {
 // 降维
 // 1 1 1 1 1 1 1 每次和左边的数相加进行更新 
 // 1 2 3 4 5 6 7 -> 1 3 6 10 15 21 28
-
+private static int uniquePaths(int m, int n) {  
+	int[] dp = new int[n];  
+	for (int i = 0; i < n; i++) {  
+	    dp[i] = 1;  
+	}  
+	for (int i = 0; i < m; i++) {  
+	    dp[0] = 1;  
+	    for (int j = 1; j < n; j++) {  
+	        dp[j] = dp[j] + dp[j - 1];  
+	    }  
+	}  
+	return dp[n - 1];
+}
 ```

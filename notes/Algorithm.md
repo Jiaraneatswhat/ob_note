@@ -1092,6 +1092,27 @@ private static int selectSimplified(Item[] items, int total) {
         return dp[total];  
     }
 ```
+## .5 零钱兑换
+- 用最少的硬币凑够总金额
+```java
+/**
+ * 类似完全背包问题
+ *      0     1    2      3       4      5
+ *  1   0    1*1  2*1    3*1     4*1    5*1 
+ *  2   0    1*1  1*2  1*2+1*1   2*2  2*2+1*1
+ *  5   0    1*1  1*2  1*2+1*1   2*2    1*5
+ * 特殊情况标记
+ * 10  flag  flag flag  flag     flag  flag 无法凑齐，返回-1
+ */
+
+ /*
+  * 装不下：保留上次个数 dp[i][j] = dp[i-1][j]
+  * 装得下：min(上次个数，1+余额最小的硬币数)
+  *     dp[i][j] = min(dp[i-1][j], 1+dp[i][j-coin.weight])
+  */
+
+
+```
 ## LeetCode
 ### Q62 - 不同路径
 - 机器人从左上角走到右下角，每次只能 → 或 ↓，有多少种走法

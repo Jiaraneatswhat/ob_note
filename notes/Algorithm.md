@@ -842,10 +842,44 @@ public class Edge {
 ```
 ## DFS
 ![[dfs.svg]]
+1 -> 3 -> 4 -> 5, 返回到 3
+3 -> 6 -> 5, 返回到 1
+1 -> 2 -> 4, 返回到 1
+1 -> 6 -> 5
 
+```java
+// Vertex类添加一个 visited 属性
+private static void dfs(Vertex start) {  
+    start.visited = true;  
+    System.out.println(start.name);  
+    for (Edge edge : start.edges) {  
+        if (!edge.linked.visited) {  
+            dfs(edge.linked);  
+        }  
+    }  
+}
 
+private static void dfs2(Vertex start) {  
+    LinkedList<Vertex> stack = new LinkedList<>();  
+    stack.push(start);  
+    while (!stack.isEmpty()) {  
+        Vertex popped = stack.pop();  
+        popped.visited = true;  
+        System.out.println(popped.name);  
+        for (Edge edge : popped.edges) {  
+            if (!edge.linked.visited) {  
+                stack.push(edge.linked);  
+            }  
+        }  
+    }  
+}
+```
+## BFS
+![[dfs.svg]]
 
-
+按层遍历：1 -> 6, 1 -> 2, 1 -> 3
+3 -> 4, 6 -> 5
+4 -> 5
 
 
 # Greedy

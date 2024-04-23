@@ -1035,10 +1035,15 @@ private static int select(Item[] items, int total) {
 ```java
 /**
  *      0     1     2     3     4     5     6
- *  1   0     0     1B   1B   2B  2B   3B
- *  2   0     0     1B   1S   1S1B
- *  3   0     0
+ *  1   0     0     1B    1B    2B    2B    3B
+ *  2   0     0     1B    1S    2B   1S1B   3B
+ *  3   0     0     1B    1S    1G    1G   1G1B
  *  
+ */
+
+/*
+ * 放得下: max(dp[i-1][j], item.value + dp[i][j-item.weight])
+ * 放不下: dp[i][j] = dp[i-1][j]
  */
 ```
 ## LeetCode

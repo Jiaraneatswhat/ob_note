@@ -840,6 +840,14 @@ public class Edge {
 
 
 ```
+## DFS
+![[dfs.svg]]
+
+
+
+
+
+
 # Greedy
 ### 分数背包问题
 - n 个物品都是液体，有重量和价值

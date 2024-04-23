@@ -753,8 +753,13 @@ public boolean isPalindrome(Node head) {
 }
 ```
 
+# Graph
+- 图由顶点和边组成
+- 有向图/无向图
+- 度指与该顶点相连的边的数量
+	- 有向图中进一步分为入度(指向)和出度()
 # Greedy
-## 分数背包问题
+### 分数背包问题
 - n 个物品都是液体，有重量和价值
 - 取走 10L 液体，可以取一部分，求最高价值
 ```
@@ -825,7 +830,7 @@ public class FracBackpack {
     }  
 }
 ```
-## 0-1 背包问题
+### 0-1 背包问题
 - n 个物体都是固体，有重量和价值
 - 需要取走不超过 10g 的物品
 - 求最大价值
@@ -1214,5 +1219,45 @@ private static int uniquePaths(int m, int n) {
  * 放得下: dp[i][j] = dp[i-1][j] + dp[i][j-coin] j=coin时，0列取1
  */
 
+public int coinChange(int[] coins, int amount) {  
+  
+    int[][] dp = new int[coins.length][amount + 1];  
+    for (int i = 0; i < coins.length; i++) {  
+        dp[i][0] = 1;  
+    }  
+    for (int i = 1; i < amount + 1; i++) {  
+        if (i >= coins[0]) {  
+            dp[0][i] = dp[0][i - coins[0]];  
+        }  
+    }  
+    for (int i = 1; i < coins.length; i++) {  
+        for (int j = 1; j < amount + 1; j++) {  
+            if (j >= coins[i]) {  
+                dp[i][j] = dp[i][j - coins[i]] + dp[i - 1][j];  
+            } else {  
+                dp[i][j] = dp[i - 1][j];  
+            }  
+        }  
+    }  
+    return dp[coins.length - 1][amount];  
+}
 
+// 降维
+public int coinChange(int[] coins, int amount) {  
+  
+    int[] dp = new int[amount + 1];  
+    dp[0] = 1;  
+  
+    for (int i = 1; i < amount + 1; i++) {  
+        dp[i] = dp[i - coins[0]];  
+    }  
+    for (int i = 1; i < coins.length; i++) {  
+        for (int j = 1; j < amount + 1; j++) {  
+            if (j >= coins[i]) {  
+                dp[j] = dp[j - coins[i]] + dp[j];  
+            }  
+        }  
+    }  
+    return dp[amount];  
+}
 ```

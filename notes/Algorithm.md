@@ -966,6 +966,14 @@ public class BellmanFord {
  * 
 */
 
+/* 
+ * 装不下：dp[i][j] = dp[i-1][j] 上一行同列
+ * 装得下: 
+ *   max(item.value, dp[i-1][j]) 容量已满
+ *   max(dp[i][j], dp[i-1][j]) 容量未满, 需要去找剩余容量对应最大价值dp[i-1][j-item.weight]
+ *   即：max(dp[i-1][j], item.value+dp[i-1][j-item.weight])
+ */
+
 
 ```
 ## LeetCode

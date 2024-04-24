@@ -1164,9 +1164,64 @@ v4   3   -1    1    0
 /*
  * v2 -> v1 -> v_j: dist[1][0] + dist[0][j]
  */
-
-
+static void floydWarshall(List<Vertex> graph) {  
+    int size = graph.size();  
+    int[][] dist = new int[size][size];  
+    Vertex[][] prev = new Vertex[size][size];  
+  
+    // 初始化  
+    for (int i = 0; i < size; i++) {  
+        Vertex v = graph.get(i);  
+        // 将 list 转为 map 查询效率高  
+        Map<Vertex, Integer> map = v.edges.stream().collect(Collectors.toMap(e -> e.linked, e -> e.weight));  
+        for (int j = 0; j < size; j++) {  
+            Vertex u = graph.get(j);  
+            if (u == v) {  
+                dist[i][j] = 0; // 同一个顶点  
+            } else {  
+                dist[i][j] = map.getOrDefault(u, Integer.MAX_VALUE);  
+                prev[i][j] = map.get(u) != null ? v : null; // 连通  
+            }  
+        }  
+    }  
+  
+    // 看能否通过节点到达另一个  
+    for (int k = 0; k < size; k++) { // 借助第 k 个顶点  
+        for (int i = 0; i < size; i++) {  
+            for (int j = 0; j < size; j++) {  
+                // dist[i][k] + dist[k][j] 第 i 行借助第 k 个顶点到第 j 列  
+                if ((dist[i][k] != Integer.MAX_VALUE  
+                        && dist[k][j] != Integer.MAX_VALUE)  
+                        && dist[i][j] > dist[i][k] + dist[k][j]) {  
+                    dist[i][j] = dist[i][k] + dist[k][j];  
+                    prev[i][j] =prev[k][j];  
+                }  
+            }  
+        }  
+    }  
+}
 ```
+- 负环的情况
+![[floyd_warshall2.svg]]
+```
+k = 0
+    v1   v2   v3   v4
+v1   0    2    ∞   ∞
+v2   ∞   0    -4   ∞
+v3   1    3   0    1
+v4   ∞   ∞   ∞   0
+
+k = 1
+    v1   v2   v3   v4
+v1   0    2   -2   ∞
+v2   ∞   0   -4   ∞
+v3   1    3   -1    1
+v4   ∞   ∞   ∞   0
+```
+- 对角线上出现了负值，说明有负环
+## 最小生成树 -- Prim
+
+
 # Greedy
 ### 分数背包问题
 - n 个物品都是液体，有重量和价值

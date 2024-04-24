@@ -995,9 +995,54 @@ private static void dfs(Vertex vertex, LinkedList<String> stack) {
 - 邻居处理完后，将当前顶点从未访问集合中删除
 
 ```java
-
+// Vertex 添加 dist 属性
+private static void dijkstra(List<Vertex> graph, Vertex start) {  
+    ArrayList<Vertex> unvisited = new ArrayList<>(graph);  
+    start.dist = 0;  
+  
+    while (!unvisited.isEmpty()) {  
+        Vertex curr = minDistVertex(unvisited);  
+        updateDist(curr, unvisited);  
+        unvisited.remove(curr);  
+    }  
+    for (Vertex vertex : graph) {  
+        System.out.println(vertex.name + " " + vertex.dist);  
+    }  
+}  
+  
+private static void updateDist(Vertex curr, ArrayList<Vertex> neighbor) { // 只需处理集合内的邻居  
+    for (Edge edge : curr.edges) {  
+        Vertex v = edge.linked;  
+        if (neighbor.contains(v)) {  
+            v.dist = Integer.min(v.dist, curr.dist + edge.weight);  
+        }  
+    }  
+}  
+  
+private static Vertex minDistVertex(ArrayList<Vertex> vertices) {  
+    Vertex min = vertices.get(0);  
+    for (int i = 1; i < vertices.size(); i++) {  
+        if (vertices.get(i).dist < min.dist) {  
+            min = vertices.get(i);  
+        }  
+    }  
+    return min;  
+}
 ```
-
+- 改进
+- 记录路径
+```java
+// vertex 添加 prev 属性
+private static void updateDist(Vertex curr, ArrayList<Vertex> neighbor) { // 只需处理集合内的邻居  
+    for (Edge edge : curr.edges) {  
+        Vertex v = edge.linked;  
+        if (neighbor.contains(v)) {  
+            v.dist = Integer.min(v.dist, curr.dist + edge.weight);  
+            v.prev = curr; // update 时保存 prev
+        }  
+    }  
+}
+```
 
 # Greedy
 ### 分数背包问题

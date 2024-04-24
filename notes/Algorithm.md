@@ -983,7 +983,7 @@ private static void dfs(Vertex vertex, LinkedList<String> stack) {
     stack.push(vertex.name);  
 }
 ```
-## Dijkstra(狄克斯特拉) -- 最短路径
+## Dijkstra(狄克斯特拉) -- 单源最短路径
 ![[dfs.svg]]
 
 - 算法流程
@@ -1090,14 +1090,54 @@ private static void updateDist(Vertex curr, PriorityQueue<Vertex> queue) { // �
     }  
 }
 ```
-## Bellman-Ford
+## Bellman-Ford -- Dijkstra 的改进
 ![[bellmanford_dijkstra.svg]]
 
 - Dijkstra 算法在遇到负权边时，会出现问题，而 Bellman-Ford 算法可以处理
+- 对每条边依次处理，处理顶点数 -1 轮
+- 无法处理负环(环上权值和为负)
 
+```java
+private static void bellmanFord(List<Vertex> graph, Vertex start) {  
+    start.dist = 0;  
+    // 顶点个数 - 1 轮处理  
+    for (int i = 0; i < graph.size() - 1; i++) {  
+        // 处理所有的边  
+        for (Vertex s : graph) {  
+            for (Edge edge : s.edges) {  
+                Vertex e = edge.linked;  
+                if (s.dist + edge.weight < e.dist && s.dist != Integer.MAX_VALUE) {  
+                    e.dist = s.dist + edge.weight;  
+                    e.prev = s;  
+                }  
+  
+            }  
+        }  
+    }  
+    for (Vertex v : graph) {  
+        System.out.println(v + " " + (v.prev != null ? v.prev.name : "null"));  
+    }  
+}
+```
+## Floyd-Warshall -- 多源最短路径
+![[floyd_warshall.svg]]
+- 可以处理负边，不能处理负环
+```
+初始化最短路径
+k=0, 直接连通
+    v1   v2   v3   v4
+v1   0    ∞  -2   ∞
+v2   4    0    3    ∞
+v3   ∞   ∞   0    2
+v4   ∞   -1   ∞   0
 
-
-
+k=1, 借助 v1 到达其他节点
+    v1   v2   v3   v4
+v1   0    ∞  -2   ∞
+v2   4    0    2    ∞
+v3   ∞   ∞   0    2
+v4   ∞   -1   ∞   0
+```
 
 # Greedy
 ### 分数背包问题
@@ -1225,7 +1265,7 @@ public static int fibonacci(int n) {
 - 计算 v1 -> v4 的最短距离
 	- v1 -> v2 -> v4
 	- v1 -> v3 -> v4
-![[BellmanFord.svg]]
+![[bellman_ford.svg]]
 - 递推公式 
 	- 初始
 		- f(v) == 0, v 为起点

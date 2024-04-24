@@ -986,13 +986,14 @@ private static void dfs(Vertex vertex, LinkedList<String> stack) {
 ## Dijkstra(狄克斯特拉) -- 最短路径
 ![[dfs.svg]]
 
-- 所有顶点标记为未访问，组成一个未访问顶点的集合
-- 为每一个顶点分配一个临时距离值
-	- 初始顶点设置为 0
-	- 其他顶点设置为 ∞
-- 每次选择最小临时距离的未访问顶点作为新的当前顶点
-- 对当前顶点，遍历其所有未访问的邻居，更新临时距离为最小
-- 邻居处理完后，将当前顶点从未访问集合中删除
+- 算法流程
+	- 所有顶点标记为未访问，组成一个未访问顶点的集合
+	- 为每一个顶点分配一个临时距离值
+		- 初始顶点设置为 0
+		- 其他顶点设置为 ∞
+	- 每次选择最小临时距离的未访问顶点作为新的当前顶点
+	- 对当前顶点，遍历其所有未访问的邻居，更新临时距离为最小
+	- 邻居处理完后，将当前顶点从未访问集合中删除
 
 ```java
 // Vertex 添加 dist 属性
@@ -1089,6 +1090,15 @@ private static void updateDist(Vertex curr, PriorityQueue<Vertex> queue) { // �
     }  
 }
 ```
+## Bellman-Ford
+![[bellmanford_dijkstra.svg]]
+
+- Dijkstra 算法在遇到负权边时，会出现问题，而 Bellman-Ford 算法可以处理
+
+
+
+
+
 # Greedy
 ### 分数背包问题
 - n 个物品都是液体，有重量和价值

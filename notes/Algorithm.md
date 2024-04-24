@@ -1055,7 +1055,40 @@ private static void updateDist(Vertex curr) {
     }  
 }
 ```
-
+- 优先级队列
+```java
+private static void dijkstra(List<Vertex> graph, Vertex start) {  
+    // 创建一个优先级队列(最小堆)  
+    PriorityQueue<Vertex> queue = new PriorityQueue<>(Comparator.comparingInt(v -> v.dist));  
+    start.dist = 0;  
+    for (Vertex vertex : graph) {  
+        queue.offer(vertex);  
+    }  
+    while (!queue.isEmpty()) {  
+        Vertex curr = queue.peek();  
+        updateDist(curr, queue);  
+        queue.poll();  
+        curr.visited = true;  
+    }  
+    for (Vertex vertex : graph) {  
+        System.out.println(vertex.name + " " + vertex.dist + " " + (vertex.prev != null ? vertex.prev.name : "null"));  
+    }  
+}  
+  
+private static void updateDist(Vertex curr, PriorityQueue<Vertex> queue) { // 只需处理集合内的邻居  
+    for (Edge edge : curr.edges) {  
+        Vertex v = edge.linked;  
+        if (!v.visited) {  
+            int dist = curr.dist + edge.weight;  
+            if (dist < v.dist) {  
+                v.dist = dist;  
+                v.prev = curr;  
+                queue.offer(v); // 重新加入队列，调整位置  
+            }  
+        }  
+    }  
+}
+```
 # Greedy
 ### 分数背包问题
 - n 个物品都是液体，有重量和价值

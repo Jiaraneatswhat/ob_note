@@ -1042,6 +1042,18 @@ private static void updateDist(Vertex curr, ArrayList<Vertex> neighbor) { // 只
         }  
     }  
 }
+
+// 也可以在 list.remove 后将 curr.visited 设置为 true
+// 只需一个参数
+private static void updateDist(Vertex curr) {  
+    for (Edge edge : curr.edges) {  
+        Vertex v = edge.linked;  
+        if (!v.visited) {  
+            v.dist = Integer.min(v.dist, curr.dist + edge.weight);  
+            v.prev = curr; // update 时保存 prev
+        }  
+    }  
+}
 ```
 
 # Greedy

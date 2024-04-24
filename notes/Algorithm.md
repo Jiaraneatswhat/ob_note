@@ -994,6 +994,9 @@ private static void dfs(Vertex vertex, LinkedList<String> stack) {
 - 对当前顶点，遍历其所有未访问的邻居，更新临时距离为最小
 - 邻居处理完后，将当前顶点从未访问集合中删除
 
+```java
+
+```
 
 
 # Greedy

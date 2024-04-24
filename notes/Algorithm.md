@@ -953,7 +953,35 @@ public static void main(String[] args) {
 - DFS 实现拓扑排序
 - 走过的顶点放在栈中，弹栈的顺序就是拓扑排序的顺序
 ```java
-
+public static void main(String[] args) {  
+  
+    Vertex v1 = ...  
+    v7.edges = List.of();  
+  
+    List<Vertex> graph = new ArrayList<>(List.of(v1, v2, v3, v4, v5, v6, v7));  
+    LinkedList<String> stack = new LinkedList<>();  
+  
+    for (Vertex vertex : graph) {  
+        dfs(vertex, stack);  
+    }  
+  
+    System.out.println(stack);  
+  
+}  
+  
+private static void dfs(Vertex vertex, LinkedList<String> stack) {  
+    if (vertex.status == 2) {  
+        return;  
+    }  
+    if (vertex.status == 1) throw new RuntimeException("存在环！");  
+    vertex.status = 1;  
+    for (Edge edge : vertex.edges) {  
+        dfs(edge.linked, stack);  
+    }  
+    vertex.status = 2;  
+    // 相邻顶点处理完后，返回时压栈  
+    stack.push(vertex.name);  
+}
 ```
 # Greedy
 ### 分数背包问题

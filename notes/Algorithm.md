@@ -1355,10 +1355,19 @@ public class DisjointSet {
 
 - 问题：要找到 6 的起点时，需要遍历整个数组
 - 更改 find 方法，在递归返回的过程中更新数组元素
-
 ```java
-
+// find(6) -> [0, 0, 0, 0, 0, 0, 0]
+public int find(int x) {  
+    // 索引与值相等的是起点  
+    if (x == s[x]) {  
+        return x;  
+    }  
+    // 不相等根据终点的值再次查找  
+    return s[x] = find(s[x]);  
+}
 ```
+- UnionBySize
+
 # Greedy
 ### 分数背包问题
 - n 个物品都是液体，有重量和价值

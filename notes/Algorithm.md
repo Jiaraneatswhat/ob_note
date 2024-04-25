@@ -1266,8 +1266,28 @@ private static Vertex minDistVertex(ArrayList<Vertex> vertices) {
 - Kruskal 实现
 	- 将 edge 按权值排序，从最小的边开始，当两端节点不连通时进行连接
 ```java
-
+// 优先级队列存放实现 Comparable 的 Edge 对象
+private static void kruskal(int size, PriorityQueue<Edge> queue) {  
+    List<Edge> res = new ArrayList<>();  
+    // 使用并查集判断顶点是否连通
+    DisjointSet set = new DisjointSet(size);  
+    while (res.size() < size - 1) { // 需要找到 size - 1 条边  
+        Edge polled = queue.poll();  
+        int i = set.find(polled.start);  
+        int j = set.find(polled.end);  
+        if (i != j) { // 说明不连通  
+            res.add(polled);  
+            set.union(i, j); // 标记为连通  
+        }  
+    }  
+    for (Edge e : res) {  
+        System.out.println(e);  
+    }  
+}
 ```
+## 并查集(union-find disjoint set)
+
+
 # Greedy
 ### 分数背包问题
 - n 个物品都是液体，有重量和价值

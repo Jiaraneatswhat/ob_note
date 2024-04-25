@@ -1223,7 +1223,44 @@ v4   ∞   ∞   ∞   0
 - 在一给定的无向图 $G=(V,E)$ 中, $(u,v)$ 代表连接顶点 $u$ 与顶点 $v$ 的边, 而 $w(u, v)$ 代表此边的权重，若存在 $T$ 为 $E$ 的子集且为无循环图，使得联通所有结点的的 $w(T)$ 最小，则此 $T$ 为 $G$ 的最小生成树
 ![[mst_prim.svg]]
 
-
+```java
+private static void prim(List<Vertex> graph, Vertex start) {  
+    ArrayList<Vertex> unvisited = new ArrayList<>(graph);  
+    start.dist = 0;  
+  
+    while (!unvisited.isEmpty()) {  
+        Vertex curr = minDistVertex(unvisited);  
+        updateDist(curr, unvisited);  
+        unvisited.remove(curr);  
+    }  
+    for (Vertex vertex : graph) {  
+        System.out.println(vertex.name + " " + vertex.dist + " " + (vertex.prev != null ? vertex.prev.name : "null"));  
+    }  
+}  
+  
+private static void updateDist(Vertex curr, ArrayList<Vertex> neighbor) { // 只需处理集合内的邻居  
+    for (Edge edge : curr.edges) {  
+        Vertex v = edge.linked;  
+        if (neighbor.contains(v)) {  
+            if (edge.weight < v.dist) {  
+                // 与 Dijkstra 只有此处不同  
+                v.dist = edge.weight;  
+                v.prev = curr;  
+            }  
+        }  
+    }  
+}  
+  
+private static Vertex minDistVertex(ArrayList<Vertex> vertices) {  
+    Vertex min = vertices.get(0);  
+    for (int i = 1; i < vertices.size(); i++) {  
+        if (vertices.get(i).dist < min.dist) {  
+            min = vertices.get(i);  
+        }  
+    }  
+    return min;  
+}
+```
 
 
 # Greedy

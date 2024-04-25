@@ -244,6 +244,8 @@ output: 130
  *  2   0     M1    M1M2  M3S1S2  M3S1S2  M3S1S2 
  *  
  *  每个主件对应四种情况: M, MS1, MS2, MS1S2
+ *  dp[i][j] = max(dp[i-1][j], dp[i-1][j-w[j]] + v[j])  
  */
+
 
 ```

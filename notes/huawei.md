@@ -243,6 +243,7 @@ output: 130
  *  1   0     M1    M1M2   M1M2    M1M2    M1M2
  *  2   0     M1    M1M2  M3S1S2  M3S1S2  M3S1S2 
  *  
+ *  每个主件对应四种情况: M, MS1, MS2, MS1S2
  */
 
 ```

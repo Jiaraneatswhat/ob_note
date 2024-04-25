@@ -1367,7 +1367,9 @@ public int find(int x) {
 }
 ```
 - UnionBySize
-
+![[disjoint_set_problem2.svg]]
+- 问题：多连少时，查找 start 节点时效率低
+- 更改 union 方法
 # Greedy
 ### 分数背包问题
 - n 个物品都是液体，有重量和价值

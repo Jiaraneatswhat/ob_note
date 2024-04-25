@@ -1219,10 +1219,12 @@ v3   1    3   -1    1
 v4   ∞   ∞   ∞   0
 ```
 - 对角线上出现了负值，说明有负环
-## 最小生成树(MST) -- Prim
+## 最小生成树(MST)
 - 在一给定的无向图 $G=(V,E)$ 中, $(u,v)$ 代表连接顶点 $u$ 与顶点 $v$ 的边, 而 $w(u, v)$ 代表此边的权重，若存在 $T$ 为 $E$ 的子集且为无循环图，使得联通所有结点的的 $w(T)$ 最小，则此 $T$ 为 $G$ 的最小生成树
 ![[mst_prim.svg]]
-
+- Prim 实现
+	- 与 Dijkstra 算法类似，将起点的距离设为 0，其他的设为∞
+	- 不同之处在于每次都是通过 edge 的权值更新 end 节点的距离，而不是从起点到 end 的距离 + 权值
 ```java
 private static void prim(List<Vertex> graph, Vertex start) {  
     ArrayList<Vertex> unvisited = new ArrayList<>(graph);  
@@ -1261,8 +1263,11 @@ private static Vertex minDistVertex(ArrayList<Vertex> vertices) {
     return min;  
 }
 ```
+- Kruskal 实现
+	- 将 edge 按权值排序，从最小的边开始，当两端节点不连通时进行连接
+```java
 
-
+```
 # Greedy
 ### 分数背包问题
 - n 个物品都是液体，有重量和价值

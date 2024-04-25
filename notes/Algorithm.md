@@ -1286,6 +1286,7 @@ private static void kruskal(int size, PriorityQueue<Edge> queue) {
 }
 ```
 ## 并查集(union-find disjoint set)
+![[disjoint_set.svg]]
 
 
 # Greedy

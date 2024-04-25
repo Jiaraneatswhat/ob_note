@@ -1288,7 +1288,77 @@ private static void kruskal(int size, PriorityQueue<Edge> queue) {
 ## 并查集(union-find disjoint set)
 ![[disjoint_set.svg]]
 
+```java
+public class DisjointSet {  
+  
+    int[] s;  
+  
+    public DisjointSet(int size) {  
+        s = new int[size];  
+        for (int i = 0; i < size; i++) {  
+            s[i] = i;  
+        }  
+    }  
+  
+    public int find(int x) {  
+        // 索引与值相等的是起点  
+        if (x == s[x]) {  
+            return x;  
+        }  
+        // 不相等根据终点的值再次查找  
+        return find(s[x]);  
+    }  
+  
+    public void union(int x, int y) {  
+        // x 的值给 y 处元素  
+        s[y] = x;  
+    }  
+  
+    @Override  
+    public String toString() {  
+        return Arrays.toString(s);  
+    }  
+  
+    public static void main(String[] args) {  
+  
+        DisjointSet set = new DisjointSet(7);  
 
+		/*
+			start is: 0 3
+			[0, 1, 2, 0, 4, 5, 6]  0 和 3 的值相同为同一组
+		*/
+        int x = set.find(0);  
+        int y = set.find(3);  
+        System.out.println("start is: " + x + " " + y);  
+        if (x != y) {  
+            set.union(x, y);  
+            System.out.println(set);  
+        }  
+
+		/*
+			start is: 5 6
+			[0, 1, 2, 0, 4, 5, 5]
+		*/
+        x = set.find(5);  
+        y = set.find(6);  
+        System.out.println("start is: " + x + " " + y);  
+        if (x != y) {  
+            set.union(x, y);  
+            System.out.println(set);  
+        }  
+  
+    }  
+}
+```
+- 路径压缩
+![[disjoint_set_problem.svg]]
+
+- 问题：要找到 6 的起点时，需要遍历整个数组
+- 更改 find 方法，在递归返回的过程中更新数组元素
+
+```java
+
+```
 # Greedy
 ### 分数背包问题
 - n 个物品都是液体，有重量和价值

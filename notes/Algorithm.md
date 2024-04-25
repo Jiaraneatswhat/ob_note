@@ -753,8 +753,14 @@ public boolean isPalindrome(Node head) {
 }
 ```
 
-# Graph
-## 基本知识
+# 2 数组
+# 3 栈
+# 4 队列
+# 5 树
+# 6 hash
+# 7 sort
+# 8 Graph
+## 8.1 基本知识
 ### 定义
 - 图由顶点和边组成
 - 有向图/无向图
@@ -840,7 +846,7 @@ public class Edge {
 
 
 ```
-## DFS
+## 8.2 DFS
 ![[dfs.svg]]
 1 -> 3 -> 4 -> 5, 返回到 3
 3 -> 6 -> 5, 返回到 1
@@ -874,7 +880,7 @@ private static void dfs2(Vertex start) {
     }  
 }
 ```
-## BFS
+## 8.3 BFS
 ![[dfs.svg]]
 
 按层遍历：1 -> 6, 1 -> 2, 1 -> 3
@@ -900,7 +906,7 @@ private static void bfs(Vertex start) {
     }  
 }
 ```
-## 拓扑排序
+## 8.4 拓扑排序
 - 对一个 DAG 的顶点进行排序，对每一条有向边(u, v), 顶点 u 的排序都在 v 之前
 - 从 DAG 图中选择一个入度为 0 的顶点
 - 从图中删除该顶点和以它为起点的有向边
@@ -983,7 +989,7 @@ private static void dfs(Vertex vertex, LinkedList<String> stack) {
     stack.push(vertex.name);  
 }
 ```
-## Dijkstra(狄克斯特拉) -- 单源最短路径
+## 8.5 Dijkstra(狄克斯特拉) -- 单源最短路径
 ![[dfs.svg]]
 
 - 算法流程
@@ -1090,7 +1096,7 @@ private static void updateDist(Vertex curr, PriorityQueue<Vertex> queue) { // �
     }  
 }
 ```
-## Bellman-Ford -- Dijkstra 的改进
+## 8.6 Bellman-Ford -- Dijkstra 的改进
 ![[bellmanford_dijkstra.svg]]
 
 - Dijkstra 算法在遇到负权边时，会出现问题，而 Bellman-Ford 算法可以处理
@@ -1119,7 +1125,7 @@ private static void bellmanFord(List<Vertex> graph, Vertex start) {
     }  
 }
 ```
-## Floyd-Warshall -- 多源最短路径
+## 8.7 Floyd-Warshall -- 多源最短路径
 ![[floyd_warshall.svg]]
 - 可以处理负边，不能处理负环
 ```
@@ -1219,7 +1225,7 @@ v3   1    3   -1    1
 v4   ∞   ∞   ∞   0
 ```
 - 对角线上出现了负值，说明有负环
-## 最小生成树(MST)
+## 8.8 最小生成树(MST)
 - 在一给定的无向图 $G=(V,E)$ 中, $(u,v)$ 代表连接顶点 $u$ 与顶点 $v$ 的边, 而 $w(u, v)$ 代表此边的权重，若存在 $T$ 为 $E$ 的子集且为无循环图，使得联通所有结点的的 $w(T)$ 最小，则此 $T$ 为 $G$ 的最小生成树
 ![[mst_prim.svg]]
 - Prim 实现
@@ -1285,7 +1291,7 @@ private static void kruskal(int size, PriorityQueue<Edge> queue) {
     }  
 }
 ```
-## 并查集(union-find disjoint set)
+## 8.9 并查集(union-find disjoint set)
 ![[disjoint_set.svg]]
 
 ```java
@@ -1370,8 +1376,31 @@ public int find(int x) {
 ![[disjoint_set_problem2.svg]]
 - 问题：多连少时，查找 start 节点时效率低
 - 更改 union 方法
-# Greedy
-### 分数背包问题
+```java
+public void union(int x, int y) {  
+	// 少连多
+    if (size[x] < size[y]) {  
+        s[x] = y;  
+        size[y] += size[x]; // 更新 start 元素个数  
+    } else {  
+        // x 的值给 y 处元素  
+        s[y] = x;  
+        size[x] += size[y]; // 更新 start 元素个数  
+    }  
+}
+
+public void union(int x, int y) {  
+    if (size[x] < size[y]) {   
+        int tmp = x;  
+        x = y;  
+        y = tmp;  
+    }  
+    s[x] = y;  
+    size[y] += size[x]; // 更新 start 元素个数  
+}
+```
+# 9 Greedy
+## 分数背包问题
 - n 个物品都是液体，有重量和价值
 - 取走 10L 液体，可以取一部分，求最高价值
 ```
@@ -1442,7 +1471,7 @@ public class FracBackpack {
     }  
 }
 ```
-### 0-1 背包问题
+## 0-1 背包问题
 - n 个物体都是固体，有重量和价值
 - 需要取走不超过 10g 的物品
 - 求最大价值
@@ -1454,8 +1483,8 @@ public class FracBackpack {
   3    5          30        silver
 ```
 - 贪心可能不会达到最优解
-# DP
-## .1 Fibonacci
+# 10 DP
+## 10.1 Fibonacci
 - 记忆法改进，将计算结果保存起来，下次继续使用
 - 用一维或二维数组保存之前的计算结果
 ```java
@@ -1491,7 +1520,7 @@ public static int fibonacci(int n) {
     return b;  
 }
 ```
-## .2 BellmanFord
+## 10.2 BellmanFord
 - 开始时其他节点的最短距离设置为∞
 - 计算 v1 -> v4 的最短距离
 	- v1 -> v2 -> v4
@@ -1558,7 +1587,7 @@ public class BellmanFord {
     }  
 }
 ```
-## .3 0-1 背包
+## 10.3 0-1 背包
 - n 个物体都是固体，有重量和价值
 - 需要取走不超过 10g 的物品
 - 求最大价值
@@ -1640,7 +1669,7 @@ private static int select(Item[] items, int total) {
     return dp[total];  
 }
 ```
-## .4 完全背包
+## 10.4 完全背包
 - 每件物品的数量不限
 ```
 编号 weight     value
@@ -1709,7 +1738,7 @@ private static int selectSimplified(Item[] items, int total) {
         return dp[total];  
     }
 ```
-## .5 零钱兑换
+## 10.5 零钱兑换
 - 用最少的硬币凑够总金额
 ```java
 /**
@@ -1763,7 +1792,7 @@ public int coinChange(int[] coins, int amount) {
     return dp[amount] <= amount ? dp[amount] : -1;  
 }
 ```
-## LeetCode
+## 10.6 LeetCode
 ### Q62 - 不同路径
 - 机器人从左上角走到右下角，每次只能 → 或 ↓，有多少种走法
 ```

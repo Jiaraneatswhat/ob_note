@@ -1,4 +1,4 @@
-### 1 去除重复随机数
+### HJ3 去除重复随机数
 - 生成 N 个 1 到 5000 之间的随机整数，重复的只保留一个，从小到大排序
 ``` 
 input:
@@ -48,7 +48,7 @@ public static void main(String[] args) {
     scanner.close();  
 }
 ```
-### 2 字符串分隔
+### HJ4 字符串分隔
 - 输入一个字符串，按长度 8 拆分每个输入字符并输出
 - 长度不足的用 0 补足
 ```
@@ -73,7 +73,7 @@ public static void splitStr(StringBuilder str) {
     }  
 }
 ```
-### 3 十六进制转十进制
+### HJ5 十六进制转十进制
 #### solution
 ```java
 public static void main(String[] args) {  
@@ -97,7 +97,7 @@ public static void main(String[] args) {
     System.out.println(res + "");  
 }
 ```
-### 4 质数因子
+### HJ6 质数因子
 - 输入一个正整数，按照从小到大的顺序输出它的所有质因子(需要重复列举, 空格分割)
 ```
 example:
@@ -139,7 +139,7 @@ public static void main(String[] args) {
     }  
 }
 ```
-### 5 句子逆序
+### HJ13 句子逆序
 - 调整单词的顺序而非字母
 - 句子不确定单词个数
 ```
@@ -165,7 +165,7 @@ public static void main(String[] args) {
   
 }
 ```
-### 6 十进制转二进制
+### HJ15 十进制转二进制
 - 输出 1 的个数
 #### solution
 ```java
@@ -186,3 +186,11 @@ public static void main(String[] args) {
 	System.out.println(cnt);  
     }
 ```
+### HJ16 购物单
+- 附件必须随主件购买，每件物品只能购买一次
+- 每个主件可以有 $[0, 2]$ 个附件
+- 花费不超过 N 元达到最大满意度
+
+| zhu | |
+| --- | --- |
+|  |  |

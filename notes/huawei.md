@@ -325,3 +325,85 @@ input: A10;S20;W10;D30;X;A1A;B10A11;;A10;
 
 output:10,-10
 ```
+#### solution
+```java
+public static void main(String[] args) {  
+  
+    Scanner scanner = new Scanner(System.in);  
+    String str = scanner.nextLine();  
+    String[] move = str.split(";");  
+  
+    HashMap<String, Integer> points = new HashMap<>();  
+    for (String s : move) {  
+        if (s.length() <= 3 && (  
+                s.startsWith("W") ||  
+                        s.startsWith("A") ||  
+                        s.startsWith("S") ||  
+                        s.startsWith("D"))) {  
+            boolean legal = true;  
+            for (int i = 1; i < s.length(); i++) {  
+                if (s.charAt(i) < '0' || s.charAt(i) > '9') {  
+                    legal = false;  
+                    break;  
+                }  
+            }  
+            if (legal) {  
+                int distance = Integer.parseInt(s.substring(1));  
+                String direction = String.valueOf(s.charAt(0));  
+                Integer val = points.get(direction);  
+                if (val == null) {  
+                    points.put(direction, distance);  
+                } else {  
+                    val += distance;  
+                    points.put(direction, val);  
+                }  
+            }  
+        }  
+    }  
+  
+    int x = 0;  
+    int y = 0;  
+    for (Map.Entry<String, Integer> entry : points.entrySet()) {  
+        switch (entry.getKey()) {  
+            case "W":  
+                y += entry.getValue();  
+                break;  
+            case "A":  
+                x -= entry.getValue();  
+                break;  
+            case "S":  
+                y -= entry.getValue();  
+                break;  
+            case "D":  
+                x += entry.getValue();  
+        }  
+    }  
+    System.out.println(x + "," + y);  
+}
+```
+### HJ18 识别有效 IP 地址和掩码
+- IP 地址分为 5 类
+	- A：1.0.0.0 -> 126.255.255.255
+	- B: 128.0.0.0 -> 191.255.255.255
+	- C: 192.0.0.0 -> 223.255.255.255
+	- D: 224.0.0.0 -> 239.255.255.255
+	- E: 240.0.0.0 -> 255.255.255.255
+- 私网 IP 范围是：
+	- 10.0.0.0 -> 10.255.255.255
+	- 172.16.0.0 -> 172.31.255.255
+	- 192.168.0.0 -> 192.168.255.255
+- 二进制子网掩码前面是连续的 1 后面是连续的 0，全 0 或全 1 均为非法子网掩码
+- 输入多行字符串，每行一个 IP 地址和掩码，通过~隔开
+- 输出统计 ABCDE，错误 IP 地址或错误掩码，私有 IP 个数，空格分隔
+```
+example:
+input:
+10.70.44.68~255.254.255.0
+1.0.0.1~255.0.0.0
+192.168.0.2~255.255.255.0
+19..0.~255.255.255.0
+
+output: 1 0 1 0 0 2 1
+
+
+```

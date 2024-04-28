@@ -207,15 +207,6 @@ input:
 	q: 0 -> 主件 / x(x>0) -> 附件所属主件编号
 	
 example:
-input:
-1000 5
-800 2 0
-400 5 1
-300 5 1
-400 3 0
-500 2 0
-
-output: 2200
 
 input:
 50 5
@@ -230,7 +221,7 @@ output: 130
 #### solution
 ```java
 /*
- * example2 有三件主件：
+ * example 有三件主件：
  *     1 M1 10 3
  *     2 M2 10 2
  *     3 M3 10 1
@@ -245,20 +236,92 @@ output: 130
  *  
  *  每个主件对应四种情况: M, MS1, MS2, MS1S2
  *  dp[i][j] = max(dp[i-1][j], dp[i-1][j-w[j]] + v[j])  
- *
- * example1 有三件主件：
- *     1 M1 800 2
- *     4 M4 400 3
- *     5 M5 500 2
- * M1 有三个附件：
- *     S1 400 5
- *     S2 300 5
- *
- *      0     1      2      3       4       5   6 7 8 9 10
- *  0   0     0      0      0       0       0   0 0 1 1 1
- *  1   0     
- *  2   0     
  */
 
+public static void main(String[] args) {  
+  
+    Scanner sc = new Scanner(System.in);  
+    String s = sc.nextLine();  
+  
+    String[] ins = s.split(" ");  
+    int total = Integer.parseInt(ins[0]) / 10;  
+    int goodsCnt = Integer.parseInt(ins[1]);  
+  
+    ArrayList<Item> items = new ArrayList<>();  
+    items.add(new Item(0, 0, 0));  
+  
+    for (int i = 0; i < goodsCnt; i++) {  
+        String str = sc.nextLine();  
+        String[] good = str.split(" ");  
+        Item item = new Item(Integer.parseInt(good[0]) / 10,  
+                Integer.parseInt(good[1]),  
+                Integer.parseInt(good[2]));  
+        item.satisfied = item.v * item.p;  
+        items.add(item);  
+    }  
+  
+    // 将附件添加到 sub 列表中  
+    for (int i = 1; i < items.size(); i++) {  
+        Item curr = items.get(i);  
+        if (curr.q != 0) {  
+            items.get(curr.q).sub.add(curr);  
+        }  
+    }  
+  
+    int[][] dp = new int[items.size()][total + 1];  
+  
+    for (int i = 1; i < items.size(); i++) {  
+        for (int j = 1; j < total + 1; j++) {  
+            Item curr = items.get(i);  
+            if (curr.q == 0) {  
+                dp[i][j] = dp[i - 1][j];  
+                if (j - curr.v >= 0) { // 只买主件  
+                    dp[i][j] = Integer.max(dp[i][j], dp[i - 1][j - curr.v] + curr.satisfied);  
+                }  
+  
+                if (curr.sub.size() >= 1) { // 至少有一个附件  
+                    Item sub1 = curr.sub.get(0);  
+                    if (j - curr.v - sub1.v >= 0) {  
+                        dp[i][j] = Integer.max(dp[i][j],  
+                                dp[i - 1][j - curr.v - sub1.v] + curr.satisfied + sub1.satisfied);  
+                    }  
+                }  
+  
+                if (curr.sub.size() > 1) { // 添加第二个附件  
+                    Item sub2 = curr.sub.get(0);  
+                    if (j - curr.v - sub2.v >= 0) {  
+                        // 此处的dp[i][j]是上一步买一个附件的满意度  
+                        dp[i][j] = Integer.max(dp[i][j],  
+                                dp[i - 1][j - curr.v - sub2.v] + curr.satisfied + sub2.satisfied);  
+                    }  
+                }  
+  
+                if (curr.sub.size() > 1) { // 同时购买  
+                    Item sub1 = curr.sub.get(0);  
+                    Item sub2 = curr.sub.get(1);  
+                    if (j - curr.v - sub1.v - sub2.v >= 0) {  
+                        dp[i][j] = Integer.max(dp[i][j],  
+                                dp[i - 1][j - curr.v - sub1.v - sub2.v] + curr.satisfied + sub1.satisfied + sub2.satisfied);  
+  
+                    }  
+                }  
+            } else {  
+                dp[i][j] = dp[i - 1][j];  
+            }  
+        }  
+    }  
+    System.out.println(dp[items.size() - 1][total] * 10);  
+}
+```
+### HJ17 坐标移动
+- 从(0, 0)开始，从字符串读取坐标进行移动，WASD 表示方向
+- 合法坐标为 W(ASD)  + 2 位数字
+- 坐标之间以 ';' 分隔，" "不影响
+- 输出以 ',' 分隔的坐标
+```
+example:
 
+input: A10;S20;W10;D30;X;A1A;B10A11;;A10;
+
+output:10,-10
 ```

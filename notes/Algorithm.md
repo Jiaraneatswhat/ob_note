@@ -1461,6 +1461,31 @@ public int[] sumTwo(int[] nums, int target) {
     return null;  
 }
 ```
+### Q3(M) -- 无重复字符的最长子串
+- 给定一个字符串 s, 找出其中不含有重复字符的最长子串的长度
+```
+example:
+input: s = "abcabcbb"
+output: 3 // "abc"
+
+input: s = "bbbbb"
+output: 1
+
+input: s = "pwwkew"
+output: 3
+```
+#### solution1
+```java
+/*
+ * 用 begin 和 end 表示子串的开始和结束位置
+ * 用 hash 表检查重复字符
+ * 从左向右查看
+ *    没遇到重复字符，调整 end
+ *    遇到重复字符，调整 begin
+ *    将当前字符放入 hash 表
+ * end - begin + 1 是当前子串长度
+*/
+```
 # 7 sort
 # 8 Graph
 ## 8.1 基本知识

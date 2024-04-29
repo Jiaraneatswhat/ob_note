@@ -1583,8 +1583,21 @@ example：
 	output: true
 ```
 #### solution
-
-# 7 sort
+```java
+public boolean containsDuplicate(int[] nums) {  
+  
+    Map<Integer, Object> map = new HashMap<>();  
+    Object o = new Object();  
+    for (int num : nums) {  
+        if (map.put(num, o) != null) {  
+            return true;  
+        }  
+    }  
+    return false;  
+}
+```
+### Q136() -- 
+# 7 Sort
 # 8 Graph
 ## 8.1 基本知识
 ### 定义

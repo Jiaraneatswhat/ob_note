@@ -1509,6 +1509,7 @@ public int findLongestSub(String s) {
 ### Q49(M) -- 字母异位词分组
 - 给一个字符串数组，返回结果列表
 - 字母异位词指字母相同，排列顺序不同的词
+- str\[i]只包含小写字母
 ```
 example:
 	input: 
@@ -1532,6 +1533,7 @@ public List<List<String>> groupAnagrams(String[] strs) {
         //    list = new ArrayList<>();  
         //    map.put(key, list);  
         // }
+        // key 不存在对应的映射时，将其映射至后面的函数中
         List<String> list = map.computeIfAbsent(
 	        key, k -> new ArrayList<>());  
         list.add(str);  
@@ -1540,6 +1542,48 @@ public List<List<String>> groupAnagrams(String[] strs) {
     return new ArrayList<>(map.values());  
 }
 ```
+#### solution2
+- 仅包含小写字母，可以通过数组计数
+```java
+// 通过 ArrayKey 分组，需要重写 equals 和 hashcode，因此进行封装
+static class ArrayKey{  
+    int[] key = new int[26];  
+  
+    public ArrayKey(String str) {  
+        for (int i = 0; i < str.length(); i++) {  
+            char ch = str.charAt(i);  
+            key[ch - 97]++;  
+        }  
+    }  
+  
+    @Override  
+    public boolean equals(Object o) {...}  
+  
+    @Override  
+    public int hashCode() {  
+        return Arrays.hashCode(key);  
+    }
+}
+
+public List<List<String>> groupAnagrams(String[] strs) {  
+    HashMap<ArrayKey, List<String>> map = new HashMap<>();  
+    for (String str : strs) {  
+        ArrayKey key = new ArrayKey(str);  
+        List<String> list = map.computeIfAbsent(key, k -> new ArrayList<>());  
+        list.add(str);  
+    }  
+    return new ArrayList<>(map.values());  
+}
+```
+### Q217(S) -- 存在重复元素
+- 给一个整数数组 nums，判断是否存在重复元素
+```
+example：
+	input: nums = [1, 2, 3, 1]
+	output: true
+```
+#### solution
+
 # 7 sort
 # 8 Graph
 ## 8.1 基本知识

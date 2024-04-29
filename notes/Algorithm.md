@@ -1442,7 +1442,25 @@ input2:
 nums =  [3, 3], target = 6
 output2: [0, 1]
 ```
-
+#### solution
+- 使用 hash 表存放对应的数字和索引
+- 遍历数组，找到 sum 至 target 所需要的另一个数
+- 去 hash 表中找另一个加数，不存在时将当前数和索引 put 到 map 中
+```java
+public int[] sumTwo(int[] nums, int target) {  
+    HashMap<Integer, Integer> map = new HashMap<>();  
+    for (int i = 0; i < nums.length; i++) {  
+        int n = nums[i];  
+        int diff = target - n;  
+        if (map.containsKey(diff)) {  
+            return new int[]{map.get(diff), i};  
+        } else {  
+            map.put(n, i);  
+        }  
+    }  
+    return null;  
+}
+```
 # 7 sort
 # 8 Graph
 ## 8.1 基本知识

@@ -1419,7 +1419,7 @@ private void resize() {
 ## 6.2 hash 算法
 - 常见的有 MD5, SHA1, SHA256, SHA512, CRC32
 - 摘要算法，散列算法
-### 6.2.1 String 的 hash
+- String 的 hash
 ``` java
 int hash = 0;  
 for (int i = 0; i < s1.length(); i++) {  
@@ -1428,10 +1428,6 @@ for (int i = 0; i < s1.length(); i++) {
     // hash = hash * 31 + c;  
     hash = (hash << 5) - hash + c;
 }
-```
-### 6.2.2 MurmurHash
-```java
-
 ```
 ## 6. LeetCode
 ### Q1(S) -- 两数之和

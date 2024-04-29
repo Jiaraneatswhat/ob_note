@@ -1429,18 +1429,18 @@ for (int i = 0; i < s1.length(); i++) {
     hash = (hash << 5) - hash + c;
 }
 ```
-## 6. LeetCode
+## 6.3 LeetCode
 ### Q1(S) -- 两数之和
 - 给定一个整数数组 nums 和一个整数目标值 target，在该数组中找到和为目标值的两个整数，返回下标
 ```
 example：
-input1: 
-nums = [2, 7, 11, 15], target = 9
-output1: [0, 1]
+	input: 
+		nums = [2, 7, 11, 15], target = 9
+	output: [0, 1]
 
-input2:
-nums =  [3, 3], target = 6
-output2: [0, 1]
+	input:
+		nums =  [3, 3], target = 6
+	output: [0, 1]
 ```
 #### solution
 - 使用 hash 表存放对应的数字和索引
@@ -1465,14 +1465,14 @@ public int[] sumTwo(int[] nums, int target) {
 - 给定一个字符串 s, 找出其中不含有重复字符的最长子串的长度
 ```
 example:
-input: s = "abcabcbb"
-output: 3 // "abc"
+	input: s = "abcabcbb"
+	output: 3 // "abc"
 
-input: s = "bbbbb"
-output: 1
+	input: s = "bbbbb"
+	output: 1
 
-input: s = "pwwkew"
-output: 3
+	input: s = "pwwkew"
+	output: 3
 ```
 #### solution
 ```java
@@ -1506,7 +1506,40 @@ public int findLongestSub(String s) {
         return maxLen;  
     }
 ```
-
+### Q49(M) -- 字母异位词分组
+- 给一个字符串数组，返回结果列表
+- 字母异位词指字母相同，排列顺序不同的词
+```
+example:
+	input: 
+		strs = ["eat", "tea", "tan", "ate", "nat", "bat"]
+	output: 
+		[["bat"], ["nat", "tan"], ["ate", "eat", "tea"]]
+```
+#### solution1
+- 遍历字符串数组，每个字符串中的字符重新排序后作为 key
+- 准备一个集合，把这些词加入到 key 相同的集合中
+```java
+public List<List<String>> groupAnagrams(String[] strs) {  
+  
+    HashMap<String, List<String>> map = new HashMap<>();  
+    for (String str : strs) {  
+        char[] chars = str.toCharArray();  
+        Arrays.sort(chars);  
+        String key = new String(chars);  
+        List<String> list = map.get(key);  
+        // if (list == null) {  
+        //    list = new ArrayList<>();  
+        //    map.put(key, list);  
+        // }
+        List<String> list = map.computeIfAbsent(
+	        key, k -> new ArrayList<>());  
+        list.add(str);  
+    }  
+  
+    return new ArrayList<>(map.values());  
+}
+```
 # 7 sort
 # 8 Graph
 ## 8.1 基本知识

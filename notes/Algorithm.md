@@ -1363,8 +1363,8 @@ Object remove(int hash, Object key) {
 		- 8 -> 1000 检查倒数第 4 位
 		- 16 -> 10000 检查倒数第 5 位
 	- hash & 旧数组长度，检查前后索引位置(余数)会不会变
-		- 00000000-00000111 & 00001000 不会变
-		- 00001000~ 
+		- `00000000-00000111 & 00001000` 为 0, 不变
+		- `00001000~ & 00001000` 不为 0, 变
 ```java
 private void resize() {  
     Entry[] newTable = new Entry[table.length << 1];  
@@ -1416,6 +1416,9 @@ private void resize() {
     threshold = (int) (loadFactor * table.length);  
 }
 ```
+## 6.2 hash 算法
+- 常见的有 MD5, SHA1, SHA256, SHA512, CRC32
+- 摘要算法，散列算法
 ## 6. LeetCode
 ### Q1(S) -- 两数之和
 - 给定一个整数数组 nums 和一个整数目标值 target，在该数组中找到和为目标值的两个整数，返回下标

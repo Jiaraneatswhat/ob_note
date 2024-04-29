@@ -1356,7 +1356,55 @@ Object remove(int hash, Object key) {
 ```
 ### 6.1.4 resize()
 ```java
-
+private void resize() {  
+    Entry[] newTable = new Entry[table.length << 1];  
+    for (int i = 0; i < table.length; i++) {  
+        Entry p = table[i]; // 每个链表头  
+        if (p != null) {  
+            // 拆分链表，移动到新数组  
+            /*  
+             * 拆分规律：  
+             *   一个链表最多拆成两个  
+             *      hash & table.length == 0 的一组  
+             *      hash & table.length != 0 的一组  
+             */  
+            Entry a = null;  
+            Entry b = null;  
+            Entry aHead = null;  
+            Entry bHead = null;  
+            while (p != null) {  
+                if ((p.hash & table.length) == 0) {  
+                    // 分配给 a                    
+                    if (a != null) {  
+                        a.next = p;  
+                    } else {  
+                        aHead = p;  
+                    }  
+                    a = p;  
+                } else {  
+                    if (b != null) {  
+                        b.next = p;  
+                    } else {  
+                        bHead = p;  
+                    }  
+                    b = p;  
+                }  
+                p = p.next;  
+            }  
+            if (a != null) {  
+                a.next = null;  
+                // a链表位置不变, b链表移动数组长度个位置  
+                newTable[i] = aHead;  
+            }  
+            if (b != null) {  
+                b.next = null;  
+                newTable[i + table.length] = bHead;  
+            }  
+        }  
+    }  
+    table = newTable;  
+    threshold = (int) (loadFactor * table.length);  
+}
 ```
 ## 6. LeetCode
 ### Q1(S) -- 两数之和

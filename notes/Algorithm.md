@@ -1474,9 +1474,10 @@ output: 1
 input: s = "pwwkew"
 output: 3
 ```
-#### solution1
+#### solution
 ```java
 /*
+ * 滑动窗口解法
  * 用 begin 和 end 表示子串的开始和结束位置
  * 用 hash 表检查重复字符
  * 从左向右查看
@@ -1485,7 +1486,27 @@ output: 3
  *    将当前字符放入 hash 表
  * end - begin + 1 是当前子串长度
 */
+public int findLongestSub(String s) {  
+        HashMap<Character, Integer> map = new HashMap<>();  
+        int begin = 0;  
+        int maxLen = 0;  
+        for (int end = 0; end < s.length(); end++) {  
+            char ch = s.charAt(end);  
+            if (map.containsKey(ch)) {  
+                // 防止类似 abba 重复情况 begin 回退的问题  
+                begin = Integer.max(begin, map.get(ch) + 1);  
+                map.put(ch, end);  
+            } else {  
+                map.put(ch, end);  
+            }  
+//            System.out.println(s.substring(begin, end + 1));  
+            maxLen = Integer.max(maxLen, end - begin + 1);  
+        }  
+  
+        return maxLen;  
+    }
 ```
+
 # 7 sort
 # 8 Graph
 ## 8.1 基本知识

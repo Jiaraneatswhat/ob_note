@@ -79,6 +79,7 @@ private void grow(int minCapacity) {
 }
 ```
 # 2 HashMap
+- HashMap 中将对象的 hashCode 高位低位相互异或的方式减少冲突
 ## 2.1 fields
 ```java
 // 初始容量

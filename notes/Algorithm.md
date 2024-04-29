@@ -1429,6 +1429,10 @@ for (int i = 0; i < s1.length(); i++) {
     hash = (hash << 5) - hash + c;
 }
 ```
+### 6.2.2 MurmurHash
+```java
+
+```
 ## 6. LeetCode
 ### Q1(S) -- 两数之和
 - 给定一个整数数组 nums 和一个整数目标值 target，在该数组中找到和为目标值的两个整数，返回下标

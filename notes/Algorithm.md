@@ -1264,6 +1264,100 @@ private void fixAfterDeletion(Entry<K,V> x) {
 ## 6.1 HashTable
 - 每份数据分配一个编号，放入有限长度的数组
 - 重复索引用链表解决
+```java
+public class HashTable {  
+  
+    static class Entry {  
+        int hash;  
+        Object key;  
+        Object value;  
+        Entry next;  
+  
+        public Entry(int hash, Object key, Object value) {  
+            this.hash = hash;  
+            this.key = key;  
+            this.value = value;  
+        }  
+    }  
+  
+    // 数组中存储头结点  
+    // 2^n 可以将 mod 转为 hash & (len - 1)    
+    Entry[] table = new Entry[16];  
+    int size;
+    float loadFactor = 0.75f;    
+	int threshold = (int) (loadFactor * table.length);
+}
+```
+### 6.1.1 get()
+```java
+// 根据 hash 获取 value
+Object get(int hash, Object key) {  
+    int ind = hash & (table.length - 1);  
+    if (table[ind] != null) {  
+        Entry p = table[ind];  
+        while (p != null) {  
+            if (p.key.equals(key)) {  
+                return p.value;  
+            }  
+            p = p.next;  
+        }  
+    }  
+    return null;  
+}
+```
+### 6.1.2 put()
+```java
+void put(int hash, Object key, Object value) {  
+    int ind = hash & (table.length - 1);  
+    if (table[ind] == null) {  
+        table[ind] = new Entry(hash, key, value);  
+    } else {  
+        Entry p = table[ind];  
+        while (true) {  
+            if (p.key.equals(key)) {  
+                p.value = value;  
+                return;  
+            }  
+            if (p.next == null) {  
+                break;  
+            }  
+            p = p.next;  
+        }  
+        p.next = new Entry(hash, key, value);  
+    }  
+    size++;  
+}
+```
+### 6.1.3 remove()
+```java
+Object remove(int hash, Object key) {  
+    int ind = hash & (table.length - 1);  
+    if (table[ind] == null) {  
+        return null;  
+    } else {  
+        Entry p = table[ind];  
+        Entry prev = null;  
+        while (p != null) {  
+            if (p.key.equals(key)) {  
+                if (prev == null) {  
+                    table[ind] = p.next;  
+                } else {  
+                    prev.next = p.next;  
+                }  
+                size--;  
+                return p.value;  
+            }  
+            prev = p;  
+            p = p.next;  
+        }  
+    }  
+    return null;  
+}
+```
+### 6.1.4 resize()
+```java
+
+```
 ## 6. LeetCode
 ### Q1(S) -- 两数之和
 - 给定一个整数数组 nums 和一个整数目标值 target，在该数组中找到和为目标值的两个整数，返回下标

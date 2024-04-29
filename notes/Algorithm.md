@@ -1596,7 +1596,18 @@ public boolean containsDuplicate(int[] nums) {
     return false;  
 }
 ```
-### Q136() -- 
+### Q136(S) -- 只出现一次的数字
+- 给一个非空整数数组 nums，除了某个元素只出现一次，其余每个元素均出现两次，找到只出现一次的元素
+```
+example:
+	input: nums = [2, 2, 1]
+	output: 1
+```
+#### solution
+- 向 hashSet 添加元素，遇到重复的删除
+```java
+
+```
 # 7 Sort
 # 8 Graph
 ## 8.1 基本知识

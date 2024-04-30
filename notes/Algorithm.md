@@ -1693,7 +1693,45 @@ example:
 	output: "ball"
 ```
 #### solution
-- 
+```java
+public String mostCommonWord(String para, String[] banned) {  
+	String[] words = para.toLowerCase().split("[^A-Za-z]+");  
+	Set<String> set = Set.of(banned);  
+	HashMap<String, Integer> map = new HashMap<>();  
+	for (String word : words) {  
+		if (!set.contains(word)) {  
+//            Integer value = map.get(word);  
+//            if (value == null) {  
+//                map.put(word, 1);  
+//            } else {  
+//                map.put(word, ++value);  
+//            }  
+			map.compute(word, (k, v) -> v == null ? 1 : ++v);  
+		}  
+	}  
+	Optional<Map.Entry<String, Integer>> max = map.entrySet().stream().max(Map.Entry.comparingByValue());  
+	return max.map(Map.Entry::getKey).orElse(null);  
+}
+
+// 改进
+public String mostCommonWord(String para, String[] banned) { 
+	// 截取段落
+	
+	...
+	// 获取到 map 后，找到次数最多的单词
+	int max = 0;
+	String maxWord = null;
+	for (Map.Entry<String, Integer> e: map.entrySet()) {
+		Integer value = e.getValue();
+		if(value > max) {
+			max = value;
+			maxWord = e.getKey();
+		}
+	}
+	return maxKey;
+}
+
+```
 # 7 Sort
 # 8 Graph
 ## 8.1 基本知识

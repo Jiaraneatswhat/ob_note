@@ -1667,8 +1667,33 @@ example：
 ```
 #### solution
 ```java
-
+public int firstUniqChar(String str) {  
+    int[] array = new int[26];  
+    char[] chars = str.toCharArray();  
+    for (char ch : chars) {  
+        array[ch - 97]++;  
+    }  
+    for (int i = 0; i < chars.length; i++) {  
+        if (array[chars[i] - 97] == 1) {  
+            return i;  
+        }  
+    }  
+    return -1;  
+}
 ```
+### Q819(S) -- 最常见的单词
+- 给你一个字符串 `paragraph` 和一个表示禁用词的字符串数组 `banned`, 返回出现频率最高的非禁用词
+- 至少存在一个非禁用词，且答案 **唯一**
+- `paragraph` 中的单词 **不区分大小写**
+-  `paragraph` 由英文字母、空格 `' '`、和以下符号组成：`"!?',;."`
+```
+example:
+	input:
+		paragraph = "Bob hit a ball, the hit BALL flew far after it was hit.", banned = ["hit"]
+	output: "ball"
+```
+#### solution
+- 
 # 7 Sort
 # 8 Graph
 ## 8.1 基本知识

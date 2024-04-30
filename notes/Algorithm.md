@@ -1716,7 +1716,25 @@ public String mostCommonWord(String para, String[] banned) {
 // 改进
 public String mostCommonWord(String para, String[] banned) { 
 	// 截取段落
-	
+	char[] chars = para.toLowerCase().toCharArray();  
+	StringBuilder sb = new StringBuilder();  
+	for (char ch : chars) {  
+		if (ch >= 'a' && ch <= 'z') {  
+			sb.append(ch);  
+		} else {  
+			String word = sb.toString();  
+			if (!set.contains(word)) {  
+			map.compute(word, (k, v) -> v == null ? 1 : ++v);  
+			}  
+//                sb = new StringBuilder();  
+			sb.setLength(0);  
+		}  
+        if (!sb.isEmpty()) { // 只有一个单词  
+            String word = sb.toString();  
+            if (!set.contains(word)) {  
+                map.compute(word, (k, v) -> v == null ? 1 : ++v);  
+            }  
+        }
 	...
 	// 获取到 map 后，找到次数最多的单词
 	int max = 0;
@@ -1733,6 +1751,9 @@ public String mostCommonWord(String para, String[] banned) {
 
 ```
 # 7 Sort
+| 算法 | 最好 | 最坏 | 平均 | 空间 | 稳定 | 思想 | 注意事项 |
+| ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| 冒泡 | $O(n)$ | $O(n^2)$ | ( |  |  |  |  |
 # 8 Graph
 ## 8.1 基本知识
 ### 定义

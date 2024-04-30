@@ -1603,10 +1603,33 @@ example:
 	input: nums = [2, 2, 1]
 	output: 1
 ```
-#### solution
+#### solution1
 - 向 hashSet 添加元素，遇到重复的删除
 ```java
-
+public int singleNumber(int[] nums) {  
+    HashSet<Integer> set = new HashSet<>();  
+    for (int num : nums) {  
+        if (!set.add(num)) { // 出现重复元素  
+            set.remove(num);  
+        }  
+    }  
+    // toArray(T [])
+    // new Integer[0] 相当于在不占用空间的前提下指定了泛型
+    return set.toArray(new Integer[0])[0];  
+}
+```
+#### solution2
+- 相同的数字异或，结果是 0
+- 任何数字与 0 异或，结果是本身
+- 从第一个元素开始向后异或，最终结果就是只出现一次的元素
+```java
+public int singleNumber(int[] nums) {  
+    int num = nums[0];  
+    for (int i = 1; i < nums.length; i++) {  
+        num ^= nums[i];  
+    }  
+    return num;  
+}
 ```
 # 7 Sort
 # 8 Graph

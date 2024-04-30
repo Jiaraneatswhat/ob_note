@@ -1260,7 +1260,7 @@ private void fixAfterDeletion(Entry<K,V> x) {
 - 修改与删除类似，都是只针对于内存
 ### 5.4.3 查询
 - 按顺序查找 level0, level1, ..., level n，最先找到的肯定是最新的，直接返回
-# 6 hash
+# 6 Hash
 ## 6.1 HashTable
 - 每份数据分配一个编号，放入有限长度的数组
 - 重复索引用链表解决
@@ -1630,6 +1630,44 @@ public int singleNumber(int[] nums) {
     }  
     return num;  
 }
+```
+### Q242(S) -- 有效的字母异位词
+- 给定两个字符串 t 和 s，判断 s 和 t 是否为字母异位词
+```
+example：
+	input: 
+		s = "anagram", t = "nagaram"
+	output: true
+```
+#### solution
+- 与之前类似，通过 26 个字母的数组进行比较
+```java
+public int[] getKey(String s) {  
+        int[] array = new int[26];  
+	// for (int i = 0; i < s.length(); i++) {  
+	//    ch = s.charAt(i);  
+	//    array[ch - 97]++;  
+	//    }  
+        char[] chars = s.toCharArray();  
+        for (char ch : chars) {  
+            array[ch - 97]++;  
+        }  
+        return array;  
+    }
+```
+### Q387(S) -- 字符串中第一个唯一字符
+- 给定一个字符串 s，找到它的第一个不重复字符，返回索引，不存在返回 -1
+```
+example：
+	input: s = "leetcode"
+	output: 0
+
+	input: s = "aabb"
+	output: -1
+```
+#### solution
+```java
+
 ```
 # 7 Sort
 # 8 Graph

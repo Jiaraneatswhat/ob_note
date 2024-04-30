@@ -1751,17 +1751,52 @@ public String mostCommonWord(String para, String[] banned) {
 
 ```
 # 7 Sort
-| 算法 | 最好 | 最坏 | 平均 | 空间 | 稳定 | 思想 |
-| ---- | ---- | ---- | ---- | ---- | ---- | ---- |
-| 冒泡 | $O(n)$ | $O(n^2)$ | $O(n^2)$ | $O(1)$ | Y | 比较 |
-|  |  |  |  |  |  |  |
+| 算法 | 最好   | 最坏     | 平均     | 空间   | 稳定 | 思想 |
+| ---- | ------ | -------- | -------- | ------ | ---- | ---- |
+| 冒泡 | $O(n)$ | $O(n^2)$ | $O(n^2)$ | $O(1)$ | Y    | 比较 |
+| 选择 | $O(n)$       | $O(n)$         | $O(n)$         | $O(n)$       |      |      |
+| 堆   | $O(n)$       | $O(n)$         | $O(n)$         | $O(n)$       |      |      |
+| 插入 | $O(n)$       | $O(n)$         | $O(n)$         | $O(n)$       |      |      |
+| 希尔     | $O(n)$       | $O(n)$         | $O(n)$         | $O(n)$       |      |      |
 ## 7.1 bubble
 - 每轮冒泡不断地比较相邻两个元素，如果是逆序地，则交换他们的位置
 - 下一轮冒泡可以调整未排序的右边界，减少不必要比较
 
 ![[bubble.svg]]
 
+- 可以在每轮结束后记录交换的索引位置为右边界
+```java
+// 递归实现
+public void bubble(int[] nums, int bound) {
+	if (bound == 0) return;
+	int x = 0;
+	for (int i = 0; i < bound: i++) {
+		if (nums[i] > nums[i + 1]) {
+			int t = nums[i];
+			nums[i] = nums[i + 1];
+			nums[i + 1] = t;
+			x = i;
+		}
+	}
+	bubble(nums, x);
+}
 
+// 非递归
+public void bubble(int[] nums, int bound) {
+	int bound = nums.length - 1;
+	do {
+		int x = 0;
+		for (int i = 0; i < bound: i++) {
+		if (nums[i] > nums[i + 1]) {
+			int t = nums[i];
+			nums[i] = nums[i + 1];
+			nums[i + 1] = t;
+			x = i;
+		}
+		j = x;
+	} while (j != 0);
+}
+```
 # 8 Graph
 ## 8.1 基本知识
 ### 定义

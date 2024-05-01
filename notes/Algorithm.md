@@ -1755,7 +1755,7 @@ public String mostCommonWord(String para, String[] banned) {
 | ---- | ------ | -------- | -------- | ------ | ---- | ---- |
 | 冒泡 | $O(n)$ | $O(n^2)$ | $O(n^2)$ | $O(1)$ | Y    | 比较 |
 | 选择 | $O(n^2)$       | $O(n^2)$         | $O(n^2)$         | $O(1)$       | N     | 比较     |
-| 堆   | $O(n)$       | $O(n)$         | $O(n)$         | $O(n)$       |      |      |
+| 堆   | $O(nlogn)$       | $O(nlogn)$         | $O(nlogn)$         | $O(1)$       | N     | 选择     |
 | 插入 | $O(n)$       | $O(n)$         | $O(n)$         | $O(n)$       |      |      |
 | 希尔     | $O(n)$       | $O(n)$         | $O(n)$         | $O(n)$       |      |      |
 - 稳定：相同元素排序前后不会交换位置
@@ -1805,8 +1805,23 @@ public void bubble(int[] nums, int bound) {
 ![[select_sort.svg]]
 
 ```java
-
+static void sort(int[] elems) {  
+    // 轮数: length - 1  
+    for (int bound = elems.length - 1; bound > 0; bound--) {  
+        int max = bound;  
+        for (int i = 0; i < bound; i++) {  
+            if (elems[i] > elems[max]) {  
+                max = i;  
+            }  
+        }  
+        swap(elems, max, bound);  
+    }  
+}
 ```
+## 7.3 heap
+- 建立大顶堆
+- 每次将堆顶元素(最大值)交换到末尾，调整堆顶元素，重新符合大顶堆特性
+
 # 8 Graph
 ## 8.1 基本知识
 ### 定义

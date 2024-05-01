@@ -1871,8 +1871,26 @@ public class HeapSort {
 ![[insert_sort.svg]]
 
 ```java
-
+static void sort(int[] arr) {  
+    for (int low = 1; low < arr.length; low++) {  
+        int t = arr[low];  
+        int i = low - 1;  
+        // 从右想左找插入位置，如果比插入元素大，不断右移  
+        while (i >= 0 && t < arr[i]) {  
+            arr[i + 1] = arr[i];  
+            i--;  
+        }  
+        // 找到了插入位置  
+        if (i + 1 != low) { // low 的位置需要变  
+            arr[i + 1] = t;  
+        }  
+    }  
+}
 ```
+## 7.5 Shell
+- 分组实现插入，每组元素间隙称为 gap
+- 每轮排序后 gap 逐渐变小，直至 gap 为 1
+- 对插入排序的优化，让元素更快地交换到最终位置
 # 8 Graph
 ## 8.1 基本知识
 ### 定义

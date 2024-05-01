@@ -1762,7 +1762,6 @@ public String mostCommonWord(String para, String[] banned) {
 ## 7.1 bubble
 - 每轮冒泡不断地比较相邻两个元素，如果是逆序地，则交换他们的位置
 - 下一轮冒泡可以调整未排序的右边界，减少不必要比较
-
 ![[bubble.svg]]
 
 - 可以在每轮结束后记录交换的索引位置为右边界
@@ -1801,7 +1800,6 @@ public void bubble(int[] nums, int bound) {
 ## 7.2 select
 - 交换次数一般少于冒泡
 - 每一轮选择找出最大(小的)元素，交换到合适的位置
-
 ![[select_sort.svg]]
 
 ```java
@@ -1870,7 +1868,11 @@ public class HeapSort {
 ## 7.4 insert
 - 将数组分为两部分 `[0, low - 1]` `[low, arr.length - 1]`
 - 每次从右边的未排序区取出 `arr[low]` 插入到已排序区域
+![[insert_sort.svg]]
 
+```java
+
+```
 # 8 Graph
 ## 8.1 基本知识
 ### 定义

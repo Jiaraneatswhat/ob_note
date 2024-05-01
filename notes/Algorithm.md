@@ -1799,7 +1799,14 @@ public void bubble(int[] nums, int bound) {
 }
 ```
 ## 7.2 select
+- 交换次数一般少于冒泡
+- 每一轮选择找出最大(小的)元素，交换到合适的位置
 
+![[select_sort.svg]]
+
+```java
+
+```
 # 8 Graph
 ## 8.1 基本知识
 ### 定义

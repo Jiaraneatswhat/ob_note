@@ -1756,8 +1756,8 @@ public String mostCommonWord(String para, String[] banned) {
 | 冒泡 | $O(n)$ | $O(n^2)$ | $O(n^2)$ | $O(1)$ | Y    | 比较 |
 | 选择 | $O(n^2)$       | $O(n^2)$         | $O(n^2)$         | $O(1)$       | N     | 比较     |
 | 堆   | $O(nlogn)$       | $O(nlogn)$         | $O(nlogn)$         | $O(1)$       | N     | 选择     |
-| 插入 | $O(n)$       | $O(n)$         | $O(n)$         | $O(n)$       |      |      |
-| 希尔     | $O(n)$       | $O(n)$         | $O(n)$         | $O(n)$       |      |      |
+| 插入 | $O(n)$       | $O(n^2)$         | $O(n^2)$         | $O(1)$       | Y     | 比较     |
+| 希尔     | $O(nlogn)$       | $O(n^2)$         | $O(nlogn)$         | $O(1)$       | N     | 插入     |
 - 稳定：相同元素排序前后不会交换位置
 ## 7.1 bubble
 - 每轮冒泡不断地比较相邻两个元素，如果是逆序地，则交换他们的位置
@@ -1824,8 +1824,53 @@ static void sort(int[] elems) {
 ![[heap_sort.svg]]
 
 ```java
-
+public class HeapSort {  
+  
+    static void heapify(int[] array, int size) {  
+        for (int i = size / 2 - 1; i >= 0; i--) {  
+            down(array, i, size);  
+        }  
+    }  
+  
+    static void down(int[] array, int parent, int size) {  
+        while (true) {  
+            int left = parent * 2 + 1;  
+            int right = left + 1;  
+            int max = parent;  
+            if (left < size && array[left] > array[parent]) {  
+                max = left;  
+            }  
+            if (right < size && array[right] > array[parent]) {  
+                max = right;  
+            }  
+            if (max == parent) {  
+                break;  
+            }  
+            swap(array, max, parent);  
+            parent = max;  
+        }  
+    }  
+  
+    static void swap(int[] arr, int i, int j) {  
+        int tmp = arr[i];  
+        arr[i] = arr[j];  
+        arr[j] = tmp;  
+  
+    }  
+  
+    static void sort(int[] arr) {  
+        heapify(arr, arr.length);  
+        for (int bound = arr.length - 1; bound > 0; bound--) {  
+            swap(arr, 0, bound);  
+            down(arr, 0, bound);  
+        }  
+    }
+}
 ```
+## 7.4 insert
+- 将数组分为两部分 `[0, low - 1]` `[low, arr.length - 1]`
+- 每次从右边的未排序区取出 `arr[low]` 插入到已排序区域
+
 # 8 Graph
 ## 8.1 基本知识
 ### 定义

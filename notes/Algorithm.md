@@ -1918,6 +1918,46 @@ static void sort(int[] arr) {
 ```
 ## 7.6 merge
 - 分而治之, 合并有序数组
+- 自上而下(归并)
+```java
+public class MergeSort {  
+    // 合并数组内两个区间的有序元素  
+    static void merge(int[] a1, int i, int iEnd, int j, int jEnd, int[] a2) {  
+        int k = 0;  
+        while (i <= iEnd && j <= jEnd) {  
+            if (a1[i] < a1[j]) {  
+                a2[k] = a1[i];  
+                i++;  
+            } else {  
+                a2[k] = a1[j];  
+                j++;  
+            }  
+            k++;  
+        }  
+        if (i > iEnd) {  
+            System.arraycopy(a1, j, a2, k, jEnd - j + 1);  
+        }  
+        if (j > jEnd) {  
+            System.arraycopy(a1, i, a2, k, iEnd - i + 1);  
+        }  
+    }  
+  
+    static void sort(int[] arr) {  
+        int[] tmp = new int[arr.length];  
+        split(arr, 0, arr.length - 1, tmp);  
+    }  
+  
+    static void split(int[] arr, int left, int right, int[] tmp) {  
+        if (left == right) return;  
+        int m = (left + right) >>> 1;  
+        split(arr, left, m, tmp);  
+        split(arr, m + 1, right, tmp);  
+        merge(arr, left, m, m + 1, right, tmp);  
+        System.arraycopy(tmp, left, arr, left, right - left + 1);  
+    }  
+}
+```
+- 自下而上(非递归)
 - 
 # 8 Graph
 ## 8.1 基本知识

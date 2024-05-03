@@ -1751,13 +1751,14 @@ public String mostCommonWord(String para, String[] banned) {
 
 ```
 # 7 Sort
-| 算法 | 最好   | 最坏     | 平均     | 空间   | 稳定 | 思想 |
-| ---- | ------ | -------- | -------- | ------ | ---- | ---- |
-| 冒泡 | $O(n)$ | $O(n^2)$ | $O(n^2)$ | $O(1)$ | Y    | 比较 |
-| 选择 | $O(n^2)$       | $O(n^2)$         | $O(n^2)$         | $O(1)$       | N     | 比较     |
-| 堆   | $O(nlogn)$       | $O(nlogn)$         | $O(nlogn)$         | $O(1)$       | N     | 选择     |
-| 插入 | $O(n)$       | $O(n^2)$         | $O(n^2)$         | $O(1)$       | Y     | 比较     |
-| 希尔     | $O(nlogn)$       | $O(n^2)$         | $O(nlogn)$         | $O(1)$       | N     | 插入     |
+| 算法 | 最好       | 最坏       | 平均       | 空间   | 稳定 | 思想 |
+| ---- | ---------- | ---------- | ---------- | ------ | ---- | ---- |
+| 冒泡 | $O(n)$     | $O(n^2)$   | $O(n^2)$   | $O(1)$ | Y    | 比较 |
+| 选择 | $O(n^2)$   | $O(n^2)$   | $O(n^2)$   | $O(1)$ | N    | 比较 |
+| 堆   | $O(nlogn)$ | $O(nlogn)$ | $O(nlogn)$ | $O(1)$ | N    | 选择 |
+| 插入 | $O(n)$     | $O(n^2)$   | $O(n^2)$   | $O(1)$ | Y    | 比较 |
+| 希尔 | $O(nlogn)$ | $O(n^2)$   | $O(nlogn)$ | $O(1)$ | N    | 插入 |
+| 归并     | $O(nlogn)$           | $O(nlogn)$           | $O(nlogn)$           | $O(n)$       | Y     | 分治     |
 - 稳定：相同元素排序前后不会交换位置
 ## 7.1 bubble
 - 每轮冒泡不断地比较相邻两个元素，如果是逆序地，则交换他们的位置
@@ -1875,7 +1876,7 @@ static void sort(int[] arr) {
     for (int low = 1; low < arr.length; low++) {  
         int t = arr[low];  
         int i = low - 1;  
-        // 从右想左找插入位置，如果比插入元素大，不断右移  
+        // 从右向左找插入位置，如果比插入元素大，不断右移  
         while (i >= 0 && t < arr[i]) {  
             arr[i + 1] = arr[i];  
             i--;  
@@ -1895,8 +1896,29 @@ static void sort(int[] arr) {
 - gap = 1 进行最后一轮调整
 
 ```java
-
+static void sort(int[] arr) {  
+	// 初始 gap 长度为 length / 2, 每轮 /= 2
+    for (int gap = arr.length >> 1; gap >= 1; gap = gap >> 1) { 
+	    // 将插入排序中的 1 改为 gap 即可 
+        for (int low = gap; low < arr.length; low++) {  
+            int t = arr[low];  
+            int i = low - gap;  
+            // 从右向左找插入位置，如果比插入元素大，不断右移  
+            while (i >= 0 && t < arr[i]) {  
+                arr[i + gap] = arr[i];  
+                i -= gap;  
+            }  
+            // 找到了插入位置  
+            if (i + gap != low) { // low 的位置需要变  
+                arr[i + gap] = t;  
+            }  
+        }  
+    }  
+}
 ```
+## 7.6 merge
+- 分而治之, 合并有序数组
+- 
 # 8 Graph
 ## 8.1 基本知识
 ### 定义
@@ -2538,7 +2560,7 @@ public void union(int x, int y) {
 }
 ```
 # 9 Greedy
-## 分数背包问题
+## 9.1 分数背包问题
 - n 个物品都是液体，有重量和价值
 - 取走 10L 液体，可以取一部分，求最高价值
 ```

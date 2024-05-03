@@ -1959,8 +1959,24 @@ public class MergeSort {
 ```
 - 自下而上(非递归)
 ```java
-
+static void sort(int[] arr) {  
+        int n = arr.length;  
+        int[] tmp = new int[n];  
+        // 每次合并有序数组的宽度  
+        for (int width = 1; width < n; width *= 2) { 
+            for (int left = 0; left < n; left += 2 * width) {  
+	            // 下次的 left - 1  
+                int right = Math.min(left + 2 * width - 1, n - 1); 
+                int m = Math.min(left + width - 1, n - 1);  
+                merge(arr, left, m, m + 1, right, tmp);  
+            }  
+            System.arraycopy(tmp, 0, arr, 0, n);  
+        }  
+  
+    }
 ```
+## 7.7 merge + insert
+
 # 8 Graph
 ## 8.1 基本知识
 ### 定义

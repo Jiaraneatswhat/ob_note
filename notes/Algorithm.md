@@ -2061,8 +2061,45 @@ public class QuickSortLomuto {
 ![[quick_sort_bilateral.svg]]
 
 ```java
-
+// 只修改 partition 方法
+private static int partition(int[] arr, int left, int right) {  
+    int pv = arr[left]; // 基准点  
+    int i = left;  
+    int j = right;  
+    while (i < j) {  
+        // j 从右向左找小的  
+        // 内层循环 i < j 防止不停移动
+        // 必须右边先走才能保证基准点在 i 的位置
+        while (i < j && arr[j] > pv) j--;  
+        while (i < j && arr[i] <= pv) i++;  
+        swap(arr, i, j);  
+    }  
+    swap(arr, left, i);  
+    return i;  
+}
 ```
+### 7.8.3 随机基准点快排
+- 存在的问题：极端情况下，分区结果不理想
+- 此时排序的复杂度为 $O(n^2)$
+![[quick_sort_random.svg]]
+
+```java
+private static int partition(int[] arr, int left, int right) {  
+	ThreadLocalRnadom.current().nextInt(right);
+    int pv = arr[left]; // 基准点  
+    int i = left;  
+    int j = right;  
+    while (i < j) {  
+        // j 从右向左找小的  
+        while (i < j && arr[j] > pv) j--;  
+        while (i < j && arr[i] <= pv) i++;  
+        swap(arr, i, j);  
+    }  
+    swap(arr, left, i);  
+    return i;  
+}
+```
+
 
 
 

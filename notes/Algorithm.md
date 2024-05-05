@@ -2255,7 +2255,51 @@ static void sort(int[] arr) {
 }
 ```
 ## 7.10 bucket
-
+```java
+static void sort(int[] ages) {  
+    DynamicArray[] buckets = new DynamicArray[10];  
+    for (int i = 0; i < buckets.length; i++) {  
+        buckets[i] = new DynamicArray();  
+    }  
+  
+    for (int age : ages) {  
+        buckets[age / 10].addLast(age);  
+    }  
+    int k = 0;  
+    for (DynamicArray bucket : buckets) {  
+        int[] arr = bucket.array(); // 获取每个桶中元素
+        // 桶内排序  
+        InsertSort.sort(arr);  
+        System.out.println(Arrays.toString(arr));  
+        for (int e : arr) {  
+            ages[k++] = e;  
+        }  
+    }  
+}
+```
+- 改进：解决数据倾斜
+```java
+static void sort(int[] ages) {  
+    DynamicArray[] buckets = new DynamicArray[(max - min) / range + 1];  
+    for (int i = 0; i < buckets.length; i++) {  
+        buckets[i] = new DynamicArray();  
+    }  
+  
+    for (int age : ages) {  
+        buckets[(age - min) / range].addLast(age);  
+    }  
+    int k = 0;  
+    for (DynamicArray bucket : buckets) {  
+        int[] arr = bucket.array(); // 获取每个桶中元素
+        // 桶内排序  
+        InsertSort.sort(arr);  
+        System.out.println(Arrays.toString(arr));  
+        for (int e : arr) {  
+            ages[k++] = e;  
+        }  
+    }  
+}
+```
 
 
 

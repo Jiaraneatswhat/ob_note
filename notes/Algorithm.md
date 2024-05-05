@@ -2009,6 +2009,10 @@ static void split(int[] arr, int left, int right, int[] tmp) {
     System.arraycopy(tmp, left, arr, left, right - left + 1);  
 }
 ```
+## 7.8 单边循环快排(Lomuto 分区方案)
+- 每轮找到一个基准点元素，比它小的放在左边，比它大的放在右边
+	- 选择最右侧元素作为基准点元素
+	- 
 # 8 Graph
 ## 8.1 基本知识
 ### 定义

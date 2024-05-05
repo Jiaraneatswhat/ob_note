@@ -1976,7 +1976,39 @@ static void sort(int[] arr) {
     }
 ```
 ## 7.7 merge + insert
+- 将递归的归并加上插入排序
+- 当 left 和 right 的距离较近时，采用插入排序
+```java
+// 修改插入排序
+static void insert(int[] arr, int left, int right) {  
+    for (int low = left + 1; low <= right; low++) {  
+        int t = arr[low];  
+        int i = low - 1;  
+        // 从右想左找插入位置，如果比插入元素大，不断右移  
+        while (i >= left && t < arr[i]) {  
+            arr[i + 1] = arr[i];  
+            i--;  
+        }  
+        // 找到了插入位置  
+        if (i + 1 != low) { // low 的位置需要变  
+            arr[i + 1] = t;  
+        }  
+    }  
+}
 
+// 修改 split
+static void split(int[] arr, int left, int right, int[] tmp) {  
+    if (right - left <= 32) {  
+        insert(arr, left, right);  
+        return;  
+    }  
+    int m = (left + right) >>> 1;  
+    split(arr, left, m, tmp);  
+    split(arr, m + 1, right, tmp);  
+    merge(arr, left, m, m + 1, right, tmp);  
+    System.arraycopy(tmp, left, arr, left, right - left + 1);  
+}
+```
 # 8 Graph
 ## 8.1 基本知识
 ### 定义

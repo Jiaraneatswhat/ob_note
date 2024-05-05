@@ -2156,7 +2156,32 @@ static void sort(int[] arr) {
     }  
 }
 ```
-- 去点
+- 缺点：所有元素都要大于等于 0，且最大值不能太大
+	- 需要找到最小值，让最小值映射至索引 0
+```java
+static void sort(int[] arr) {  
+    int max = arr[0];  
+    int min = arr[0];  
+    for (int i = 1; i < arr.length; i++) {  
+        if (arr[i] > max) max = arr[i];  
+        if (arr[i] < min) min = arr[i];  
+    }  
+    int[] cnt = new int[max - min + 1];  
+    for (int e : arr) {  
+        // 原始数组元素 - 最小值 = cnt 索引  
+        cnt[e - min]++;  
+    }  
+    int k = 0;  
+    for (int i = 0; i < cnt.length; i++) {  
+        // i + min 出现 cnt[i] 次  
+        while (cnt[i] > 0) {  
+            arr[k++] = i + min;  
+            cnt[i]--;  
+        }  
+    }  
+}
+```
+## 7.10 bucket
 
 
 

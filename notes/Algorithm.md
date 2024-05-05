@@ -2009,7 +2009,8 @@ static void split(int[] arr, int left, int right, int[] tmp) {
     System.arraycopy(tmp, left, arr, left, right - left + 1);  
 }
 ```
-## 7.8 单边循环快排(Lomuto 分区方案)
+## 7.8 fast
+### 7.8.1 单边循环快排 (Lomuto 分区方案)
 - 每轮找到一个基准点元素，比它小的放在左边，比它大的放在右边
 	- 选择最右侧元素作为基准点元素
 	- j 找比基准点小的，i 找大的，找到后二者进行交换
@@ -2017,6 +2018,52 @@ static void split(int[] arr, int left, int right, int[] tmp) {
 		- i 找到大的不自增
 	- 基准点与 i 交换，i 为最终索引
 ![[quick_sort_lomuto.svg]]
+
+```java
+public class QuickSortLomuto {  
+  
+    static void quick(int[] arr, int left, int right) {  
+        if (left >= right) return;  
+        // 寻找基准点元素  
+        int p = partition(arr, left, right);  
+        quick(arr, left, p - 1);  
+        quick(arr, p + 1, right);  
+    }  
+  
+    private static int partition(int[] arr, int left, int right) {  
+        int pv = arr[right]; // 基准点  
+        int i = left;  
+        int j = left;  
+        while (j < right) {  
+            if (arr[j] < pv) { // 找到大于基准点的，相当于没找到小于基准点的，i自增  
+                if (i != j) {  
+                    swap(arr, i, j);  
+                }  
+                i++;  
+            }  
+            j++;  
+        }  
+        swap(arr, i, right);  
+        return i;  
+    }  
+  
+    static void sort(int[] arr) {  
+        quick(arr, 0, arr.length - 1);  
+    }   
+}
+```
+### 7.8.2 双边循环快排
+- 选择最左侧元素作为基准点
+- j 找小的，i 找大的，找到进行交换
+	- i 从左向右
+	- j 从右向左
+- 最后 i 和基准点元素进行交换
+![[quick_sort_bilateral.svg]]
+
+```java
+
+```
+
 
 
 

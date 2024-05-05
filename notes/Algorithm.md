@@ -24,7 +24,7 @@ public void addFirst(int value) {
 	head = new Node(value, head);
 }
 ```
-### 1.1.2 遍历
+### 1.1.2 traversal
 ```java
 // traversal
 public void traversal() {
@@ -250,7 +250,7 @@ public addLast(int value) {
 	prev.next = added;
 }
 ```
-### 1.3.2 遍历
+### 1.3.2 traversal
 ```java
 public Iterator<Integer> iterator(){
 	return new Iterator<Integer>() {
@@ -753,10 +753,65 @@ public boolean isPalindrome(Node head) {
 }
 ```
 
-# 2 数组
-# 3 栈
-# 4 队列
-# 5 树
+# 2 Array
+## 2.1 动态数组
+```java
+public class DynamicArray {  
+    int size = 0;  
+    int capacity = 8;  
+    int[] array = new int[capacity];  
+}
+```
+### 2.1.1 add
+```java
+// addLast
+ void addLast(int e) {  
+    // array[size++] = e;  
+    add(size, element);
+ }
+
+// 按索引插入
+void add(int index, int e) {  
+	if (index >= 0 && index < size) {
+	    // 将 index 后的元素后移  
+		System.arraycopy(array, index, array, index + 1, size - index);  
+	}
+	array[index] = e;  
+	size++; 
+}
+```
+### 2.1.2 traversal
+```java
+void traversal(Consumer<Integer> consumer) {  
+    for (int i = 0; i < size; i++) {  
+        consumer.accept(array[i]);  
+    }  
+}
+
+// 实现 Iterable 接口
+@Override  
+public Iterator<Integer> iterator() {  
+    return new Iterator<>() {  
+        int i = 0;  
+        @Override  
+        public boolean hasNext() {  
+            return i < size;  
+        }  
+  
+        @Override  
+        public Integer next() { // 返回当前元素，移动到下一个元素  
+            return array[i++];  
+        }  
+    };  
+}
+```
+### 2.1.3 delete
+```java
+
+```
+# 3 Stack
+# 4 Queue
+# 5 Tree
 ## 5.1 B-Tree
 - B- 树和 B+ 树的节点一般会映射磁盘文件，大小为磁盘页(4kb)的整数倍
 - 多路可以降低树的高度，从而减少磁盘 IO

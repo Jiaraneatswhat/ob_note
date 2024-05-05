@@ -2078,14 +2078,18 @@ private static int partition(int[] arr, int left, int right) {
     return i;  
 }
 ```
-### 7.8.3 随机基准点快排
+### 7.8.3 快排的问题
+#### 7.8.3.1 随机基准点
 - 存在的问题：极端情况下，分区结果不理想
 - 此时排序的复杂度为 $O(n^2)$
 ![[quick_sort_random.svg]]
 
+- 通过随机基准点来解决
 ```java
 private static int partition(int[] arr, int left, int right) {  
-	ThreadLocalRnadom.current().nextInt(right);
+	// 生成一个 [left, right] 的随机数
+	int rand = ThreadLocalRnadom.current().nextInt(right - left + 1) + left;
+	swap(arr, rand, left);
     int pv = arr[left]; // 基准点  
     int i = left;  
     int j = right;  
@@ -2099,7 +2103,34 @@ private static int partition(int[] arr, int left, int right) {
     return i;  
 }
 ```
-
+#### 7.8.3.2 大量重复元素
+- 遇到大量重复元素时，基准点最终的位置在最右边，分区性能不好
+- 改进
+	- 循环内
+		- i 从 left + 1 开始，从左到右找大于等于的
+		- j 从 right 开始，从右向左找小于等于的
+		- 交换元素，i++，j++
+	- 循环外 j 和基准点交换，j 即为分区位置
+- 为什么将 i < j 更改为 i <= j
+	- 
+```java
+private static int partition(int[] arr, int left, int right) {  
+    int pv = arr[left]; // 基准点  
+    int i = left + 1;  
+    int j = right;  
+    while (i <= j) {  
+        while (i <= j && arr[i] < pv) i++;  
+        while (i <= j && arr[j] > pv) j--;  
+        if (i <= j) {  
+            swap(arr, i, j);  
+            i++;  
+            j--;  
+        }  
+    }  
+    swap(arr, left, j);  
+    return j;  
+}
+```
 
 
 

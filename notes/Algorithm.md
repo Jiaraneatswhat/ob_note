@@ -1758,7 +1758,8 @@ public String mostCommonWord(String para, String[] banned) {
 | 堆   | $O(nlogn)$ | $O(nlogn)$ | $O(nlogn)$ | $O(1)$ | N    | 选择 |
 | 插入 | $O(n)$     | $O(n^2)$   | $O(n^2)$   | $O(1)$ | Y    | 比较 |
 | 希尔 | $O(nlogn)$ | $O(n^2)$   | $O(nlogn)$ | $O(1)$ | N    | 插入 |
-| 归并     | $O(nlogn)$           | $O(nlogn)$           | $O(nlogn)$           | $O(n)$       | Y     | 分治     |
+| 归并 | $O(nlogn)$ | $O(nlogn)$ | $O(nlogn)$ | $O(n)$ | Y    | 归并 |
+| 快速     | $O(nlogn)$           | $O(n^2)$           | $O(nlogn)$           | $O(logn)$       | N     | 分治     |
 - 稳定：相同元素排序前后不会交换位置
 ## 7.1 bubble
 - 每轮冒泡不断地比较相邻两个元素，如果是逆序地，则交换他们的位置
@@ -2112,7 +2113,7 @@ private static int partition(int[] arr, int left, int right) {
 		- 交换元素，i++，j++
 	- 循环外 j 和基准点交换，j 即为分区位置
 - 为什么将 i < j 更改为 i <= j
-	- 
+	- i, j 重合时，j 会再进行一次循环，更改 j 的位置，得到正确结果
 ```java
 private static int partition(int[] arr, int left, int right) {  
     int pv = arr[left]; // 基准点  
@@ -2131,8 +2132,31 @@ private static int partition(int[] arr, int left, int right) {
     return j;  
 }
 ```
-
-
+## 7.9 count
+- 找到数组的最大值，创建一个大小为 max + 1 的数组 count
+- count 数组中索引对应原始数组元素，值对应于出现的次数
+- 遍历 count 数组，根据元素及其出现次数，生成排序结果
+```java
+static void sort(int[] arr) {  
+    int max = arr[0];  
+    for (int i = 1; i < arr.length; i++) {  
+        if (arr[i] > max) max = arr[i];  
+    }  
+    int[] cnt = new int[max + 1];  
+    for (int e : arr) {  
+        cnt[e]++;  
+    }  
+    int k = 0;  
+    for (int i = 0; i < cnt.length; i++) {  
+        // i 元素出现 cnt[i] 次  
+        while (cnt[i] > 0) {  
+            arr[k++] = i; // 放入一个元素后，索引 +1
+            cnt[i]--;  
+        }  
+    }  
+}
+```
+- 去点
 
 
 

@@ -752,7 +752,6 @@ public boolean isPalindrome(Node head) {
 	return true;
 }
 ```
-
 # 2 Array
 ## 2.1 动态数组
 ```java
@@ -805,9 +804,28 @@ public Iterator<Integer> iterator() {
     };  
 }
 ```
-### 2.1.3 delete
+### 2.1.3 remove
 ```java
-
+int remove(int index) {  
+    int removed = array[index]; 
+	if (index < size - 1) { // 要删的不是最后一个元素时才需要 copy 数组
+		// 后面向前移动  
+	    System.arraycopy(array, index + 1, array, index, size - index - 1);
+	} 
+    size--;
+    return removed;  
+}
+```
+### 2.1.4 resize
+```java
+private void checkAndGrow() {  
+    if (size == capacity) {  
+        capacity += capacity >>> 1;  
+        int[] newArr = new int[capacity];  
+        System.arraycopy(array, 0, newArr, 0, size);  
+        array = newArr;  
+    }  
+}
 ```
 # 3 Stack
 # 4 Queue

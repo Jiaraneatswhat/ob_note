@@ -2301,7 +2301,32 @@ static void sort(int[] ages) {
 }
 ```
 ## 7.11 radix(基数排序)
-
+- 按位比较字符，放入对应的桶中
+```java
+static void radixSort(String[] arr, int length) {  
+	// 只有数字时
+    // ArrayList<String>[] buckets = new ArrayList[10];  
+    // ascii
+    ArrayList<String>[] buckets = new ArrayList[128];
+    for (int i = 0; i < buckets.length; i++) {  
+        buckets[i] = new ArrayList<>();  
+    }  
+    for (int i = length - 1; i >= 0; i--) {  
+        for (String s : arr) {  
+            // buckets[s.charAt(i) - '0'].add(s); // '0' 的索引映射为 0        
+            buckets[i].add(s)
+		}  
+        int k = 0;  
+        for (ArrayList<String> bucket : buckets) {  
+            for (String s : bucket) {  
+                arr[k++] = s;  
+            }  
+            // 清空当前的桶  
+            bucket.clear();  
+        }  
+    }  
+}
+```
 
 
 

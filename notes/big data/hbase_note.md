@@ -316,7 +316,7 @@ protected void handleReportForDutyResponse(final RegionServerStartupResponse c)
 - column family：别名 `store`，太多的列族会降低性能
 - cell
 	- 一个列的一个版本
-	- 由 `rowkey, column Family：column Qualifier, time Stamp` 唯一确定的单元
+	- 由 `rowkey, column Family：column Qualifier, timestamp` 唯一确定的单元
 	- `cell` 中的数据全部是字节码形式存储
 - region
 	- 一张表若干连续的行形成的区域

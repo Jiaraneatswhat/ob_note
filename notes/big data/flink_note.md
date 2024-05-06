@@ -6439,7 +6439,7 @@ GROUP BY a
 - 时间语义：`SparkStreaming` 处理时间, `Flink` 有进入，事件，处理三种语义
 - 状态编程：
 	- `SparkStreaming` 只有一个有状态的算子
-	- `updateStateByKey`：当任务挂掉重启时，会将挂掉到当前为止的全部任务一次进行计算，会对内存造成很大负担
+		- `updateStateByKey`：当任务挂掉重启时，会将挂掉到当前为止的全部任务一次进行计算，会对内存造成很大负担
 	- `Flink` 所有的算子都有状态
 - Checkpoint
 	- `SparkStreaming` 将所有数据全部保存，包括代码

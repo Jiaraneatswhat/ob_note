@@ -10,7 +10,6 @@
 	- 优化器：对逻辑执行计划进行参数级别的优化
 	- 编译器：将逻辑执行计划转换为物理执行计划( TaskTree )
 	- 优化器：针对不同计算引擎进行不同的优化
-
 #### 1.2 与 MySQL 对比
 
 - 相同点：有类似的查询语言
@@ -20,7 +19,6 @@
 	- 存储位置不同，`Hive` 存储在 `HDFS`，`MySQL` 将数据保存在文件系统中
 	- `Hive` 不建议对数据进行修改
 	- `Hive` 执行延迟较高，数据库执行延迟较低
-
 #### 1.3 内部表和外部表
 - 删表时
 	- 内部表删除元数据和数据本身
@@ -30,9 +28,7 @@
 alter table t set TBLPROPERTIES('EXTERNAL'='true/false')
 ```
 - 绝大部分情况下使用外部表，测试使用的临时表可以创建内部表
-
 #### 1.4 四个 By
-
 - order by
 	- 默认升序
 	- 全局排序，将所有数据集中在一个 reduce 中
@@ -45,7 +41,6 @@ alter table t set TBLPROPERTIES('EXTERNAL'='true/false')
 	- 一般和 `sort by` 搭配使用
 - cluster by
 	- 当 `distribute by` 和 `sort by` 字段相同且为 `asc` 时，可以直接使用 `cluster by`
-
 #### 1.5 函数
 ##### 1.5.1 系统函数
 - 时间类：
@@ -75,16 +70,16 @@ alter table t set TBLPROPERTIES('EXTERNAL'='true/false')
 		- `n rows following`
 - eg:
 ```sql
-+-----+                                               +--------------+
-| num |  select sum(num) over(order by num) from t    |  sum_window  |
-+-----+  ------------------------------------------>  +--------------+ 
-|  1  |   over 不指定窗口范围但是有 order by 时       |      1       |
-|  2  |   默认范围是从开始到当前值                    |      3       |
-|  3  |   order by <= 当前值的所有数据都会开一个窗口  |      9       |
-|  3  |   因此两个 3 会放在同一个窗口里               |      9       |
-|  4  |                                               |      13      |
-|  5  |                                               |      18      |
-+-----+                                               +--------------+
++-----+                                             +------------+
+| num |  select sum(num) over(order by num) from t  | sum_window |
++-----+                                             +------------+ 
+|  1  |  over 不指定窗口范围但是有 order by 时      |      1     |
+|  2  |  默认范围是从开始到当前值                   |      3     |
+|  3  |  order by <= 当前值的所有数据都会开一个窗口 |      9     |
+|  3  |  因此两个 3 会放在同一个窗口里              |      9     |
+|  4  |                                             |      13    |
+|  5  |                                             |      18    |
++-----+                                             +------------+
 ```
 ##### 1.5.3 多维分析函数
 ```sql
@@ -100,7 +95,6 @@ GROUP BY a, b, c GROUPING SETS ((a, b, c), (a, b), (a), ( ))
 - UDF: 一进一出
 - UDTF: 一进多出
 - UDAF：多进多出
-
 #### 1.6 优化
 ##### 1.6.1 建表
 - 分区：根据分区存储到不同的路径下，防止后续全表扫描
@@ -155,7 +149,6 @@ select * from t1 left join t2 on t1.id = t2.id where t2.age > 50
 - 原因
 	- 单表 `group by`
 	- 多表 `join`
-	 
 	 ![[unoptimized_big2big_join.svg]]
 	 
 	- map 端文件不可切时，文件大小差距也可能造成数据倾斜
@@ -169,7 +162,6 @@ select * from t1 left join t2 on t1.id = t2.id where t2.age > 50
 		- 大表 join 大表
 			- 不能使用 SMB Map Join，因为分桶后 join 时仍然是倾斜的
 			- 相对大表加随机数打散，相对小表加随机数扩容
-	
 	![[optimized_big2big_join.svg]]
 	
 - 去重原理

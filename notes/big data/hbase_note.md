@@ -1689,7 +1689,9 @@ public List<Pair<NonceKey, WALEdit>> buildWALEdits(
       
   
       // the batch may contain multiple nonce keys (replay case). If so, write WALEdit for each.  
-      // Given how nonce keys are originally written, these should be contiguous.      // They don't have to be, it will still work, just write more WALEdits than needed.      long nonceGroup = getNonceGroup(index);  
+      // Given how nonce keys are originally written, these should be contiguous.      
+      // They don't have to be, it will still work, just write more WALEdits than needed.      
+      long nonceGroup = getNonceGroup(index);  
       long nonce = getNonce(index);  
       if (curWALEditForNonce == null ||  
           curWALEditForNonce.getFirst().getNonceGroup() != nonceGroup ||  
@@ -2342,8 +2344,8 @@ private Result get(Get get, HRegion region, RegionScannersCloseCallBack closeCal
 ![[scanner.svg]]
 
 - `RegionScanner` 由多个 `StoreScanner` 组成，一张表有多少个列族就有多少个 `StoreScanner`，每个 `StoreScanner` 负责对应 `Store` 的数据查找
-- 一个 `StoreScanner` 由 `MemStoreScanner` 和 `StoreFileScanner` 组成
-- `StoreScanner` 会为当前 `Store` 中每个 `HFile` 创建一个 `StoreFileScanner`，用于执行对应文件的检索，也会为 `MemStore` 生成一个 `MemStoreScanner` 用于执行该 `MemStore` 的数据检索
+- 一个 `StoreScanner` 由 `KeyValueScanner` 和 `StoreFileScanner` 组成
+- `StoreScanner` 会为当前 `Store` 中每个 `HFile` 创建一个 `StoreFileScanner`，用于执行对应文件的检索，也会为 `MemStore` 生成一个 `KeyValueScanner` 用于执行该 `MemStore` 的数据检索
 - 当创建完所有的 `Scanner` 后，需要通过 `key` 来过滤掉一些不满足查询条件的 `Scanner`
 - 每个 `Scanner` 去寻找 `startKey`
 - 最后将该 `Store` 中的所有 `Scanner` 合并成一个最小堆

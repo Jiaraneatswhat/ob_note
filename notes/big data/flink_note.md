@@ -6400,17 +6400,18 @@ SET execution.savepoint.path='...' # 之前保存的路径
 - 开启 `MiniBatch` 攒批
 - ![[minibatch_agg.png]]
 	- `configuration.setString("table.exec.mini-batch.enabled", "true")`
-	- `configuration.setString("table.exec.mini-batch.allow-latency", "5 s")`
+	- `configuration.setString("table.exec.mini-batch.allow-latency", "5s")`
 	- `configuration.setString("table.exec.mini-batch.size", "20000")`
-
 - LocalGlobal 解决数据倾斜问题，需要和 `MiniBatch` 一起使用
-	- `configuration.setString("table.optimizer.agg-phase-strategy", "TWO_PHASE")`
+	- `configuration.setString("table.optimizer.agg-phase-strategy", "TWO_PHASE")` 
+	- ![[local_global.png]]
 - Split Distinct
+	- ![[split_distinct.png]]
 	- 加随机数打散再聚合
 	- 开启方式(结合 `MiniBatch`)
 		- `table.optimizer.distinct-agg.split.enabled`
 		- `table.optimizer.distinct-agg.split.bucket-num` 打散的 `bucket` 数量，默认 1024
-![[split distinct.png]]
+
 - count distinct 搭配 case when 时可以优化为 filter
 ```sql
 SELECT

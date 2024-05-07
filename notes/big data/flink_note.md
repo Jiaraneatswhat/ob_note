@@ -6472,8 +6472,8 @@ GROUP BY a
 ## 10.3 运行模式、提交方式、提交流程
 - 运行模式：Yarn
 	- yarn-session: 先创建集群，再提交任务
-	- yarn-per-job: 先提交任务，再创建集群，`Driver` 在 `SparkSubmit` 中
-	- yarn-application：先提交任务，再创建集群，`Driver` 在 `JM` 中
+	- yarn-per-job: 先提交任务，再创建集群，`main` 方法在客户端运行
+	- yarn-application：先提交任务，再创建集群，`main` 方法在 `JM` 中运行
 	- 创建四种 `Graph` 的位置不同
 - 提交方式：
 	- 脚本：封装启动任务命令
@@ -6577,7 +6577,7 @@ GROUP BY a
 		- `Aggregate`
 	- 使用在 `RichFunction` 中，可以设置 TTL
 ### 10.6.2 容错
-- Checkpoint / Savepoint
+- Checkpoint / SavePoint
 	- Barrier 对齐
 		- 精确一次
 			- 有 `Barrier` 到达后

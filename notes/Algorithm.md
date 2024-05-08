@@ -2418,6 +2418,7 @@ static int[] frequencySort(int[] nums) {
 ### Q164(M) -- 最大间距
 - 给定一个无序数组 `nums`, 返回数组排序后，相邻元素之间最大的差值
 - 数组元素个数小于 2 返回 0
+- 必须使用 $O(n)$ 的算法，只能考虑桶排序，计数排序，基数排序
 ```
 example
 	input: nums = [3, 6, 9, 1] // (3, 6), (6, 9) 的间隔都是 3
@@ -2426,8 +2427,25 @@ example
 	input: nums = [10]
 	output: 0
 ```
-#### solution1
+#### solution1(非ac)
+```java
+// 桶排序
+// 测试用例中可能存在特别大的数，导致创建的桶过多，占用过多内存
+static int maximumGap(int[] nums) {  
+    BucketSort.sort2(nums, 1);  
+    System.out.println(Arrays.toString(nums));  
+    int maxDiff = 0;  
+    for (int i = 1; i < nums.length; i++) {  
+        maxDiff = Integer.max(nums[i] - nums[i - 1], maxDiff);  
+    }  
+    return maxDiff;  
+}
+```
+#### solution2
+```java
+// 基数排序
 
+```
 # 8 Graph
 ## 8.1 基本知识
 ### 定义

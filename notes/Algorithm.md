@@ -2515,6 +2515,53 @@ static int maximumGap(int[] nums) {
 	return maxDiff;  
     }
 ```
+#### solution4
+- 对 3 进行改进，桶排序时，桶内元素不需要排序
+- 只需要计算桶间的最大差值即可
+```java
+// 新增一个内部类
+static class Pair { // 每个桶内的最值  
+    int max = 0;  
+    int min = 1000_000_000;   
+  
+    void update(int v) {  
+        max = Math.max(v, max);  
+        min = Math.min(v, max);  
+    }  
+}
+
+static int maximumGap2(int[] nums) {  
+    if (nums.length < 2) return 0;  
+    int max = nums[0];  
+    int min = nums[0];  
+    for (int i = 0; i < nums.length; i++) {  
+        if (nums[i] > max) max = nums[i];  
+        if (nums[i] < min) min = nums[i];  
+    }  
+    // 让桶的个数比元素多一个，产生一个空桶，保证桶间差值 > 桶内差值  
+    // 即避免 [10, 19], [25], 转化为 [10], [19, 25]    
+    int range = Math.max((max - min) / nums.length, 1);  
+    Pair[] buckets = new Pair[(max - min) / range + 1];  
+  
+    for (int v : nums) {  
+        int index = (v - min) / range;  
+        if (buckets[index] == null) {  
+            buckets[index] = new Pair();  
+        }  
+        buckets[index].update(v); // 更新桶内的值
+    }  
+    int maxDiff = 0;  
+    int lastMax = buckets[0].max; // 上一个非空的桶的最大值  
+    for (int i = 1; i < buckets.length; i++) {  
+        Pair bucket = buckets[i];  
+        if (bucket != null) {  
+            maxDiff = Integer.max(bucket.min - lastMax, maxDiff);  
+            lastMax = bucket.max;  
+        }  
+    }  
+    return maxDiff;  
+}
+```
 # 8 Graph
 ## 8.1 基本知识
 ### 定义

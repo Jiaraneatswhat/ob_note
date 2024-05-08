@@ -2444,7 +2444,38 @@ static int maximumGap(int[] nums) {
 #### solution2
 ```java
 // 基数排序
-
+static int maximumGap(int[] nums) {  
+        if (nums.length < 2) return 0;   
+        // 基数排序  
+        ArrayList<Integer>[] buckets = new ArrayList[10];  
+        for (int i = 0; i < buckets.length; i++) {  
+            buckets[i] = new ArrayList<>();  
+        }  
+        int max = nums[0];  
+        for (int i = 1; i < nums.length; i++) {  
+            max = Math.max(nums[i], max);  
+        }  
+        int m = 1;  
+        while (m <= max) {  
+            for (int num : nums) {  
+                buckets[num / m % 10].add(num);  
+            }  
+            int k = 0;  
+            for (ArrayList<Integer> bucket : buckets) {  
+                for (Integer i : bucket) {  
+                    nums[k++] = i;  
+                }  
+                bucket.clear();  
+            }  
+            System.out.println(Arrays.toString(nums));  
+            m *= 10;  
+        }  
+        int maxDiff = 0;  
+        for (int i = 1; i < nums.length; i++) {  
+            maxDiff = Integer.max(nums[i] - nums[i - 1], maxDiff);  
+        }  
+        return maxDiff;  
+    }
 ```
 # 8 Graph
 ## 8.1 基本知识

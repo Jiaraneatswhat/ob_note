@@ -1835,7 +1835,7 @@ public String mostCommonWord(String para, String[] banned) {
 | 快速     | $O(nlogn)$           | $O(n^2)$           | $O(nlogn)$           | $O(logn)$       | N     | 分治     |
 - 稳定：相同元素排序前后不会交换位置
 ## 7.1 bubble
-- 每轮冒泡不断地比较相邻两个元素，如果是逆序地，则交换他们的位置
+- 每轮冒泡不断地比较相邻两个元素，如果是逆序的，则交换他们的位置
 - 下一轮冒泡可以调整未排序的右边界，减少不必要比较
 ![[bubble.svg]]
 
@@ -1857,7 +1857,7 @@ public void bubble(int[] nums, int bound) {
 }
 
 // 非递归
-public void bubble(int[] nums, int bound) {
+public void bubble(int[] nums) {
 	int bound = nums.length - 1;
 	do {
 		int x = 0;

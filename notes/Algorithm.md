@@ -2477,6 +2477,44 @@ static int maximumGap(int[] nums) {
         return maxDiff;  
     }
 ```
+#### solution3
+```java
+// 桶排序改进
+static int maximumGap(int[] nums) {  
+	if (nums.length < 2) return 0;      
+	int max = nums[0];  
+	int min = nums[0];  
+	for (int i = 0; i < nums.length; i++) {  
+		if (nums[i] > max) max = nums[i];  
+		if (nums[i] < min) min = nums[i];  
+	}  
+	// (max - min) / range + 1 = nums.length 一个元素一个桶  
+	// 推出 range = (max - min) / (nums.length - 1)        
+	int range = Math.max((max - min) / (nums.length - 1), 1); // 防止 div0        
+	DynamicArray[] buckets = new DynamicArray[(max - min) / range + 1];  
+	for (int i = 0; i < buckets.length; i++) {  
+		buckets[i] = new DynamicArray();  
+	}  
+  
+	for (int age : nums) {  
+		buckets[(age - min) / range].addLast(age);  
+	}  
+	int k = 0;  
+	for (DynamicArray bucket : buckets) {  
+		int[] arr = bucket.array();  
+		// 桶内排序  
+		InsertSort.sort(arr);  
+		for (int e : arr) {  
+			nums[k++] = e;  
+		}  
+	}  
+	int maxDiff = 0;  
+	for (int i = 1; i < nums.length; i++) {  
+		maxDiff = Integer.max(nums[i] - nums[i - 1], maxDiff);  
+	}  
+	return maxDiff;  
+    }
+```
 # 8 Graph
 ## 8.1 基本知识
 ### 定义

@@ -2176,6 +2176,12 @@ private static int partition(int[] arr, int left, int right) {
     swap(arr, left, i);  
     return i;  
 }
+
+public void swap(int[] arr, int i, int j) {
+	int t = arr[i];
+	arr[i] = arr[j]
+
+}
 ```
 #### 7.8.3.2 大量重复元素
 - 遇到大量重复元素时，基准点最终的位置在最右边，分区性能不好

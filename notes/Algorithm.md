@@ -2338,7 +2338,8 @@ static void radixSort(String[] arr, int length) {
 - 两个数组`arr1` 和 `arr2`，`arr2` 中的元素各不相同，`arr2` 中的每个元素都出现在 `arr1` 中
 - 对 `arr1` 中的元素进行排序，使 `arr1` 中项的相对顺序和 `arr2` 中的相对顺序相同
 - 未在 `arr2` 中出现过的元素需要按照升序放在 `arr1` 的末尾
-```example
+```
+example
 	input:
 		arr1 = [2, 3, 1, 3, 2, 4, 6, 7, 9, 2, 19]
 		arr2 = [2, 1, 4, 3, 9, 6]
@@ -2352,7 +2353,7 @@ static void radixSort(String[] arr, int length) {
 		[22, 28, 8, 6, 17, 44]
 ```
 #### solution
-- 使用计数排序，用 arr2 中的顺序填充结果数组
+- 使用计数排序，用 `arr2` 中的顺序填充结果数组
 ```java
 static int[] relativeSortArray(int[] arr1, int[] arr2) {  
   
@@ -2378,6 +2379,27 @@ static int[] relativeSortArray(int[] arr1, int[] arr2) {
     return result;  
 }
 ```
+### Q1636(S) -- 按照频率将数组升序排序
+- 给一个整数数组 `nums`, 将数组按照每个值的频率升序排序
+- 有多个值的频率相同，按照数值本身降序排序
+- 返回排序后的数组
+- 数据范围在 \[-100, 100] 内
+```
+example
+	input: nums = [1, 1, 2, 2, 2, 3]
+	output: [3, 1, 1, 2, 2, 2]
+
+	input: nums = [2, 3, 1, 3, 2]
+	output: [1, 3, 3, 2, 2] // 2 和 3 的频率相同，按数字大小排序
+
+```
+#### solution
+```java
+
+```
+
+
+
 # 8 Graph
 ## 8.1 基本知识
 ### 定义

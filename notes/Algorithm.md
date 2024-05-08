@@ -2179,8 +2179,8 @@ private static int partition(int[] arr, int left, int right) {
 
 public void swap(int[] arr, int i, int j) {
 	int t = arr[i];
-	arr[i] = arr[j]
-
+	arr[i] = arr[j];
+	arr[j] = t;
 }
 ```
 #### 7.8.3.2 大量重复元素

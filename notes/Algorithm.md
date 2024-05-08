@@ -2395,10 +2395,38 @@ example
 ```
 #### solution
 ```java
-
+static int[] frequencySort(int[] nums) {  
+    int[] count = new int[201];  
+    for (int num : nums) {  
+        count[num + 100]++;  
+    }  
+    // 比较器  
+    return Arrays.stream(nums).boxed().sorted((a, b) -> {  
+        int af = count[a + 100]; // a出现频率  
+        int bf = count[b + 100]; // b出现频率  
+        if (af < bf) {  
+            return -1;  
+        } else if (af > bf) {  
+            return 1;  
+        } else {  
+            return b - a; // 降序  
+        }  
+    }).mapToInt(Integer::intValue).toArray();  
+  
+}
 ```
+### Q164(M) -- 最大间距
+- 给定一个无序数组 `nums`, 返回数组排序后，相邻元素之间最大的差值
+- 数组元素个数小于 2 返回 0
+```
+example
+	input: nums = [3, 6, 9, 1] // (3, 6), (6, 9) 的间隔都是 3
+	output: 3
 
-
+	input: nums = [10]
+	output: 0
+```
+#### solution1
 
 # 8 Graph
 ## 8.1 基本知识

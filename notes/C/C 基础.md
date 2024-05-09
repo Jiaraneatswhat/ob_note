@@ -153,8 +153,33 @@ char a = '!';
 printf("%hhd, %c", a, a); // 33 !
 ```
 #### 1.2.3.1 getchar() 与 putchar()
-- getchar() 用于读取用户键盘的单个字符
-- 
+- getchar() 
+	- 用于读取用户键盘的单个字符，返回值类型为 `int`
+	- 读取错误时返回 `-1`
+	- 会将结束输入的回车也存放在缓冲区中
+- putchar()
+	- 向终端输出一个字符，不包含`'\n'`
+	- 当输入的 `char` 超过八位时，会进行截断
 ```c
+char a = 'a';
+putchar(a);
+scanf_s("%c", &a, 1);
+putchar(a);
 
+char b = getchar();
+putchar(b);
 ```
+#### 1.2.3.2 缓冲区问题
+- 所有按键都以字符形式存在输入缓冲区，`%c` 会将所有数据都读出来
+```c
+char c = 'A', d = 'B';
+scanf_s("%c%c", &c, 1, &d, 1);
+// 输入 "C D\n" 得到 d = 空格
+
+char c = 'A';
+int a = 12;
+scanf_s("%d", &a);
+c = getchar();
+// 输入 "12\n", scanf_s 将 12 赋给 a, getchar 将 '\n' 赋给 c 
+```
+- 解决方法：在使用 `scanf_s()` 后，调用 `rewind(stdin)` 清空缓冲区

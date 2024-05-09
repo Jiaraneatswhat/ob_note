@@ -37,6 +37,7 @@ void main() // 不标准
 | long long(c99) | 8              |
 | unsigned long long(c99)               | 8               |
 - <font color='red'>也可以通过</font> `__int8, 32` <font color='red'>等来表示 x 位整型</font>
+- short 等价于 signed short int, 其他类似
 ```c
 // %x/%X: hex    %d: dec    %o: oct 
 // 0开头的为 oct

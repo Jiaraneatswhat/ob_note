@@ -25,6 +25,7 @@ void main() // 不标准
 ```
 ## 1.2 数据类型
 ### 1.2.1 整型
+#### 1.2.1.1 表示
 | 类型           | bytes          |
 | -------------- | -------------- |
 | short          | 2              |
@@ -51,4 +52,27 @@ printf("value16: %x, value10: %d, value8: %o\n", 0xa4, 0xa4, 0xa4);
 	- unsigned long -> lu (u, l 顺序可交换，大小写都行)
 	- long long -> ll
 	- unsigned long long -> luu
-- 
+#### 1.2.1.2 定义
+```c
+	// 连续定义
+	int a, b = 3, d = b;
+	a = b = 34; // 先执行 b = 34
+	
+	// 查看地址
+	int e = -45;
+	// x86: 00D5F9DC x64: 0000004FBF6FFB44
+	printf("%p", &e);
+```
+#### 1.2.1.3 scanf()
+```c
+	// 输入
+	// scanf() 在 c11 后的标准中删除
+	// #define _CRT_SECURE_NO_WARNINGS 才可以使用 scanf
+	int a = 4, b = 5;
+	printf("a = %d, b = %d\n", a, b);
+	printf("input two nums\n");
+	scanf_s("%d%d", &a, &b);
+	printf("a = %d, b = %d\n", a, b);
+	system("pause");
+	return 0;
+```

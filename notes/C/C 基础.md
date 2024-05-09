@@ -68,11 +68,22 @@ printf("value16: %x, value10: %d, value8: %o\n", 0xa4, 0xa4, 0xa4);
 	// 输入
 	// scanf() 在 c11 后的标准中删除
 	// #define _CRT_SECURE_NO_WARNINGS 才可以使用 scanf
-	int a = 4, b = 5;
-	printf("a = %d, b = %d\n", a, b);
-	printf("input two nums\n");
+	// scanf_s() 中 ""内无分隔符时，控制台可以用空格或 \n 分隔
 	scanf_s("%d%d", &a, &b);
+	// 有其他分隔符时，控制台必须使用相同的
+	scanf_s("%d,%d", &a, &b); // ""里不要加 \n
 	printf("a = %d, b = %d\n", a, b);
-	system("pause");
-	return 0;
+```
+#### 1.2.1.4 sizeof
+```c
+// 关键字
+// 对变量使用时不需要 ()
+int a = 4;
+unsigned int b = sizeof a; // sizeof 返回 unsigned int
+unsigned int c = sizeof(int); // 对类型关键字使用时需要 ()
+
+printf("%u", sizeof(short)); // 2
+printf("%u", sizeof(int)); // 4
+printf("%u", sizeof(long)); // 4
+printf("%u", sizeof(long long)); // 8
 ```

@@ -23,3 +23,16 @@ int main()
 
 void main() // 不标准
 ```
+## 1.2 数据类型
+### 1.2.1 整型
+| 类型 | bytes | 范围 |
+| ---- | ---- | ---- |
+| short | 2 | - $2^{15}$ ~ $2^{15}-1$    |
+| unsigned |  |  |
+```c
+// %x/%X: hex    %d: dec    %o: oct 
+// 0开头的为 oct
+printf("value16: %x, value10: %d, value8: %o\n", 26, 26, 26);
+printf("value16: %x, value10: %d, value8: %o\n", 0253, 0253, 0253);
+printf("value16: %x, value10: %d, value8: %o\n", 0xa4, 0xa4, 0xa4);
+```

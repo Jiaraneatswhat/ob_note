@@ -189,8 +189,7 @@ c = getchar();
 ```
 - 解决方法：在使用 `scanf_s()` 后，调用 `rewind(stdin)` 清空缓冲区
 - `void __cdecl rewind(FILE *_Stream)`
-## 1.3 运算符
-### 1.3.1 优先级与结合性
+## 1.3 运算符的优先级与结合性
 | priority |                | 说明       | 举例                     | 结合性 |
 | -------- | -------------- | ---------- | ------------------------ | ------ |
 | 1        | ++             | 后加       | b++                      | 左右   |
@@ -219,3 +218,53 @@ c = getchar();
 | 15       | =, +=, *=, ... |            |                          | 右左   |
 | 16         | ,               |            | (2 + 3, 4)                         | 左右       |
 - 同一个表达式中出现了 `a++` 等其中之一后，不能出现其他的 `++a, --a` 等，不同编译器的结果不一样
+# 2 流程控制
+## 2.1 if-else
+```c
+int a = 10;
+if (a > 20) 
+{
+	printf("a\n");
+} 
+else 
+{
+	printf("b\n")	
+}
+
+// 可以省略 {}
+if (a > 20) printf("a\n");
+else printf("b\n");
+
+int score = 70;
+if (score >= 0 && score < 60) printf("no pass\n");
+else if (score >= 60 && score < 80) printf("normal\n");
+else printf("well done\n");
+```
+## 2.2 switch
+- case 后只能跟整数
+```c
+int score = 2;
+switch (score > 0)
+{
+case 1:
+	printf("1\n");
+	break;
+case 2:
+	printf("2\n");
+	break;
+default:
+	printf("-1\n");
+	break;
+}
+```
+## 2.3 while, do-while
+```c
+int i = 1;
+do 
+{
+	printf("%d", i);
+	i++;
+} while(i <= 5);
+```
+## 2.4 for
+

@@ -65,6 +65,8 @@ printf("value16: %x, value10: %d, value8: %o\n", 0xa4, 0xa4, 0xa4);
 	printf("%p", &e);
 ```
 #### 1.2.1.3 scanf()
+- 原型：`inline int__cdecl scanf(const char* const _Format, ...)`
+	- `inline int__cdecl scanf_s(const char* const _Format, ...)`
 ```c
 	// 输入
 	// scanf() 在 c11 后的标准中删除
@@ -153,6 +155,9 @@ char a = '!';
 printf("%hhd, %c", a, a); // 33 !
 ```
 #### 1.2.3.1 getchar() 与 putchar()
+- 原型
+	- `int__cdecl getchar(void)`
+	- `int putchar(int _Character)`
 - getchar() 
 	- 用于读取用户键盘的单个字符，返回值类型为 `int`
 	- 读取错误时返回 `-1`
@@ -183,3 +188,5 @@ c = getchar();
 // 输入 "12\n", scanf_s 将 12 赋给 a, getchar 将 '\n' 赋给 c 
 ```
 - 解决方法：在使用 `scanf_s()` 后，调用 `rewind(stdin)` 清空缓冲区
+- `void __cdecl rewind(FILE *_Stream)`
+## 1.3 运算符

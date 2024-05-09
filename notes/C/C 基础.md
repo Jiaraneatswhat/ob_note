@@ -218,53 +218,27 @@ c = getchar();
 | 15       | =, +=, *=, ... |            |                          | 右左   |
 | 16         | ,               |            | (2 + 3, 4)                         | 左右       |
 - 同一个表达式中出现了 `a++` 等其中之一后，不能出现其他的 `++a, --a` 等，不同编译器的结果不一样
-# 2 流程控制
-## 2.1 if-else
+# 2 数组与指针
+## 2.1 数组
+- 一维
 ```c
-int a = 10;
-if (a > 20) 
-{
-	printf("a\n");
-} 
-else 
-{
-	printf("b\n")	
-}
+// 创建
+int a[10] = {1, 3, ...} // c-type 
+int a[] = {1, 3, 5, 7} // 可不写元素个数 
 
-// 可以省略 {}
-if (a > 20) printf("a\n");
-else printf("b\n");
+// 访问
+int a[5] = {4, 2, 7, 8, 4};
+scanf_s("%d%d%d%d%d", &a[0], &a[1], &a[2], &a[3], &a[4]);
+for (int i = 0; i < 5; i++) printf("%d\n", a[i]);
 
-int score = 70;
-if (score >= 0 && score < 60) printf("no pass\n");
-else if (score >= 60 && score < 80) printf("normal\n");
-else printf("well done\n");
+// 计算数组大小
+sizeof a; // 20 bytes
 ```
-## 2.2 switch
-- case 后只能跟整数
+- 二维
 ```c
-int score = 2;
-switch (score > 0)
-{
-case 1:
-	printf("1\n");
-	break;
-case 2:
-	printf("2\n");
-	break;
-default:
-	printf("-1\n");
-	break;
-}
+int a[3][2] = {{3, 2}, {1, 2}, {2, 4}};
+// 不带大括号，依次初始化各元素
+int a[3][2] = {3, 9, 8} // 3 9, 8 0, 0 0
+// 可以省略行数
+int a[][2] = {3, 9, 8} // 会生成 2 * 2 的数组
 ```
-## 2.3 while, do-while
-```c
-int i = 1;
-do 
-{
-	printf("%d", i);
-	i++;
-} while(i <= 5);
-```
-## 2.4 for
-

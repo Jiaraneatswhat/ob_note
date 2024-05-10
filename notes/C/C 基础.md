@@ -397,7 +397,7 @@ void fun(void) {...} // 定义
 // 声明也可以放在 main() 中调用前
 int main(void) {void fun(void); fun();}
 ```
-- 返回局部变量的地址
+- 返回局部变量的地址的问题
 ```c
 int* fun(void);
 int main(void) 

@@ -298,3 +298,14 @@ int a, b, c, d;
 int* arr[4] = {&a, &b, &c, &d};
 *arr[1] == a;
 ```
+- 指针的偏移运算
+```c
+// type* p;
+// p + n == p 移动 sizeof(type) * n 个字节
+
+int a[5] = {1, 2, 3, 4, 5};
+int* p = &a[0];
+p + 1 == &a[1];
+
+a[]
+```

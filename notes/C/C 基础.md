@@ -433,9 +433,50 @@ int main(void)
 ```
 - 二维
 ```c
-void fun1(int (*p)[2][3], int row, int col);
-void fun2(int (*p)[3], int row, int col);
-void fun3(int* p, int row, int col);
+// fun1(int p[m][n]), fun1(int p[][n]) 都会被解析成 int (*p)[n]
+// 靠近变量的 [] 会被解析成 *
+void fun1(int(*p)[2][3], int row, int col)
+{
+	int i, j;
+	for (i = 0; i < row; i++)
+		for (j = 0; j < col; j++)
+			printf("%d", (*p)[i][j]);
+}
+void fun2(int(*p)[3], int row, int col)
+{
+	int i, j;
+	for (i = 0; i < row; i++)
+		for (j = 0; j < col; j++)
+			printf("%d", p[i][j]);
+}
+// 当作一维数组遍历
+void fun3(int* p, int row, int col)
+{
+	int i;
+	for (i = 0; i < row * col; i++)
+		printf("%d", p[i]);
+}
 
+int main(void)
+{
+	int a[2][3] = { {2, 1, 3}, {4, 6, 5} };
+	fun1(&a, 2, 3);
+	fun2(a, 2, 3);
+	fun3(&a[0][0], 2, 3);
+
+}
+```
+- 引用传递
+- 修改谁就传谁的地址
+```c
+void fun(int* a) 
+{
+	*a = 3;
+}
+
+fun(&a);
+```
+- 传二级指针修改指针指向
+```c
 
 ```

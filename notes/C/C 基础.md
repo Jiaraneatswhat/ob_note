@@ -539,11 +539,17 @@ void (*p) (int a) = &fun; // 两种方式等价
 ### 4.1.5 代码区
 - 程序执行的代码放在代码区，不能修改
 ## 4.2 malloc()
+### 4.2.1 使用
 - 引用头文件 `<malloc.h>` 
 - 原型 `void* __cdecl malloc(size_t _Size)`
 	- 返回 `void*`, 可以转换成任意类型使用
 	- `_Size` 是要申请的字节数
 ```c
 // 申请数组
-int* p = (int*) malloc(sizeof(int) * n);
+// malloc() 会返回首地址
+int* p = (int*)malloc(sizeof(int) * n);
+
+int (*p1)[10] = (int(*)[10])malloc(sizeof(int) * 10);
 ```
+### 4.2.2 底层实现(todo)
+

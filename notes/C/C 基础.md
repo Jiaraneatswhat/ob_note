@@ -246,3 +246,22 @@ int a[][2] = {3, 9, 8} // 会生成 2 * 2 的数组
 printf("%zd, %zd", sizeof a, sizeof(int[3][4]));
 ```
 ## 2.2 指针
+- 基本数据类型指针
+- 声明
+	- `short* ps`
+	- `char* pc`
+```c
+int a = 12;
+int* pa = &a;  
+
+float b = 2.3f;
+float* pb = &b;
+
+// 初始化指针
+// vcruntime.h 中：#define NULL ((void *)0)
+double* pd = NULL;
+```
+- 地址操作符 '\*'
+	- '\*' + 空间地址是该空间本身
+	- '\*' + 变量地址是该变量本身
+	- *&a == a

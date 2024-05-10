@@ -37,7 +37,8 @@ void main() // 不标准
 | long long(c99) | 8              |
 | unsigned long long(c99)               | 8               |
 - <font color='red'>也可以通过</font> `__int8, 32` <font color='red'>等来表示 x 位整型</font>
-- short 等价于 signed short int, 其他类似
+- `short` 等价于 `signed short int`, 其他类似
+- `x64` 下，`size_t` 定义为 `unsigned __int64`, `x86` 下定义为 `unsigned int` 
 ```c
 // %x/%X: hex    %d: dec    %o: oct 
 // 0开头的为 oct
@@ -540,4 +541,9 @@ void (*p) (int a) = &fun; // 两种方式等价
 ## 4.2 malloc()
 - 引用头文件 `<malloc.h>` 
 - 原型 `void* __cdecl malloc(size_t _Size)`
-	- 返回 `void*`, 可以转换成ren'yi
+	- 返回 `void*`, 可以转换成任意类型使用
+	- `_Size` 是要申请的字节数
+```c
+// 申请数组
+int* p = (int*) malloc(sizeof(int) * n);
+```

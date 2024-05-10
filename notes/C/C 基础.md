@@ -412,3 +412,30 @@ int* fun(void)
 	return &a;
 }
 ```
+## 3.1 传递数组参数
+- 一维
+```c
+// fun1(int p[n]), fun1(int p[]) 都会被解析成 int* p
+void fun1(int* p, int len);
+int main(void)
+{
+	int a[5] = { 5, 7, 3, 8, 2 };
+	fun1(a, 5);
+}
+
+// 也可以传数组指针
+void fun2(int (*p)[5], int len);
+int main(void)
+{
+	int a[5] = { 5, 7, 3, 8, 2 };
+	fun2(&a, 5);
+}
+```
+- 二维
+```c
+void fun1(int (*p)[2][3], int row, int col);
+void fun2(int (*p)[3], int row, int col);
+void fun3(int* p, int row, int col);
+
+
+```

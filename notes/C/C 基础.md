@@ -562,4 +562,17 @@ free(p);
 p = NULL;
 ```
 ## 4.4 \_msize()
-
+- 原型 `size_t __cdecl _msize(void *Block)`
+- 返回分配的字节大小
+```c
+int (*p2)[10] = (int(*)[10])malloc(sizeof(int) * 10);
+// 用 zu 输出 size_t
+printf("%zu", _msize(p2));
+```
+## 4.5 calloc() 和 realloc()
+- `void* __cdecl calloc(size_t _Count, size_t _Size)`
+- 与 `malloc()` 类似，区别在于 `calloc()` 会在返回起始地址之前，把在堆区申请的动态内存空间的每个字节都初始化为0
+- `void* __cdecl realloc(void* _Block, size_t _Size)`
+- 可以重新申请更大的空间
+	- 返回首地址后，将原空间的数据依次复制进新空间
+	- 自动释放之前的空间

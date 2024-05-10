@@ -307,5 +307,13 @@ int a[5] = {1, 2, 3, 4, 5};
 int* p = &a[0];
 p + 1 == &a[1];
 
-a[]
+// a[0 + n] = *&a[0 + n] = *(p + n)
+int* p = &a[0];
+int* p = a;
+printf("%d", *(&a[0] + i));
+printf("%d", *(p + i));
+printf("%d", *p++);
+printf("%d", p[i]);
+printf("%d", i[p]);
 ```
+- <font color='red'>*(p + n) == p[n] == n[p]</font>

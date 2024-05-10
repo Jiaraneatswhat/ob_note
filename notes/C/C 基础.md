@@ -387,4 +387,28 @@ pd + 2;
 *(int*)pi = 2;
 ```
 # 3 函数
+- 函数定义在 `main()` 前才能使用
+- 要想在 `main()` 后定义，需要在 `main()` 前声明
+```c
+void fun(void); // 声明
+int main(void) {fun()};
+void fun(void) {...} // 定义
 
+// 声明也可以放在 main() 中调用前
+int main(void) {void fun(void); fun();}
+```
+- 返回局部变量的地址
+```c
+int* fun(void);
+int main(void) 
+{ 
+	// 局部变量调用完后会释放，不能再使用
+	int* p = fun();
+}
+
+int* fun(void) 
+{
+	int a[5] = {...};
+	return a;
+}
+```

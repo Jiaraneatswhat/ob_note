@@ -409,6 +409,6 @@ int main(void)
 int* fun(void) 
 {
 	int a[5] = {...};
-	return a;
+	return &a;
 }
 ```

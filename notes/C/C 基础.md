@@ -552,4 +552,14 @@ int* p = (int*)malloc(sizeof(int) * n);
 int (*p1)[10] = (int(*)[10])malloc(sizeof(int) * 10);
 ```
 ### 4.2.2 底层实现(todo)
+## 4.3 free()
+- 原型 `void __cdecl free(void *_Block)`
+- 释放动态开辟的内存
+```c
+int* p = (int*)malloc(sizeof(int) * n);
+free(p);
+// free 后要将指针置为 NULL, 防止通过指针再次访问到无效内存
+p = NULL;
+```
+## 4.4 \_msize()
 

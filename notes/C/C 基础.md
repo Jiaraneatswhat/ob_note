@@ -537,3 +537,7 @@ void (*p) (int a) = &fun; // 两种方式等价
 - 程序运行期间，常量区的内容不能被修改
 ### 4.1.5 代码区
 - 程序执行的代码放在代码区，不能修改
+## 4.2 malloc()
+- 引用头文件 `<malloc.h>` 
+- 原型 `void* __cdecl malloc(size_t _Size)`
+	- 返回 `void*`, 可以转换成ren'yi

@@ -93,5 +93,27 @@
 ![[html4.png]]
 - 使用 `<a></a>` 搭配它的 `href` 属性从一张页面链接到另一张页面
 - <font color = '#0000ff'><u>未访问过的链接是蓝色带下划线的</font></u>
-- <font color = '#0000ff'><u>未访问过的链接是蓝色带下划线的</font></u>
-- <font color = '#0000ff'><u>未访问过的链接是蓝色带下划线的</font></u>
+- <font color = 'purple'><u>已访问过的链接是紫色带下划线的</font></u>
+- <font color = 'red'><u>正在访问的链接是红色带下划线的</font></u>
+```html
+<p>在新窗口或选项卡中打开链接：<a href="https://www.jiaran.online" target="_blank">访问 jiaran.online！</a></p>
+```
+![[html5.png]]
+- 也可以用图像作为链接
+```html
+<!-- 需要加协议-->
+<a href="https://www.baidu.com">  
+    <img src="jiaran.png" alt="jiaran" width="50" height="50"/>  
+</a>
+```
+![[html6.png]]
+- `<a>` 的属性
+	- `download` 单击下载
+	- `href` 的值可以是任何有效文档的相对或绝对 `URL`，包括 `JS` 片段
+	- `ping` 以空格分隔的 `URL` 列表，链接被访问时，浏览器将发送带有 `ping` 正文的 `POST` 请求
+	- `target` 规定在何处打开被链接文档
+		- `_blank` 打开一个空白页
+		- `_parent` 当前窗口打开
+		- `_self` 同窗口打开
+		- `_top` 顶端打开窗口
+		- 网页没有框架时，除 `_blank` 外三者效果几乎相同

@@ -196,6 +196,29 @@
 	- `<label>`
 	- `<output>`
 #### 1.2.7.1 \<input>
-- 用户可以在其中输入数据，显示方式取决于 `type` 属性
-
-
+- 用户可以在其中输入数据，显示方式取决于 `type` 属性：
+- `button` 在点击时激活 `js`
+```html
+<form>  
+    <input type="button" value="click me!" onclick="msg()">  
+</form>  
+<script>  
+    function msg() {  
+        alert("Hello world!");  
+    }  
+</script>
+```
+![[button.png]]
+-  `checkbox` 复选框
+```html
+<form>
+  <input type="checkbox">
+  <label> 我要玩原神</label><br>
+  <input type="checkbox">
+  <label> 我要玩王者</label><br>
+  <input type="checkbox">
+  <label> 我要玩D5</label><br><br>
+</form>
+```
+![[checkbox.png]]
+- `color` 从颜色选择器中选择一种颜色

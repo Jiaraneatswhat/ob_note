@@ -287,3 +287,27 @@
 #### 1.2.7.3 \<button>
 - 定义可点击的按钮
 - 元素内部可以放置文本，`<input>` 中的 `button` 属性不能放置文本
+- 需要为 `button` 指明 `type` 属性
+	- `button`
+	- `reset` 清除内容
+	- `submit`
+#### 1.2.7.4 \<select>
+- 创建下拉列表
+- 搭配 `<option>` 标签作为下拉列表可用选项
+```html
+<form>
+  <label for="cars">请选择一个汽车品牌：</label>
+  <select name="cars" id="cars">
+    <option value="audi">奥迪</option>
+	<option value="byd">比亚迪</option>
+    <option value="geely">吉利</option>
+	<option value="volvo">沃尔沃</option>
+  </select>
+</form>
+```
+![[select.png]]
+#### 1.2.7.5 \<label>
+- `<label>` 标签为 `input` 元素定义标记
+- 有两个属性
+	- `for` 规定 `label` 绑定到哪个元素，必须与相关元素的 `id` 属性相同才能绑定
+	- `form` 规定 `label` 字段所属的表单

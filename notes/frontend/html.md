@@ -185,4 +185,17 @@
 ![[html10.png]]
 ### 1.2.7 表单与输入标签
 - 通过 `<form>` 创建表单
-	- 
+- 用于接收用户输入创建 `HTML` 表单，可以包含一个或多个表单元素：
+	- `<input>` 
+	- `<textarea>`
+	- `<button>`
+	- `<select>`
+	- `<option>`
+	- `<optgroup>`
+	- `<fieldset>`
+	- `<label>`
+	- `<output>`
+#### 1.2.7.1 \<input>
+- 用户可以在其中输入数据，显示方式取决于 `type` 属性
+
+

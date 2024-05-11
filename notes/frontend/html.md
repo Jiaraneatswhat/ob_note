@@ -269,3 +269,21 @@
 </form>
 ```
 ![[text.png]]
+#### 1.2.7.2 \<textarea>
+- 定义多行文本输入控件
+```html
+<form>
+  <p><label for="review">test textarea：</label></p>
+  <textarea id="review" rows="4" cols="50">这是一个多行文本输入控件</textarea>
+</form>
+```
+![[textarea.png]]
+- 属性有：
+	- `autofocus`
+	- `cols` 可见宽度
+	- `rows` 可见行数
+	- `form` 所属表单
+	- `readonly` 等
+#### 1.2.7.3 \<button>
+- 定义可点击的按钮
+- 元素内部可以放置文本，`<input>` 中的 `button` 属性不能放置文本

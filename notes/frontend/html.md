@@ -269,6 +269,21 @@
 </form>
 ```
 ![[text.png]]
+##### 1.2.7.1.7 range
+- 定义一个滑块控件
+- 有以下属性
+	- `max`
+	- `min`
+	- `step`
+	- `value` 默认值
+```html
+<form>
+  <label for="vol">音量（0 到 50 之间）：</label>
+  <input type="range" id="vol" name="vol" min="0" max="50">
+  <input type="submit">
+</form>
+```
+![[range.png]]
 #### 1.2.7.2 \<textarea>
 - 定义多行文本输入控件
 ```html
@@ -311,3 +326,26 @@
 - 有两个属性
 	- `for` 规定 `label` 绑定到哪个元素，必须与相关元素的 `id` 属性相同才能绑定
 	- `form` 规定 `label` 字段所属的表单
+- 在 `label` 元素内点击文本就会将焦点转移到和标签相关的表单控件上
+```html
+<form action="/demo/action_page.php">
+  <input type="radio" id="html" name="fav_language" value="HTML">
+  <label for="html">HTML</label><br>
+  <input type="radio" id="css" name="fav_language" value="CSS">
+  <label for="css">CSS</label><br>
+  <input type="radio" id="javascript" name="fav_language" value="JavaScript">
+  <label for="javascript">JavaScript</label><br><br>
+  <input type="submit" value="提交">
+</form>
+```
+![[label.png]]
+#### 1.2.7.6 \<output>
+- 用于表示计算的结果
+```html
+<form oninput="x.value=parseInt(a.value)+parseInt(b.value)">
+<input type="range" id="a" value="50">
++<input type="number" id="b" value="25">
+=<output name="x" for="a b"></output>
+</form>
+```
+![[output.png]]

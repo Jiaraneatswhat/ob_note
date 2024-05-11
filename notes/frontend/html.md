@@ -197,6 +197,7 @@
 	- `<output>`
 #### 1.2.7.1 \<input>
 - 用户可以在其中输入数据，显示方式取决于 `type` 属性：
+##### 1.2.7.1.1 button
 - `button` 在点击时激活 `js`
 ```html
 <form>  
@@ -209,7 +210,8 @@
 </script>
 ```
 ![[button.png]]
--  `checkbox` 复选框
+##### 1.2.7.1.2 checkbox
+- 创建一个复选框
 ```html
 <form>
   <input type="checkbox">
@@ -221,4 +223,49 @@
 </form>
 ```
 ![[checkbox.png]]
+##### 1.2.7.1.3 color
 - `color` 从颜色选择器中选择一种颜色
+```html
+<form>
+  <label>选择您最喜欢的颜色：</label>
+  <input type="color" value="#ff0000">
+</form>
+```
+![[color.png]]
+##### 1.2.7.1.4 password
+- `password` 用掩码隐藏字符
+```html
+<form>
+  <label for="email">电子邮件：</label>
+  <input type="email" id="email" name="email"><br><br>
+  <label for="pwd">密码：</label>
+  <input type="password" id="pwd" name="pwd" minlength="8"><br><br>
+</form>
+```
+![[pwd.png]]
+##### 1.2.7.1.5 radio
+- `radio` 创建一个单选按钮
+```html
+<form action="/demo/action_page.php">
+
+  <p>请选择您的年龄：</p>
+  <input type="radio" id="age1" name="age" value="30">
+  <label for="age1">0 - 30</label><br>
+  <input type="radio" id="age2" name="age" value="60">
+  <label for="age2">31 - 60</label><br>  
+  <input type="radio" id="age3" name="age" value="100">
+  <label for="age3">61 - 100</label><br><br>
+</form>
+```
+![[radio.png]]
+##### 1.2.7.1.6 text
+- 文本输入
+```html
+<form action="/demo/action_page.php">
+  <label for="phone">请输入电话号码：</label><br><br>
+  <input type="tel" id="phone" name="phone" placeholder="138-1234-5678" pattern="[0-9]{3}-[0-9]{4}-[0-9]{4}" required><br><br>
+  <small>格式：138-1234-5678</small><br><br>
+  <input type="submit">
+</form>
+```
+![[text.png]]

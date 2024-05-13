@@ -580,6 +580,7 @@ printf("%zu", _msize(p2));
 - 以 `'\0'` 结尾的字符数组，`'\0'` 是 `ASCII` 表上第一个字符
 - `0` 和 `NULL` 还有`'\0'`三者数值上一样
 ## 5.1 常量字符串
+### 5.1.1 定义
 - 定义在双引号中：`"string"`
 - 本质就是字符数组，该字符串就是数组名: `"string"[0]`
 - 自带 `'\0'` 结尾
@@ -590,7 +591,7 @@ char ch1[10] = {"hello"}; // 长度过长会出现乱码
 char ch2[10] = "hello";
 char ch3[] = "hello";
 ```
-- 字符串指针
+### 5.1.2 字符串指针
 ```c
 char str = "hello"; 
 str[2] = 'W'; // 复制了一份，可用修改
@@ -601,7 +602,23 @@ const char* str = "hello"; // 标砖写法加上 const 修饰
 printf("%s", str);
 puts(str); // puts() 专门用于打印
 ```
-- 字符串输出
-	- `%s`:遇到 `'\0'` 时才会停止
+### 5.1.3 字符串输出
+- `%s`:遇到 `'\0'` 时才会停止
 		- 如果是普通的字符数组, 如 `{'A', 'b', 'C'}`，就会一直向后输出，产生乱码
-		- 
+		- UTF-8 中用 `0xEFBFBD` 显示乱码，转 `GBK` 就会成为锟 `(0xEFBF)`, 斤 `(0xBDEF)`, 拷 `(0xBFBD)`
+		- VC 中的乱码是烫 `(0xCC)` 和屯 `(0xCD)`
+- `printf()` 也可以直接传入字符串输出 `printf(ch)`
+- `puts()`
+	- `int __cdecl puts(char const* _Buffer); `
+```c
+char ch[10] = "hell\0o world";
+printf(ch + 2) // 输出 ll
+puts(ch + 1) // 输出 ell
+printf(ch + 4) // 输出 o world
+```
+### 5.1.4 字符串输入
+- `scanf_s()`
+	- `%s` 会将空格作为分隔符，获取不到
+	- 输入 `"hello world"` 只会输出 `hello`
+- `gets_s()` 可以输入空格，字符串专用
+	- `char* __cdecl gets_s(char* _Buffer, rsize_t _Size) `

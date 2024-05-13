@@ -866,3 +866,7 @@ while (1)
 - 读取或写入多个字符
 - `int __cdecl fputs(const char *_Buffer, FILE *_Stream)`
 - `char *__cdecl fgets(char *_Buffer, int _MaxCount, FILE *_Stream)`
+- `fgets()` 会读 `_MaxCount - 1 ` 个字符，拼接 `'\0'` 输出
+```c
+
+```

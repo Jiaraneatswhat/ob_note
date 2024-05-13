@@ -664,7 +664,8 @@ printf("%d %d", strlen("abc"), sizeof("abc")); // 3 4
 // strlen 遇到 '\0' 终止
 printf("%d %d", strlen("abc\0def"), sizeof("abc\0def")); // 3 8(两个'\0')
 ```
-# 6 结构体
+# 6 复合结构
+## 6.1 结构体
 ```c
 // 定义在 main() 外
 struct structName
@@ -732,7 +733,28 @@ struct Stu
 {
 	char name[5];
 	int age;
-	void (*p)eat();
+	void (*p)(void);
 };
-stu.p() 调用 eat()
+// 通过 stu.p() 调用 eat()
+```
+- 结构体大小计算
+	- 字节对齐
+	- 将变量存储的首地址按 1, 2, 4, 8 字节对齐
+		- 整体对齐：以最大类型的字节数为对齐字节数，成员按顺序填充
+		- 局部对齐：填充时，与前面已分配好的成员，最大字节对齐
+		- 结尾补齐：补齐最大字节数，最终为最大字节的整数倍
+	- `#pragma pack(n)` 关键字
+		- 按照 n 字节对齐
+		- 括号内不填恢复默认对齐方式
+## 6.2 联合体
+- 所有成员共用一块空间，起始地址一样
+```c
+union Uni
+{
+	int a;
+	short b;
+	char c;
+};
+
+union Uni u = {233}; // 只能初始化第一个数据
 ```

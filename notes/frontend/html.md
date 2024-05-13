@@ -362,3 +362,23 @@
 	- 图像支持
 	- 多媒体支持
 	- 新 API
+## 2.1 语义元素
+- `<span>, <div>` 无法提供关于其内容的信息
+- `<form>, <table>` 等可以清晰地定义其内容
+- HTML5 提供了定义页面不同部分的新语义元素
+	- `<article>`
+	- `<aside>`
+	- `<details>`
+	- `<figcaption>`
+	- `<figure>`
+	- `<footer>`
+	- `<header>`
+	- `<main>`
+	- `<mark>`
+	- `<nav>`
+	- `<section>`
+	- `<summary>`
+	- `<time>`
+	
+![[html5_1.svg]]
+

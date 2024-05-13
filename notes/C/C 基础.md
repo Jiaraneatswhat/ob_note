@@ -686,4 +686,53 @@ int main(void)
 }
 ```
 - 访问结构体元素
-	- p
+	- 普通变量用 `'.'`
+	- 指针变量用 `'->'`
+```c
+struct Stu stu = { "lisi", 20, 70.0 };
+struct Stu* stu_p = &stu;
+
+printf("%s %d %lf\n", stu.name, stu.age, stu.score);
+printf("%s %d %lf\n", stu_p->name, stu_p->age, stu_p->score);
+// 相当于
+printf("%s %d %lf\n", (&stu)->name, (*stu_p).age, stu.score);
+
+// 赋值
+strcpy_s(stu.name, 20, "zhangsan"); // str 必须使用 strcpy_s() 赋值
+stu_p->age = 20;
+// 相同结构体之间可以直接赋值
+stu1 = stu2;
+*stu_p1 = stu2;
+// 使用复合文字赋值
+stu3 = (struct Stu){"", , }
+```
+- 匿名结构体
+```c
+// 此时变量只能紧跟在结构体后定义
+struct
+{...
+} s;
+```
+- 特殊结构体成员
+```c
+// 嵌套结构体
+struct Stu stu = { "lisi", 20,  (struct Teacher) {"wang", 30 }};
+
+// 指针成员
+struct Stu
+{
+	char name[5];
+	int age;
+	struct Stu* p;
+};
+
+// 函数指针成员
+void eat(void) {}
+struct Stu
+{
+	char name[5];
+	int age;
+	void (*p)eat();
+};
+stu.p() 调用 eat()
+```

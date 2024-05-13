@@ -624,6 +624,23 @@ printf(ch + 4) // 输出 o world
 	- `char* __cdecl gets_s(char* _Buffer, rsize_t _Size) `
 	- 将传进来的字符保存在 `_Buffer` 中
 ### 5.1.5 字符串常用函数
+- 引入 `<string.h>`  
 ```c
+// 将字符串存储在 _Destination 中
+char *__cdecl strcpy(char *_Destination, const char *_Source)
+
+errno_t __cdecl strcpy_s(char *_Destination, rsize_t _SizeInBytes, const char *_Source)
+
+// 拷贝字符串前 n 个字符
+char *__cdecl strncpy(char *_Destination, const char *_Source, size_t _Count)
+
+errno_t __cdecl strncpy_s(char *_Destination, rsize_t _SizeInBytes, const char *_Source, rsize_t _MaxCount)
+
+strncpy(str, "hello world", 3) // 不会添加 '\0'，输出 hel烫烫...
+strncpy(str, 5, "hello world", 3) // 添加 '\0'，正常输出
+
+// 字符串拼接
+char *__cdecl strcat(char *_Destination, const char *_Source)
+
 
 ```

@@ -895,3 +895,10 @@ fscanf_s(pf, "a:%d,b%lf,s%s", &a, &b, str, 20);
 - 以二进制读写，不用转换类型，比前面几组效率高
 - `size_t __cdecl fread(void *_Buffer, size_t _ElementSize, size_t _ElementCount, FILE *_Stream)`
 - `size_t __cdecl fwrite(const void *_Buffer, size_t _ElementSize, size_t _ElementCount, FILE *_Stream)`
+```c
+// 可以直接写入结构体
+struct Node n = { 12, "hello", 34.5 };
+int a = fwrite(&n, sizeof n, 1, pf);
+
+
+```

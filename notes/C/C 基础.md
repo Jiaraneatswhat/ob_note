@@ -611,7 +611,7 @@ puts(str); // puts() 专门用于打印
 - `puts()`
 	- `int __cdecl puts(char const* _Buffer); `
 ```c
-char ch[10] = "hell\0o world";
+char ch[10] = "hell\0o world"; // 也可以通过 malloc 分配
 printf(ch + 2) // 输出 ll
 puts(ch + 1) // 输出 ell
 printf(ch + 4) // 输出 o world
@@ -623,3 +623,7 @@ printf(ch + 4) // 输出 o world
 - `gets_s()` 可以输入空格，字符串专用
 	- `char* __cdecl gets_s(char* _Buffer, rsize_t _Size) `
 	- 将传进来的字符保存在 `_Buffer` 中
+### 5.1.5 字符串常用函数
+```c
+
+```

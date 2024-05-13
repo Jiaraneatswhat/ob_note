@@ -586,5 +586,22 @@ printf("%zu", _msize(p2));
 	- 可访问 `"string"[6]`, `sizeof` 计算时也会计算 `'\0'` 的大小
 - 只读
 ```c
-char ch1[10] = {"hello"};
+char ch1[10] = {"hello"}; // 长度过长会出现乱码
+char ch2[10] = "hello";
+char ch3[] = "hello";
 ```
+- 字符串指针
+```c
+char str = "hello"; 
+str[2] = 'W'; // 复制了一份，可用修改
+char *str = "hello c3"; // 直接指向地址，不能修改数组中的值
+const char* str = "hello"; // 标砖写法加上 const 修饰
+// 两者均从首地址开始，输出到 '\0' 结束
+// 如果字符串中间有 '\0' 打印到中间就结束
+printf("%s", str);
+puts(str); // puts() 专门用于打印
+```
+- 字符串输出
+	- `%s`:遇到 `'\0'` 时才会停止
+		- 如果是普通的字符数组, 如 `{'A', 'b', 'C'}`，就会一直向后输出，产生乱码
+		- 

@@ -610,6 +610,7 @@ puts(str); // puts() 专门用于打印
 - `printf()` 也可以直接传入字符串输出 `printf(ch)`
 - `puts()`
 	- `int __cdecl puts(char const* _Buffer); `
+	- 会添加 `'\n'`
 ```c
 char ch[10] = "hell\0o world"; // 也可以通过 malloc 分配
 printf(ch + 2) // 输出 ll
@@ -867,6 +868,16 @@ while (1)
 - `int __cdecl fputs(const char *_Buffer, FILE *_Stream)`
 - `char *__cdecl fgets(char *_Buffer, int _MaxCount, FILE *_Stream)`
 - `fgets()` 会读 `_MaxCount - 1 ` 个字符，拼接 `'\0'` 输出
+- `fputs()` 用于写入数据
 ```c
+while (1)
+{	
+	fgets(str, 20, pf);
+	printf(str);
+	if (feof(pf))
+		break;
+}
 
+fputs("hello scala", pf);
 ```
+## 7.4 fprintf() & fscanf()

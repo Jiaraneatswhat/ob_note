@@ -889,5 +889,9 @@ fputs("hello scala", pf);
 // 格式化写
 fprintf(pf, "a:%d,b%lf,s%s", 12, 34.5, "hello rr");
 // 格式化读
-
+fscanf_s(pf, "a:%d,b%lf,s%s", &a, &b, str, 20);
 ```
+## 7.5 fread() & fwrite()
+- 以二进制读写，不用转换类型，比前面几组效率高
+- `size_t __cdecl fread(void *_Buffer, size_t _ElementSize, size_t _ElementCount, FILE *_Stream)`
+- `size_t __cdecl fwrite(const void *_Buffer, size_t _ElementSize, size_t _ElementCount, FILE *_Stream)`

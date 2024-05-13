@@ -381,4 +381,62 @@
 	- `<time>`
 	
 ![[html5_1.svg]]
+### 2.1.1 \<article>
+- `<article>` 标签规定独立的、自包含的内容
+- 浏览器中的 `<article>` 不呈现任何特殊样式，需要通过 `CSS` 进行样式化
+```html
+<article>
+  <h2>article</h2>
+  <p>This is an article</p>
+</article>
+```
+![[html5_2.png]]
+### 2.1.2 \<aside>
+- `<aside>` 标签定义了它所在内容之外的一些内容
+- 通常作为侧边栏放置在文档中
+- 通过 `CSS` 设置其样式
+```html
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+aside {
+  width: 30%;
+  padding-left: 15px;
+  margin-left: 15px;
+  float: right;
+  font-style: italic;
+  background-color: lightgray;
+}
+</style>
+</head>
+<body>
+<p>main paragraph</p>
+<aside>
+  <h4>aside</h4>
+  <p>This is an aside </p>
+</aside>
+</body>
+</html>
+```
+![[html5_3.png]]
+### 2.1.3 \<details> & \<summary>
+- `<details>` 标签规定用户可以根据需要打开和关闭的其他详细信息
+- 通常用于创建用户可以打开和关闭的交互式小部件
+- 结合 `<summary>` 为详细信息指定标题
+```html
+<html>
+<body>
+<details>
+  <summary>未来世界中心（Epcot Center）</summary>
+  <p>Epcot 是华特迪士尼世界度假区的主题公园，拥有令人兴奋的景点、国际展馆、屡获殊荣的烟花和季节性活动。</p>
+</details>
+</body>
+</html>
+```
 
+
+### 2.1.4 \<figure> & \<figcaption>
+- 
+- `<figcaption>` 标签为 `<figure>` 元素定义标题
+- `<figcaption>` 元素可以放置在 `<figure>` 元素的第一个或最后一个子元素的位置

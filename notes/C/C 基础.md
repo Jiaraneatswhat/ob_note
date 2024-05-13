@@ -897,8 +897,41 @@ fscanf_s(pf, "a:%d,b%lf,s%s", &a, &b, str, 20);
 - `size_t __cdecl fwrite(const void *_Buffer, size_t _ElementSize, size_t _ElementCount, FILE *_Stream)`
 ```c
 // 可以直接写入结构体
-struct Node n = { 12, "hello", 34.5 };
+struct Node n = { 12, "hello", 34.5 }, p;
 int a = fwrite(&n, sizeof n, 1, pf);
+// 读取
+fread(&p, sizeof p, 1, pf);
+// 写入的是转换后的数据
+fprintf(pf, "%d,%lf,%s", n.a, n.b, n.str);
+```
+## 7.6 rewind() & ftell() & fseek()
+- `void __cdecl rewind(FILE *_Stream)`
+- `long __cdecl ftell(FILE *_Stream)`
+- `int __cdecl fseek(FILE *_Stream, long _Offset, int _Origin)`
+- 
+```c
+// rewind() 将文件指针指向文件首
+putchar(fgetc(pf)); // a
+putchar(fgetc(pf)); // b
+rewind(pf);
+putchar(fgetc(pf)); // a
+putchar(fgetc(pf)); // b
+
+// ftell() 返回文件指针指向的文件中的字节下标
+putchar(fgetc(pf)); // a
+printf("%ld", ftell(pf)); // 1
+putchar(fgetc(pf)); // b
+printf("%ld", ftell(pf)); // 2
+rewind(pf); 
+printf("%ld", ftell(pf)); // 0
+
+// fseek() 设置文件指针指向哪个字节
+// 指向 _Offset + _Origin 的位置
+// SEEK_SET(首), SEEK_END, SEEK_CUR
+putchar(fgetc(pf)); // a
+putchar(fgetc(pf));// b
+fseek(pf, 4, SEEK_SET); // 跳一个字符
+putchar(fgetc(pf)); // e
 
 
 ```

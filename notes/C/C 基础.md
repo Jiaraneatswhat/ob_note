@@ -622,3 +622,4 @@ printf(ch + 4) // 输出 o world
 	- 输入 `"hello world"` 只会输出 `hello`
 - `gets_s()` 可以输入空格，字符串专用
 	- `char* __cdecl gets_s(char* _Buffer, rsize_t _Size) `
+	- 将传进来的字符保存在 `_Buffer` 中

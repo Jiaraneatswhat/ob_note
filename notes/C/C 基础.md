@@ -664,7 +664,7 @@ printf("%d %d", strlen("abc"), sizeof("abc")); // 3 4
 // strlen 遇到 '\0' 终止
 printf("%d %d", strlen("abc\0def"), sizeof("abc\0def")); // 3 8(两个'\0')
 ```
-# 6 复合结构
+# 6 其他类型
 ## 6.1 结构体
 ```c
 // 定义在 main() 外
@@ -757,4 +757,42 @@ union Uni
 };
 
 union Uni u = {233}; // 只能初始化第一个数据
+// 修改一个数据，其他数据也会发生变化
+printf("%d %d %c", u.a, u.b, u.c); // 233 233 ？
+// 数值超出可表示范围时取余数
 ```
+## 6.3 枚举
+- 一组有名字的 int 类型数据的类型
+```c
+enum color {yellow, red, black, white, pink, blue};
+int main(void) 
+{
+	// 默认从 0 开始对应
+	printf("%d", yellow); // 0
+	// 也可以给枚举变量赋值
+	enum color co = black;
+}
+
+// 指定枚举变量的值
+enum color {yellow=3, red, black, white=20, pink, blue};
+// 没有值的接前边的进行增加 red -> 4, pink -> 21
+```
+# 7 I/O
+- 打开文件：
+	- `fopen()`
+	- `fopen_s()`
+- 读文件：
+	- `fget()`
+	- `fgets()`
+	- `fscanf()`
+	- `fread()`
+- 写文件:
+	- `fputc()`
+	- `fputs()`
+	- `fprintf()`
+	- `fwrite()`
+- 文件指针:
+	- `fseek()`
+	- `rewind()`
+	- `ftell()`
+- 关闭文件：`fclose()`

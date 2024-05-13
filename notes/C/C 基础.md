@@ -796,3 +796,24 @@ enum color {yellow=3, red, black, white=20, pink, blue};
 	- `rewind()`
 	- `ftell()`
 - 关闭文件：`fclose()`
+## 7.1 fopen() & fopen_s()
+- `fopen()` 返回文件指针，`fopen_s()` 返回操作是否成功的状态码
+- `FILE *__cdecl fopen(const char *_FileName, const char *_Mode)`
+- `errno_t __cdecl fopen_s(FILE **_Stream, const char *_FileName, const char *_Mode)`
+- `FILE *` 就是文件指针，打开文件的本质就是将文件内容放进缓冲区，`FILE *` 可以理解为文件缓冲区首地址
+```c
+
+FILE* pFile = fopen("hello.txt", "r");
+
+FILE* pf = NULL;
+// fopen_s 的第一个参数是二级指针
+// corecrt.h -> typedef int errno_t
+errno_t e = fopen_s(&pf, "hello.txt", "r");
+printf("%d", e);
+```
+- 打开方式
+- 文本模式
+	- `"r/rt"` 只读
+	- `r+` 可读可写
+	- `w/wt` 只写，不存在时
+- 二进制模式

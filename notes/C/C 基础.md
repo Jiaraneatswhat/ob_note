@@ -814,6 +814,24 @@ printf("%d", e);
 - 打开方式
 - 文本模式
 	- `"r/rt"` 只读
-	- `r+` 可读可写
-	- `w/wt` 只写，不存在时
+	- `r+` 可读可写，必须存在
+	- `w/wt` 只写，不存在时会创建文件
+	- `w+` 可读可写，不存在时创建
+	- `a/at` 追加写，不存在时创建，指向尾字节
+	- `a+` 可读可写，指向尾字节
 - 二进制模式
+	- `rb` 对应 `r/rt`
+	- `rb+` 对应 `r+`
+	- `wb` 对应 `w/wt`
+	- `wb+` 对应 `w+`
+	- `ab` 对应 `a/at`
+	- `ab+` 对应 `a+`
+- 区别
+	- `win` 下行结尾是 `\r\n`, 文本模式读的是 `\n`, 二进制模式读的是 `\r\n`
+	- `linux` 下没区别
+## 7.2 fputc() & fgetc()
+- `int __cdecl fputc(int _Character, FILE *_Stream)`
+- `int __cdecl fgetc(FILE *_Stream)`
+```c
+
+```

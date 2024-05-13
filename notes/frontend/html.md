@@ -425,18 +425,73 @@ aside {
 - 通常用于创建用户可以打开和关闭的交互式小部件
 - 结合 `<summary>` 为详细信息指定标题
 ```html
-<html>
-<body>
 <details>
   <summary>未来世界中心（Epcot Center）</summary>
   <p>Epcot 是华特迪士尼世界度假区的主题公园，拥有令人兴奋的景点、国际展馆、屡获殊荣的烟花和季节性活动。</p>
 </details>
-</body>
-</html>
 ```
-
-
+![[html5_4.png]]
 ### 2.1.4 \<figure> & \<figcaption>
-- 
+- `<figure>` 标签规定自包含的内容，如插图、图表、照片、代码清单等
 - `<figcaption>` 标签为 `<figure>` 元素定义标题
 - `<figcaption>` 元素可以放置在 `<figure>` 元素的第一个或最后一个子元素的位置
+```html
+<figure>  
+    <img src="./taffy.JPG" style="width:150px">  
+    <figcaption>图 1 - 小菲，唐朝人</figcaption>  
+</figure>
+```
+![[html5_5.png]]
+### 2.1.5 \<header> & \<footer>
+-  `<header>` 标签常被用于定义文档的页眉
+- 通常包含
+	- 一个或多个标题元素
+	- 徽章或图标
+	- 作者信息
+-  `<footer>` 标签定义文档或小节的页脚
+- 通常包含
+	- 作者信息
+	- 版权信息
+	- 站点地图
+	- 相关页面
+```html
+<header>  
+    <h1>这里是主页标题</h1>  
+    <p>由xxx发布</p>  
+</header>  
+<footer>  
+    <p>作者：xxx</p>  
+    <p><a href="mailto:bill@example.com">bill@example.com</a></p>  
+</footer>
+```
+![[html5_6.png]]
+### 2.1.6 \<main> & \<section>
+- `<main>` 标签规定文档的主要内容
+- 类似于 `<body>`
+- `<section>` 则是定义文档中的一个部分
+```html
+<main>
+  <h1>...</h1>
+  <p>...</p>
+  
+  <article>...</article>
+  <section>...</section>
+</main>
+```
+### 2.1.7 \<mark>
+- 定义应标记或突出显示的文本
+```html
+<p>今天不要忘记玩<mark>原神</mark>!!!</p>
+```
+![[html5_7.png]]
+### 2.1.8 \<nav>
+- `<nav>` 标签定义了一组导航链接
+```html
+<nav>
+  <a href="/html/">HTML</a> |
+  <a href="/css/">CSS</a> |
+  <a href="/js/">JavaScript</a> |
+  <a href="/python/">Python</a>
+</nav>
+```
+![[html5_8.png]]

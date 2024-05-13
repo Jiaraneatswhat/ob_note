@@ -830,8 +830,39 @@ printf("%d", e);
 	- `win` 下行结尾是 `\r\n`, 文本模式读的是 `\n`, 二进制模式读的是 `\r\n`
 	- `linux` 下没区别
 ## 7.2 fputc() & fgetc()
+- `fputc()` 一次写入一个字符，返回字符的 `ascii` 码
+- `fgetc()` 一次读取一个字符，返回字符的 `ascii` 码
 - `int __cdecl fputc(int _Character, FILE *_Stream)`
 - `int __cdecl fgetc(FILE *_Stream)`
 ```c
+FILE* pf = NULL;
+// 判断打开是否成功
+// "w" 打开时就会清理掉之前的内容
+if (fopen_s(&pf, "hello.txt", "w") != 0)
+	return 0;
+fputc('d', pf);
+fputc('a', pf); 
+fputc('\n', pf); 
+fputc('d', pf);  // 输出 da /n d 
+fclose(pf);
 
+printf("%c", fgetc(pf)); // h
+printf("%c", fgetc(pf)); // e
+printf("%c", fgetc(pf)); // l
+printf("%c", fgetc(pf)); // l
+fclose(pf);
 ```
+- 循环读
+```c
+while (1)
+{
+	int a = fgetc(pf);
+	if (feof(pf))
+		break;
+	putchar(a);
+}
+```
+## 7.3 fputs() & fgets()
+- 读取或写入多个字符
+- `int __cdecl fputs(const char *_Buffer, FILE *_Stream)`
+- `char *__cdecl fgets(char *_Buffer, int _MaxCount, FILE *_Stream)`

@@ -642,5 +642,48 @@ strncpy(str, 5, "hello world", 3) // 添加 '\0'，正常输出
 // 字符串拼接
 char *__cdecl strcat(char *_Destination, const char *_Source)
 
+errno_t __cdecl strcat_s(char *_Destination, rsize_t _SizeInBytes, const char *_Source)
 
+// 字符串拼接 n 个 
+// 将 src 中前 _Count 个字符拼接到 _Destination的尾部
+char *__cdecl strncat(char *_Destination, const char *_Source, size_t _Count) // 自动加 '\0'
+
+errno_t __cdecl strncat_s(char *_Destination, rsize_t _SizeInBytes, const char *_Source, rsize_t _MaxCount)
+
+// 字符串比较
+int __cdecl strcmp(const char *_Str1, const char *_Str2)
+
+int __cdecl strncmp(const char *_Str1, const char *_Str2, size_t _MaxCount)
+
+// 字符串长度
+size_t __cdecl strlen(const char *_Str)
+
+// strlen 不计算 '\0', sizeof 会计算 '\0'
+printf("%d %d", strlen("abc"), sizeof("abc")); // 3 4
+
+// strlen 遇到 '\0' 终止
+printf("%d %d", strlen("abc\0def"), sizeof("abc\0def")); // 3 8(两个'\0')
 ```
+# 6 结构体
+```c
+// 定义在 main() 外
+struct structName
+{
+	char field1;
+	int field2;
+	double field3;
+	...
+};
+
+int main(void) 
+{
+	// c 需要写 struct 关键字
+	struct structName struct1;
+	struct structName struct2 = {"name", 10, 20.0};
+	struct structName *p = &struct2;
+	struct structName *p2 = (struct structName*)
+						malloc(sizeof(struct structName));
+}
+```
+- 访问结构体元素
+	- p

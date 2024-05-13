@@ -881,3 +881,13 @@ while (1)
 fputs("hello scala", pf);
 ```
 ## 7.4 fprintf() & fscanf()
+- 格式化读写
+- `inline int __cdecl fprintf(FILE *const _Stream, const char *const _Format, ...)`
+- `inline int __cdecl fscanf(FILE *const _Stream, const char *const _Format, ...)`
+- `inline int __cdecl fscanf_s(FILE *const _Stream, const char *const _Format, ...)`
+```c
+// 格式化写
+fprintf(pf, "a:%d,b%lf,s%s", 12, 34.5, "hello rr");
+// 格式化读
+
+```

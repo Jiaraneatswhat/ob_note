@@ -958,4 +958,18 @@ putchar(fgetc(pf));
 - 宏
 	- 常量宏: 不参与计算，在预编译阶段进行替换
 		- `#define N 12`
-		- `#def`
+		- `#define M printf`
+	- 参数宏
+		- `#define N(x, y) x + y`
+- 存储类说明符
+	- `typedef` 类型重命名
+		- `typedef int my_int;`
+		- `typedef int* p_my_int;`
+		- `typedef int arr[n];`
+		- `typedef int(*parr)[3];`
+		- `typedef int(*pfun)(int, double);`
+	- 全局变量 `extern`
+		- 作用域是整个工程，只能定义在源文件中
+		- 默认初始化为 `0`
+		- 其他源文件需要使用时，先声明 `extern type name`，不能初始化，否则就会重定义
+		- 全局变量与局部变量同名时，局部变量起作用

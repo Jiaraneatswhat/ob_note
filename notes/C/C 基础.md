@@ -933,5 +933,18 @@ putchar(fgetc(pf));// b
 fseek(pf, 4, SEEK_SET); // 跳一个字符
 putchar(fgetc(pf)); // e
 
+putchar(fgetc(pf));
+putchar(fgetc(pf));
+fseek(pf, -1, SEEK_END); // 以 EOF 为0，向左移动到倒数第一个字符
+putchar(fgetc(pf));
 
+// 如果换行结尾，SEEK_END向回读时，行尾是'\r\n'
 ```
+## 8 其他
+- `#include "xxx" <xxx>` 的区别
+	- 标准库文件使用 `<>`, 自定义头文件使用 `""`
+	- 查找的起始路径不一样
+		- `""` 会先去工程文件所在路径查找，再去默认路径找
+		- `<>` 会直接在默认路径找
+	-  直接写头文件绝对路径的编译效率高 
+- 防止头文件重复包含

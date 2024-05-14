@@ -940,7 +940,7 @@ putchar(fgetc(pf));
 
 // 如果换行结尾，SEEK_END向回读时，行尾是'\r\n'
 ```
-# 8 其他
+# 8 宏与存储类说明符
 - `#include "xxx" <xxx>` 的区别
 	- 标准库文件使用 `<>`, 自定义头文件使用 `""`
 	- 查找的起始路径不一样
@@ -955,21 +955,50 @@ putchar(fgetc(pf));
 		- 旧标准使用 `#ifndef + 标识`
 			- 标识一般是 `_ + 头文件名大写`，将其中的 `.` 换成 `_`，例如 `_STDIO_H`
 			- `#ifndef -> #define -> #else -> #endif`
-- 宏
-	- 常量宏: 不参与计算，在预编译阶段进行替换
-		- `#define N 12`
-		- `#define M printf`
-	- 参数宏
-		- `#define N(x, y) x + y`
-- 存储类说明符
-	- `typedef` 类型重命名
-		- `typedef int my_int;`
-		- `typedef int* p_my_int;`
-		- `typedef int arr[n];`
-		- `typedef int(*parr)[3];`
-		- `typedef int(*pfun)(int, double);`
-	- 全局变量 `extern`
-		- 作用域是整个工程，只能定义在源文件中
-		- 默认初始化为 `0`
-		- 其他源文件需要使用时，先声明 `extern type name`，不能初始化，否则就会重定义
-		- 全局变量与局部变量同名时，局部变量起作用
+## 8.1 宏
+- 常量宏: 不参与计算，在预编译阶段进行替换
+	- `#define N 12`
+	- `#define M printf`
+- 参数宏
+	- `#define N(x, y) x + y`
+## 8.2 存储类说明符
+- `typedef` 类型重命名
+	- `typedef int my_int;`
+	- `typedef int* p_my_int;`
+	- `typedef int arr[n];`
+	- `typedef int(*parr)[3];`
+	- `typedef int(*pfun)(int, double);`
+- 全局变量 `extern`
+	- 作用域是整个工程，只能定义在源文件中
+	- 默认初始化为 `0`
+	- 其他源文件需要使用时，先声明 `extern type name`，不能初始化，否则就会重定义
+	- 全局变量与局部变量同名时，局部变量起作用
+- `static`
+	- 在全局变量前加 `static`
+		- 作用域是所在文件，与程序共存亡
+		- 不同文件定义重名的只在各自文件中使用的全局变量，就声明为 `static`
+	- 在局部变量前加 `static`
+		- 作用域是所在大括号，与程序共存亡
+```c
+void fun(void) 
+{
+	static int a = 1;
+	a++;
+}
+
+fun() // a = 2
+fun() // a = 3, 不会重新赋值
+```
+- `auto` 局部变量
+	- 声明周期在大括号内
+	- 局部变量自带 `auto` 关键字，可省略
+	- 自动指空间自动申请释放，由 `OS` 管理
+- `register`
+	- 向编译器建议将数据存在寄存器中
+		- 取决于 `OS` 的调度算法
+		- 一般不存
+	- 不能取地址，不能为静态
+	- 用于提高程序的执行速度
+- `const`
+- 
+	

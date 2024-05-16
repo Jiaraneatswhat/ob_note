@@ -413,9 +413,6 @@
 - 通常作为侧边栏放置在文档中
 - 通过 `CSS` 设置其样式
 ```html
-<!DOCTYPE html>
-<html>
-<head>
 <style>
 aside {
   width: 30%;
@@ -434,7 +431,6 @@ aside {
   <p>This is an aside </p>
 </aside>
 </body>
-</html>
 ```
 ![[html5_3.png]]
 ### 2.1.3 \<details> & \<summary>

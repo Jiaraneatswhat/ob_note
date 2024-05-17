@@ -224,3 +224,59 @@ _Bool remove_node(Node node, int index)
 }
 ```
 ## 1.4 循环链表
+```c
+#include <stdio.h>  
+#include <malloc.h>  
+  
+typedef int E;  
+  
+struct ListNode  
+{  
+    E value;  
+    struct ListNode* next;  
+};  
+  
+typedef struct ListNode * Node;  
+  
+void init_list(Node node)  
+{  
+    node->next = node;  
+}  
+  
+_Bool insert_node(Node node, E value, int index)  
+{  
+    Node head = node;  
+    while (index--)  
+    {  
+        node = node->next;  
+        if (node == head) return 0;  
+    }  
+    Node added = malloc(sizeof (struct ListNode));  
+    if (added == NULL) return 0;  
+    added->value = value;  
+    if (node->next != head)  
+    {  
+        added->next = node->next;  
+    } else added->next = head;  
+    node->next = added;  
+    return 1;  
+}  
+  
+_Bool remove_node(Node node, int index)  
+{  
+    Node head = node;  
+    while (index--)  
+    {  
+        node = node->next;  
+        if (node == head) return 0;  
+    }  
+    if (node->next == NULL) return 0;  
+    Node removed = node->next;  
+    if (node->next->next)  
+    {  
+        node->next = node->next->next;  
+    } else node->next = head;  
+    free(removed);  
+    return 1;  
+}
+```

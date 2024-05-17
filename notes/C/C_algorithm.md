@@ -90,3 +90,77 @@ int find_element(ArrayList list, E e)
     return -1;  
 }
 ```
+## 1.2 单向链表
+```c
+#include <stdio.h>  
+#include <malloc.h>  
+  
+typedef int E;  
+  
+struct ListNode  
+{  
+    E value;  
+    struct ListNode *next;  
+};  
+  
+typedef struct ListNode * Node;  
+  
+void init_list(Node node)  
+{  
+    node->next = NULL;  
+}  
+  
+Node find_node(Node node, int index)  
+{  
+    for (int i = 0; node != NULL; node = node->next, i++)  
+    {  
+        if (i == index)  
+        {  
+            return node;  
+        }  
+    }  
+    return NULL;  
+}  
+  
+E * get_elem(Node node, int index)  
+{  
+    Node target = find_node(node, index);  
+    if (target != NULL)   
+        return &target->value;  
+    return NULL;  
+}  
+  
+_Bool insert_node(Node node, int value, int index)  
+{  
+    Node prev = find_node(node, index);  
+    Node added = malloc(sizeof(struct ListNode));  
+    if (added == NULL) return 0;  
+    added->next = prev->next;  
+    prev->next = added;  
+    added->value = value;  
+    return 1;  
+}  
+  
+_Bool remove_node(Node node, int index)  
+{  
+    if (node == NULL) return 0;  
+    Node prev = find_node(node, index);  
+    Node tmp = prev->next;  
+    prev->next = prev->next->next;  
+    free(tmp);  
+    return 1;  
+}  
+  
+void print_list(Node node)  
+{  
+    while (node->next)  
+    {  
+        // 头结点不存数据，先移动一位  
+        node = node->next;  
+        printf("%d   ", node->value);  
+    }  
+}
+```
+- 插入，查找，删除的复杂度均为 $O(n)$
+- 删除最后一个元素的操作与长度有关
+## 1.3 双向链表

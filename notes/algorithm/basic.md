@@ -195,11 +195,11 @@ public insert(int index, int value) {
 }
 
 public void addLast(int value) {
-		Node last = tail.prev;
-		Node added = new Node(last, value, tail);
-		last.next = added;
-		tail.prev = added;
-	}
+	Node last = tail.prev;
+	Node added = new Node(last, value, tail);
+	last.next = added;
+	tail.prev = added;
+}
 ```
 ### 1.2.2 remove()
 ```java

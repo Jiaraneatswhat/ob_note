@@ -281,6 +281,61 @@ _Bool remove_node(Node node, int index)
 }
 ```
 ## 1.5 栈
+- 数组实现
+```c
+#include <stdio.h>
+#include <malloc.h>
+
+typedef int E;
+struct Stack_base
+{
+    E * array;
+    int capacity;
+    int top; // 栈顶元素下标
+};
+typedef struct Stack_base * Stack;
+
+_Bool init_stack(Stack stack)
+{
+    stack->array = malloc(sizeof (E) * 10);
+    if (stack->array == NULL) return 0;
+    stack->capacity = 10;
+    stack->top = -1;
+    return 1;
+}
+
+_Bool push(Stack stack, E e)
+{
+    if (stack->top + 1 == stack->capacity)
+    {
+        int new_cap = stack->capacity + (stack->capacity << 1);
+        E * new_arr = realloc(stack->array, new_cap * sizeof (E));
+        if (new_arr == NULL) return 0;
+        stack->array = new_arr;
+        stack->capacity = new_cap;
+    }
+    stack->array[++stack->top] = e;
+    return 1;
+}
+
+_Bool is_empty(Stack stack)
+{
+    return stack->top == -1;
+}
+
+E pop(Stack stack)
+{
+    return stack->array[stack->top--];
+}
+
+void print_stack(Stack stack)
+{
+    for (int i = 0; i < stack->top + 1; i++)
+        printf("%d  ", stack->array[i]);
+    printf("\n");
+}
+```
+- 链表实现
 ```c
 #include <stdio.h>  
 #include <malloc.h>  
@@ -333,6 +388,7 @@ E pop(Node node)
 }
 ```
 ## 1.6 队列
+- 队首和队尾一开始都在 -1 的位置
 ```c
 
 ```

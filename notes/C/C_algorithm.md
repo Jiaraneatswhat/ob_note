@@ -281,3 +281,54 @@ _Bool remove_node(Node node, int index)
 }
 ```
 ## 1.5 栈
+```c
+#include <stdio.h>  
+#include <malloc.h>  
+typedef int E;  
+struct ListNode  
+{  
+    E value;  
+    struct ListNode * next;  
+};  
+  
+typedef struct ListNode * Node;  
+  
+void init_stack(Node node)  
+{  
+    node->next = NULL;  
+}  
+  
+_Bool push(Node node, E e)  
+{  
+    // 头插法  
+    Node pushed = malloc(sizeof (struct ListNode));  
+    if (pushed == NULL) return 0;  
+    pushed->value = e;  
+    pushed->next = node->next;  
+    node->next = pushed;  
+    return 1;  
+  
+}  
+  
+void print_stack(Node node)  
+{  
+    do {  
+        node = node->next;  
+        printf("%d  ", node->value);  
+    } while (node->next != NULL);  
+}  
+  
+_Bool is_empty(Node node)  
+{  
+    return node->next == NULL;  
+}  
+  
+E pop(Node node)  
+{  
+    Node popped = node->next;  
+    E value = popped->value;  
+    node->next = node->next->next;  
+    free(popped);  
+    return value;  
+}
+```

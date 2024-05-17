@@ -280,3 +280,4 @@ _Bool remove_node(Node node, int index)
     return 1;  
 }
 ```
+## 1.5 栈

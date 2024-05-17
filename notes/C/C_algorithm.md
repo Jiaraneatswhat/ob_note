@@ -164,3 +164,63 @@ void print_list(Node node)
 - 插入，查找，删除的复杂度均为 $O(n)$
 - 删除最后一个元素的操作与长度有关
 ## 1.3 双向链表
+```c
+#include <stdio.h>  
+#include <malloc.h>  
+  
+typedef int E;  
+  
+struct ListNode  
+{  
+    E value;  
+    struct ListNode * prev;  
+    struct ListNode * next;  
+};  
+  
+typedef struct ListNode * Node;  
+  
+void init_list(Node node)  
+{  
+    node->prev = node->next = NULL;  
+}  
+  
+_Bool insert_node(Node node, E value, int index)  
+{  
+    if (index < 0) return 0;  
+    while (index--)  
+    {  
+        node = node->next;  
+        if (node == NULL) return 0;  
+    }  
+    Node added = malloc(sizeof (struct ListNode));  
+    if (added == NULL) return 0;  
+    added->value = value;  
+    if (node->next != NULL)  
+    {  
+        added->next = node->next;  
+        node->next->prev = added;  
+    } else added->next = NULL;  
+    node->next = added;  
+    added->prev = node;  
+    return 1;  
+}  
+  
+_Bool remove_node(Node node, int index)  
+{  
+    while (index--)  
+    {  
+        node = node->next;  
+        if (node == NULL) return 0;  
+    }  
+    if (node->next == NULL) return 0;  
+    Node removed = node->next;  
+    if (node->next->next) // 待删除的不是最后一个节点  
+    {  
+        node->next->next->prev = node;  
+        node->next = node->next->next;  
+    } else node->next = NULL;  
+    free(removed);  
+    return 1;  
+}
+```
+## 1.4 循环链表

@@ -332,3 +332,7 @@ E pop(Node node)
     return value;  
 }
 ```
+## 1.6 队列
+```c
+
+```

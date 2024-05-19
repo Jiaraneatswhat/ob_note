@@ -47,5 +47,22 @@ str = 'abcdef'
 str.capitalize() # Abcdef
 ```
 - builtins.pyi
+```python
+# pyi 文件用于检查类型，定义参数类型和返回类型
+class str(Sequence[str]):
+	@overload
+    def capitalize(self) -> str: ...  # type: ignore[misc]
+
+class bytes(Sequence[int]):
+	@overload
+	def capitalize(self) -> bytes: ...
+	@overload
+    def capitalize(self: LiteralString) -> LiteralString: ...
+
+class bytearray(MutableSequence[int]):
+	def capitalize(self) -> bytearray: ...
 ```
+- bytes_methods.c
+```c
+
 ```

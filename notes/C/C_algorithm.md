@@ -388,7 +388,127 @@ E pop(Node node)
 }
 ```
 ## 1.6 队列
-- 队首和队尾一开始都在 -1 的位置
+- 队首和队尾一开始都在 0 的位置
+- 顺序表实现
 ```c
-
+#include <stdio.h>  
+#include <malloc.h>  
+  
+typedef int E;  
+  
+struct Queue_base  
+{  
+    E * array;  
+    int capacity;  
+    int front;  
+    int rear;  
+};  
+  
+typedef struct Queue_base * Queue;  
+  
+_Bool init_queue(Queue queue)  
+{  
+    queue->array = malloc(sizeof (E) * 10);  
+    if (queue->array == NULL) return 0;  
+    queue->capacity = 10;  
+    queue->front = queue->rear = 0;  
+    return 1;  
+}  
+  
+_Bool offer(Queue queue, E e)  
+{  
+	// 循环数组
+    int new_rear = (queue->rear + 1) % queue->capacity;  
+    if (new_rear + 1 == queue->front) return 0; // 数组已满  
+    queue->array[new_rear] = e;  
+    queue->rear = new_rear;  
+    return 1;  
+}  
+  
+_Bool is_empty(Queue queue)  
+{  
+    return queue->front == queue->rear;  
+}  
+  
+E poll(Queue queue)  
+{  
+    queue->front = (queue->front + 1) % queue->capacity;  
+    return queue->array[queue->front];  
+}  
+  
+void print_queue(Queue queue)  
+{  
+    int i = queue->front;  
+    do  
+    {  
+        i = (i + 1) % queue->capacity;  
+        printf("%d  ", queue->array[i]);  
+    } while (i != queue->rear);  
+}
 ```
+- 链表实现
+```c
+#include <stdio.h>  
+#include <malloc.h>  
+  
+typedef int E;  
+struct Queue_node  
+{  
+    E e;  
+    struct Queue_node * next;  
+};  
+  
+typedef struct Queue_node * Node;  
+  
+struct Queue_base  
+{  
+    Node front, rear;  
+};  
+  
+typedef struct Queue_base * Queue;  
+  
+_Bool init_queue(Queue queue)  
+{  
+    Node node = malloc(sizeof (struct Queue_node));  
+    if (node == NULL) return 0;  
+    queue->front = queue->rear = node;  
+    return 1;  
+}  
+  
+_Bool offer(Queue queue, E e)  
+{  
+    Node added = malloc(sizeof (struct Queue_node));  
+    if (added == NULL) return 0;  
+    added->e = e;  
+    queue->rear->next = added;  
+    queue->rear = added;  
+    added->next = NULL;  
+    return 1;  
+}  
+  
+_Bool is_empty(Queue queue)  
+{  
+    return queue->front == queue->rear;  
+}  
+  
+E poll(Queue queue)  
+{  
+    Node polled = queue->front->next;  
+    E e = polled->e;  
+    queue->front->next = queue->front->next->next;  
+    if (queue->rear == polled) queue->rear = queue->front; // 如果队尾是待出队的节点，将队尾移至队首  
+    free(polled);  
+    return e;  
+}  
+  
+void print_queue(Queue queue)  
+{  
+    Node node = queue->front->next;  
+    while (node)  
+    {  
+        printf("%d  ", node->e);  
+        node = node->next;  
+    }  
+}
+```
+# 2 树

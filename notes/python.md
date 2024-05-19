@@ -41,7 +41,11 @@ str[0:: 2] # 省略尾
 str[-1:: -3] # '963' 倒序索引
 ```
 #### 1.1.2.2 常用方法
-####
+##### 1.1.2.2.1 capitalize()
 ```python
-
+str = 'abcdef'
+str.capitalize() # Abcdef
+```
+- builtins.pyi
+```
 ```

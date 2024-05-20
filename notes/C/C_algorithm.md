@@ -558,3 +558,23 @@ void print_queue(Queue queue)
 - 一个有 $n$ 个结点的完全二叉树，对于任意一个结点 $i$，从上到下，从左到右：
 	- 左孩子为 $2i$, 右孩子为 $2i+1$, 超出 $n$ 则说明不存在对应的子结点
 	- $i=1$ 的是根节点，父节点为 $\left \lfloor i/2 \right \rfloor$
+### 2.1.4 练习
+- 给定 N 个结点，能构造多少种二叉树
+	- 有 0 个或 1 个结点，$h(0)=h(1)=1$
+	- 有 2 个结点，$h(2)=h(1)\times h(0) + h(0) \times h(1) = 2$
+	- 有 3 个结点，$h(3)=h(2) \times h(0) \times 2 + h(1) \times h(1) = 5$
+```c
+int dp[size + 1];
+dp[0] = dp[1] = 1;
+for (int i = 2; i <= size; i++)
+{
+	dp[i] = 0;
+	for (int j = 0; j < i; j++)
+		dp[i] += dp[i - j - 1] * dp[j]
+}
+```
+- 通项式：
+$$
+C_{n} =\frac{1}{n+1}C_{2n}^{n}=\frac{1}{n+1}\times \frac{(2n)!}{n!\times (2n-n)!}=\frac{(2n)!}{n!\times (n+1)!}   
+$$
+- 一棵完全二叉树

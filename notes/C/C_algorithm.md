@@ -522,3 +522,18 @@ void print_queue(Queue queue)
 
 ![[complete_bin_tree.svg]]
 - 满二叉树一定是完全二叉树
+- 树转二叉树
+
+![[tree2bin1.svg]]
+- 将兄弟节点间相连
+
+![[tree2bin2.svg]]
+
+- 删除右子节点相连的线
+
+![[tree2bin3.svg]]
+
+- 将添加的线作为右节点的连线
+
+![[tree2bin4.svg]]
+- 森林转换二叉树

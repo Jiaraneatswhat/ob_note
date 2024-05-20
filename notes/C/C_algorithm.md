@@ -577,4 +577,4 @@ for (int i = 2; i <= size; i++)
 $$
 C_{n} =\frac{1}{n+1}C_{2n}^{n}=\frac{1}{n+1}\times \frac{(2n)!}{n!\times (2n-n)!}=\frac{(2n)!}{n!\times (n+1)!}   
 $$
-- 一棵完全二叉树
+- 一棵完全二叉树有 1001 个结点，叶子结点的个数

@@ -629,3 +629,12 @@ int main(void)
 }
 ```
 ### 2.1.6 遍历
+- 前序遍历
+```c
+// 递归
+void pre_order(Node node)
+{
+	if (node == NULL) return;
+	pre_order(node->lef)
+}
+```

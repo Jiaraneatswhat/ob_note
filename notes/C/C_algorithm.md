@@ -558,7 +558,7 @@ void print_queue(Queue queue)
 - 一个有 $n$ 个结点的完全二叉树，对于任意一个结点 $i$，从上到下，从左到右：
 	- 左孩子为 $2i$, 右孩子为 $2i+1$, 超出 $n$ 则说明不存在对应的子结点
 	- $i=1$ 的是根节点，父节点为 $\left \lfloor i/2 \right \rfloor$
-### 2.1.4 练习
+### 2.1.4 性质相关练习
 - 给定 N 个结点，能构造多少种二叉树
 	- 有 0 个或 1 个结点，$h(0)=h(1)=1$
 	- 有 2 个结点，$h(2)=h(1)\times h(0) + h(0) \times h(1) = 2$
@@ -717,6 +717,27 @@ void post_order_traverse(Node node)
 }
 ```
 - 层序遍历
+	- 将根节点存入队列中
+	- 循环执行直到队列为空：
+		- 出队一个元素并打印
+		- 左右结点入队
 ```c
-
+void level_order_traverse(Node node)  
+{  
+    struct Queue_base queue;  
+    init_queue(&queue);  
+    offer(&queue, node);  
+    while (!is_empty(&queue))  
+    {  
+        Node polled = poll(&queue);  
+        printf("%c ", polled->e);  
+        if(polled->left)  
+            offer(&queue, polled->left);  
+        if(polled->right)  
+            offer(&queue, polled->right);  
+    }  
+}
 ```
+### 2.1.7 遍历相关练习
+- 有一棵二叉树前序遍历结果为 `ABCDE`，中序遍历结果为 `BADCE`，后序遍历结果为_____
+	- 

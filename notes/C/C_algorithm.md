@@ -590,3 +590,42 @@ $$
 - 一棵有 $1025$ 个结点的二叉树层数 $k$ 的取值范围
 	- 直接排成一条线的深度最大, $1025$
 	- 完全二叉树深度最小，取 $log$ $+ 1$ 得 $11$
+### 2.1.5 构建
+```c
+typedef char E;  
+  
+typedef struct TreeNode  
+{  
+    E e;  
+    struct TreeNode * left;  
+    struct TreeNode * right;  
+} * Node;  
+  
+int main(void)  
+{  
+    Node a = malloc(sizeof(struct TreeNode));  
+    Node b = malloc(sizeof(struct TreeNode));  
+    Node c = malloc(sizeof(struct TreeNode));  
+    Node d = malloc(sizeof(struct TreeNode));  
+    Node e = malloc(sizeof(struct TreeNode));  
+  
+    a->e = 'A';  
+    b->e = 'B';  
+    c->e = 'C';  
+    d->e = 'D';  
+    e->e = 'E';  
+  
+    a->left = b;  
+    a->right = c;  
+    b->left = d;  
+    b->right = e;  
+    // 叶子节点置为 NULL    c->left = c->right =NULL;  
+    d->left = d->right =NULL;  
+    e->left = e->right =NULL;  
+  
+    printf("%c\n", a->left->left->e);  
+    printf("%c\n", a->left->right->e);  
+  
+}
+```
+### 2.1.6 遍历

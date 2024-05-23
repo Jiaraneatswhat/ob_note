@@ -635,6 +635,12 @@ int main(void)
 void pre_order(Node node)
 {
 	if (node == NULL) return;
-	pre_order(node->lef)
+	pre_order(node->left);
+	pre_order(node->right);
 }
+
+// 非递归
+// 每走一步，输出结点的值，入栈
+// 走到头出栈，有右子树的话重复上述步骤
+
 ```

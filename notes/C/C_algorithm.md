@@ -660,3 +660,22 @@ void pre_order_traverse(Node node)
     }  
 }
 ```
+- 中序遍历
+```c
+void in_order_traverse(Node node)
+{
+	struct StackNode head;  
+    init_stack(&head);  
+    while (node || !is_empty(&head))  
+    {  
+        // 处理完左子树        
+        while (node) {  
+            push(&head, node);  
+            node = node->left;  
+        }  
+        Node popped = pop(&head);  
+        printf("%c", popped->e);  
+        node = popped->right;  
+    }  
+}
+```

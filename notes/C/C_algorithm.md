@@ -681,5 +681,42 @@ void in_order_traverse(Node node)
 ```
 - 后序遍历
 ```c
+// 在 Node 中增加一个标志位
+typedef struct TreeNode  
+{  
+    E e;  
+    struct TreeNode * left;  
+    struct TreeNode * right;  
+    int flag; // 左右子树都需要遍历，0 表示左子树遍历完成，1 表示右子树遍历完成  
+} * Node;
+
+void post_order_traverse(Node node)  
+{  
+    struct StackNode head;  
+    init_stack(&head);  
+    while (node || !is_empty(&head))  
+    {  
+        while (node) {  
+            push(&head, node);  
+            node->flag = 0;  
+            node = node->left;  
+        }  
+        // 不出栈，只进行 peek        
+        node = peek(&head);  
+        if (node->flag == 0) {  
+            node->flag = 1;  
+            node = node->right;  
+        } else  
+        // 右子树已经遍历完, 出栈  
+        {  
+            printf("%c", node->e);  
+            pop(&head);  
+            node = NULL; // 跳过下一轮 while，直接去处理栈中元素  
+        }  
+    }  
+}
+```
+- 层序遍历
+```c
 
 ```

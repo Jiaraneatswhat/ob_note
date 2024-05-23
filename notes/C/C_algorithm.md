@@ -643,4 +643,20 @@ void pre_order(Node node)
 // 每走一步，输出结点的值，入栈
 // 走到头出栈，有右子树的话重复上述步骤
 
+void pre_order_traverse(Node node)  
+{  
+    struct StackNode head;  
+    init_stack(&head);  
+    while (node || !is_empty(&head))  
+    {  
+        // pop 右子树为空后跳过下面的循环继续 pop        
+        while (node) {  
+            printf("%c", node->e);  
+            push(&head, node);  
+            node = node->left;  
+        }  
+        Node popped = pop(&head);  
+        node = popped->right;  
+    }  
+}
 ```

@@ -163,3 +163,35 @@ int main()
 	func(20); // 直接传常量调用 func(const int &a)
 }
 ```
+- 默认参数不能重载
+```cpp
+void func(int a)...
+void func(int a, int b = 10)...
+
+int main()
+{
+	func(10) // 调用时有歧义 编译错误
+}
+```
+## 2.4 类和对象
+### 2.4.1 封装
+```cpp
+// 定义一个 Circle 类
+class Circle
+{
+public:
+	int radius;
+	double get_perimeter()
+	{
+		return 2 * PI * radius;
+	}
+};
+
+int main()
+{
+	Circle c1;
+	c1.radius = 10.0;
+	cout << "perimeter = " << c1.get_perimeter() << endl;
+	system("pause");
+}
+```

@@ -134,3 +134,32 @@ int main()
 }
 ```
 - 常量引用
+```cpp
+// 加上 const 后编译器会自动创建大小为 10 的元素
+const int &ref = 10;
+ref = 30; // 报错，加了 const 只读
+
+// 加上 const 防止数据被修改
+void func(const int &val) ...
+```
+## 2.3 函数重载
+- 函数的占位参数
+```cpp
+void func(int a , int) ...
+
+// 占位参数默认值
+void func(int a, double = 1.1) ...
+```
+- 重载基本条件与 `java` 相同
+- 引用作为重载
+```cpp
+void func(int &a)...
+void func(const int &a)...
+
+int main()
+{
+	int a = 10;
+	func(a); // a 是变量，调用 func(int &a)
+	func(20); // 直接传常量调用 func(const int &a)
+}
+```

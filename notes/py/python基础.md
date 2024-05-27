@@ -41,28 +41,33 @@ str[0:: 2] # 省略尾
 str[-1:: -3] # '963' 倒序索引
 ```
 #### 1.1.2.2 常用方法
-##### 1.1.2.2.1 capitalize()
 ```python
-str = 'abcdef'
-str.capitalize() # Abcdef
+str = 'aabcdef'
+str.capitalize() # Aabcdef 不改变原字符串
+str.count('aa') # 2
+str.endswith('def') # True
+str.startswith('aa') # True
+str.index('bc') # 2
+str.rindex('a') # 5 从右向左查找
+str.upper()/lower()
+'a-b-c-d'.split('-') # ['a', 'b', 'c', 'd']
+
 ```
-- builtins.pyi
+### 1.1.3 list
+#### 1.1.3.1 定义
 ```python
-# pyi 文件用于检查类型，定义参数类型和返回类型
-class str(Sequence[str]):
-	@overload
-    def capitalize(self) -> str: ...  # type: ignore[misc]
-
-class bytes(Sequence[int]):
-	@overload
-	def capitalize(self) -> bytes: ...
-	@overload
-    def capitalize(self: LiteralString) -> LiteralString: ...
-
-class bytearray(MutableSequence[int]):
-	def capitalize(self) -> bytearray: ...
+list1 = [1, 2, 3, 4, 5]
+list2 = [1, 'a', True] # 可以存放不同类型的数据
+list3 = list1 + list2 # 拼接：[1, 2, 3, 4, 5, 1, 'a', True]
 ```
-- bytes_methods.c
-```c
+- 切片
+```python
+list3[0: : 2] = [1, 3, 5, 'a', True]
+list3[0: 2] = [] # 赋空值 [3, 4, 5, 1,..]
+# 'sep'.join(seq) 将 list 中的元素拼接成字符串
+" ".join([1, 2, 3]) # 1 2 3
+```
+#### 1.1.3.2 常用方法
+```python
 
 ```

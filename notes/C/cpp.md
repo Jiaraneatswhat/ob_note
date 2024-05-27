@@ -202,4 +202,4 @@ int main()
 - `struct` 和 `class` 的区别
 	- `struct` 默认的访问权限是 `public`
 	- `class` 默认的访问权限是 `private`
-- 
+### 2.4.2 对象特性

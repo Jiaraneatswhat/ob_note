@@ -47,4 +47,20 @@ cin >> a;
 cout << a << endl;
 ```
 # 2 面向对象
-## 2.1 内存模型
+## 2.1 new 操作符
+- `c++` 利用 `new` 在堆中开辟数据，返回一个指针
+- 删除使用 `delete`
+```cpp
+int *arr = new int[10];
+delete[] arr // 释放数组需要[]
+```
+- new 和 malloc()
+	- `new` 是关键字，`malloc()` 是函数
+	- `new` 申请内存无需指定大小，`new` 还会调用构造函数
+		- `malloc()` 需要显式指出所需内存
+	- `new` 返回的是对象类型指针，无需转换
+		- `malloc()` 返回的是 `void*`，需要强转
+	- `new` 会调用 `operator new` 函数，可以重载，`malloc()` 不能重载
+	- `new` 在自由存储区分配内存，`c++` 默认使用堆来实现自由存储
+	- `new` 的效率比 `malloc()` 高
+## 2.2 引用

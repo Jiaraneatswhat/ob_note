@@ -17,6 +17,18 @@
 | float  | 4bytes | 7          |
 | double | 8bytes | 15-16      |
 - 默认输出 6 位有效数字
-### 1.1.3 字符型
-- 占一个 byte
-- 
+### 1.1.3 char
+
+| type    | size   |
+| ------- | ------ |
+| char    | 1byte  |
+| wchar_t | 2bytes |
+- `typedef unsigned short wchar_t`
+- `wchar_t` 用于存储外文字符
+- 定义时要以 `L` 开头，否则转换为 `char`
+- `char` 类型字符串以 `'\0'` 结尾，`wchar_t` 以 `'\0\0'` 结尾
+- 输出 `wchar_t` 类型需要 `wcout`
+
+### 1.1.4 string
+- 在 `C` 的 `char str[]`基础上，增加了新的定义方式 `string str = ""`
+- `string` 是 `basic_string` 的一个实例化类

@@ -39,5 +39,83 @@ final static char[] digits = {
 // 用于计算 Integer 转 String 后字符串长度
 final static int [] sizeTable = { 9, 99, 999, 9999, 99999, 999999, 9999999, 99999999, 999999999, Integer.MAX_VALUE };
 
+// DigitOnes 和 DigitTens 用于将数字转为 String
+// 十位数
+final static char [] DigitTens = {  
+    '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',  
+    '1', '1', '1', '1', '1', '1', '1', '1', '1', '1',  
+    '2', '2', '2', '2', '2', '2', '2', '2', '2', '2',  
+    '3', '3', '3', '3', '3', '3', '3', '3', '3', '3',  
+    '4', '4', '4', '4', '4', '4', '4', '4', '4', '4',  
+    '5', '5', '5', '5', '5', '5', '5', '5', '5', '5',  
+    '6', '6', '6', '6', '6', '6', '6', '6', '6', '6',  
+    '7', '7', '7', '7', '7', '7', '7', '7', '7', '7',  
+    '8', '8', '8', '8', '8', '8', '8', '8', '8', '8',  
+    '9', '9', '9', '9', '9', '9', '9', '9', '9', '9',  
+    } ;  
 
+// 个位数
+final static char [] DigitOnes = {  
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',  
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',  
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',  
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',  
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',  
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',  
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',  
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',  
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',  
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',  
+    } ;
+
+// 存放数字
+private final int value;
+
+// int 的字节数
+@Native public static final int SIZE = 32;
+
+public static final int BYTES = SIZE / Byte.SIZE;
+```
+# 2 constructor
+```java
+public Integer(int value) {  
+    this.value = value;  
+}
+
+public Integer(String s) throws NumberFormatException {  
+    this.value = parseInt(s, 10);  
+}
+```
+# 3 methods
+## 3.1 toString()
+```java
+public static String toString(int i, int radix) {  
+    if (radix < Character.MIN_RADIX || radix > Character.MAX_RADIX)  
+        radix = 10;  
+  
+    /* Use the faster version */  
+    if (radix == 10) {  
+        return toString(i);  
+    }  
+  
+    char buf[] = new char[33];  
+    boolean negative = (i < 0);  
+    int charPos = 32;  
+  
+    if (!negative) {  
+        i = -i;  
+    }  
+  
+    while (i <= -radix) {  
+        buf[charPos--] = digits[-(i % radix)];  
+        i = i / radix;  
+    }  
+    buf[charPos] = digits[-i];  
+  
+    if (negative) {  
+        buf[--charPos] = '-';  
+    }  
+  
+    return new String(buf, charPos, (33 - charPos));  
+}
 ```

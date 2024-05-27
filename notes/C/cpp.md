@@ -195,3 +195,11 @@ int main()
 	system("pause");
 }
 ```
+- `c++` 有三种访问权限
+	- `public` 
+	- `protected` 和 `private` 类内可以访问，类外不可以访问
+	- 子类可以访问父类的 `protected` 成员，`private` 不行
+- `struct` 和 `class` 的区别
+	- `struct` 默认的访问权限是 `public`
+	- `class` 默认的访问权限是 `private`
+- 

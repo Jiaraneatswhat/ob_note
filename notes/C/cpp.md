@@ -90,3 +90,47 @@ int main()
 	swap(a, b) // a的别名就是 swap() 中的 a  
 }
 ```
+- 引用做函数返回值
+```cpp
+int &test01()
+{
+	int a = 10;
+	return a;
+}
+int& test02()
+{
+	static int a = 10;
+	return a;
+}
+
+int main()
+{
+	int &ref = test01();
+	cout << ref << endl;
+	// 不要返回局部变量的引用
+	cout << ref << endl; // 第二次返回时结果会出错
+	system("pause");
+
+	int &ref = test02();
+	cout << ref << endl;
+	cout << ref << endl; // 加了 static 后可以多次返回
+	test02() = 1000; // 函数的调用可以做为左值
+	cout << ref << endl; // 1000
+}
+```
+- 引用的本质 - 指针常量
+```cpp
+void func(int& ref)
+{
+	ref = 100;
+}
+
+int main()
+{
+	int a = 10;
+	int &ref = a; // 编译器会转为 int* const ref = &a; 
+	ref = 20; // *ref = 20;
+	func(a);
+}
+```
+- 常量引用

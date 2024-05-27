@@ -46,4 +46,5 @@ cout << "input a number: " << endl;
 cin >> a;
 cout << a << endl;
 ```
-## 1.2 
+# 2 面向对象
+## 2.1 内存模型

@@ -28,7 +28,22 @@
 - 定义时要以 `L` 开头，否则转换为 `char`
 - `char` 类型字符串以 `'\0'` 结尾，`wchar_t` 以 `'\0\0'` 结尾
 - 输出 `wchar_t` 类型需要 `wcout`
-
 ### 1.1.4 string
 - 在 `C` 的 `char str[]`基础上，增加了新的定义方式 `string str = ""`
 - `string` 是 `basic_string` 的一个实例化类
+### 1.1.5 bool
+```cpp
+bool f1 = true;
+bool f2 = false;
+cout << f1 << endl; // 1
+cout << f2 << endl; // 0
+cout << sizeof f1 << endl // 1
+```
+### 1.1.6 cin
+```cpp
+int a = 0;
+cout << "input a number: " << endl;
+cin >> a;
+cout << a << endl;
+```
+## 1.2 

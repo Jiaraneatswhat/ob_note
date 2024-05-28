@@ -313,4 +313,17 @@ Circle(const Circle& c)
 	number = new int(*c.number);
 }
 ```
-#### 
+#### 2.4.2.4 初始化列表
+- 用于初始化属性
+```cpp
+class Circle
+{
+public:
+	double radius;
+	int number;
+	string color;
+
+	Circle(...): radius(10.0), number(20), color("red") {...}
+};
+```
+#### 2.4.2.5 静态成员

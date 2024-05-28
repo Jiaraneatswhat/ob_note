@@ -115,5 +115,39 @@ set2 ^ set3 # 对称差集 a - b ∪ b - a {2, 4, 6, 7}
 ```
 #### 1.1.5.2 方法
 ```python
-s = {'a', 'b', 'c'}
+s = {'a', 'b', 'c', 'd'}
+s.add('e')
+s.remove('a')
+s.discard('f') # 丢弃不存在的元素不报错
+s.clear()
+
+s1 = {1, 3, 5, 7}
+s2 = {2, 4, 6, 8}
+s1.difference(s2) # 差集
+s1.intersection(s2) # 交集
+s1.union(s2) # 并集
+s1.update(s2) # 将 s2 中的元素加到 s1 中
+```
+### 1.1.6 字典
+#### 1.1.6.1 定义
+```python
+dict0 = {} # 空字典
+dict1 = {'a': 1, 'b': 2, 'c': 3}
+dict2 = {'a': 1, 'a': 2, 'c': 3} # {'a': 2, 'c': 3} 自动覆盖重复的 v
+# 通过赋值添加元素
+dict1['d'] = 4 # {'a': 1, 'b': 2, 'c': 3, 'd': 4}
+```
+#### 1.1.6.2 方法
+```python
+dict1 = {'a': 1, 'b': 2, 'c': 3, 'd': None}
+dict2 = {'1': 'a', '2': 'b', '3': 'c'}
+
+len(dict1) # 4
+dict1.get('a') # 通过 k 获取 v
+dict1.items() # 返回 dict_items 对象: dict_items([('a', 1), ...])
+dict1.keys() # 返回 dict_keys 对象: dict_keys(['a', ...])
+dict1.update(dict2) # 将 dict2 中的 kv 对添加到 dict1 中
+
+dict1.pop('a') # 根据 k 删除 kv 对
+dict1.popitem() # 删除最后一个 kv 对
 ```

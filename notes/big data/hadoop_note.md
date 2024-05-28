@@ -8503,9 +8503,9 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 	- 从 `RM` 申请到资源后，选择 `NodeManager` 启动 `AM`
 	- `AM` 启动后执行 `Job`，产生事件交给状态机处理，仍然是申请资源，选择 `NM` 开启 `YarnChild` 进程执行任务
 ### 5.6 调度器特点
-- FIFO：单队列，不用
-- Capacity：多队列，队列内部 `FIFO`，用于并行度不高的场景
-- Fair：多队列，按照缺额分配，并行度高
+- FifoScheduler：单队列，不用
+- CapacityScheduler：多队列，队列内部 `FIFO`，用于并行度不高的场景
+- FairScheduler：多队列，按照缺额分配，并行度高
 - 在 `yarn-site.xml` 中配置队列
 - 队列的设置
 	- 框架，业务线，部门，人员
@@ -8611,6 +8611,7 @@ childUGI.doAs(new PrivilegedExceptionAction<Object>() {
 	- Parquet
 		- 支持嵌套结构的列式存储格式
 		- 适用于 `OLAP` 场景，按列存储和扫描
+	- ORC 比 parquet 更高效，且支持跨平台方面表现更好
 - 22 HDFS 修改文件名是不是一个原子性过程
 	- HDFS 创建文件，删除文件，重命名，创建目录都是原子性操作
 - 23 HDFS 写过程中，NN 挂掉会发生什么？DN ？客户端 ?

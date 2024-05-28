@@ -223,6 +223,7 @@ Circle(double r)
 	cout << "析构函数被调用" << endl;
 }
 ```
+#### 2.4.2.2 构造函数分类和调用
 - 构造函数的分类
 	- 有参/无参构造
 	- 普通/拷贝构造
@@ -260,5 +261,26 @@ int main()
 	- 值传递的方式给函数参数传值
 	- 以值方式返回局部对象
 ```cpp
+double get_area(Circle c)
+{	
+	return PI * c.radius * c.radius;
+}
 
+Circle get_circle() 
+{
+	Circle c;
+	return c;
+}
+
+void test()
+{
+	Circle c;
+	// c 作为形参传入时会调用拷贝构造函数
+	get_area(c);
+	// get_circle 返回值调用拷贝构造函数
+	Circle c_ = get_circle();
+}
 ```
+- 定义了有参构造，`c++` 会提供默认拷贝构造
+- 定义拷贝构造，`c++` 不提供其他构造函数
+- 

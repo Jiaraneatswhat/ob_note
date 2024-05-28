@@ -283,4 +283,34 @@ void test()
 ```
 - 定义了有参构造，`c++` 会提供默认拷贝构造
 - 定义拷贝构造，`c++` 不提供其他构造函数
-- 
+#### 2.4.2.3 深拷贝与浅拷贝
+- 浅拷贝：简单的赋值拷贝
+- 深拷贝：堆区重新申请空间进行拷贝
+```cpp
+// 浅拷贝会导致堆区内存重复释放
+// 在 Circle 类中新增一个属性 int *number
+Circle(double r, int num) {
+	radius = r;
+	// 将 number 声明在堆区
+	number = new int(num);
+}
+// 更新析构函数内容
+~Circle() 
+{	
+	if (number)
+	{
+		delete number;
+		number = NULL;
+	}
+}
+// 若不自定义拷贝构造函数，调用系统的做浅拷贝操作
+// 调用析构函数时释放内存，另一个对象在释放时就会报错
+// 自己实现一个拷贝构造函数，进行深拷贝
+Circle(const Circle& c)
+{
+	radius = c.radius;
+	// 开辟一个新空间
+	number = new int(*c.number);
+}
+```
+#### 

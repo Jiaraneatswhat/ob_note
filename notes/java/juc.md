@@ -21,7 +21,7 @@
 	- 状态包括程序计数器，虚拟机栈中每个帧的信息，局部变量，返回地址等
 # 2 java 线程
 ## 2.1 创建运行线程
-#### 2.1.1 Thread
+### 2.1.1 Thread
 ```java
 // 直接创建 Thread 对象，重写 run() 方法
 new Thread(() -> ...)
@@ -31,15 +31,32 @@ new Thread() {
 	public void run() {...}
 }
 ```
-### 2.1.1 Thread & Runnable
+### 2.1.2 Thread & Runnable
+- Runnable.java
 ```java
-// Runnable.java
 @FunctionalInterface  
 public interface Runnable {  
 	public abstract void run();  
 }
 ```
-
+- Runnable 作为 Thread 要执行的任务传入
 ```java
-// 
+Runnable r = () -> ...;  
+  
+Thread t = new Thread(r, "thread_name");
+
+// Thread 的构造方法中可以传入 Runnable
+public Thread(Runnable target, String name) {  
+    init(null, target, name, 0);  
+}
 ```
+### 2.1.3 Callable
+- Callable 有返回值
+- Callable.java
+```java
+@FunctionalInterface  
+public interface Callable<V> {  
+	V call() throws Exception;  
+}
+```
+

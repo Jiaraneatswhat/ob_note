@@ -1949,11 +1949,8 @@ def startup(): Unit = {
 #### 2.3.1.1 判断 isr 是否过期
 ```java
 private def maybeShrinkIsr(): Unit = {  
-  trace("Evaluating ISR list of partitions to see which replicas can be removed from the ISR")  
-  
   // Shrink ISRs for non offline partitions  
-  allPartitions.keys.foreach { topicPartition =>  
-    nonOfflinePartition(topicPartition).foreach(_.maybeShrinkIsr())  
+  allPartitions.keys.foreach { topicPartition => nonOfflinePartition(topicPartition).foreach(_.maybeShrinkIsr())  
   }  
 }
 

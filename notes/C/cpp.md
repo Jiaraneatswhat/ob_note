@@ -455,6 +455,65 @@ void func()
 	- 全局函数做友元
 	- 类做友元
 	- 成员函数做友元
+- 全局函数
+```cpp
+class Person
+{
+	// 全局函数访问私有属性
+	friend void get_info(Person& p);
+public:
+	int age;
+	Person()
+	{
+		age = 20;
+		pwd = "000000";
+	}
+private:
+	string pwd;
+};
+
+void get_info(Person &p)
+{
+	cout << "age: " << p.age << endl;
+	// 加了 friend 后可访问
+	cout << "pwd: " << p.pwd << endl;
+}
+```
+- 友元类
+```cpp
+class Person
+{
+	friend class Parent;
+public:
+	int age;
+	Person(); // 类内声明，可以在类外实现
+private:
+	string pwd;
+};
+
+// 类外实现构造器
+Person::Person()
+{
+	age = 20;
+	pwd = "111";
+}
+
+class Parent
+{
+public:
+	Person* p;
+	void show_person()
+	{
+		cout << p->age << endl;
+		cout << p->pwd << endl;
+	}
+	Parent()
+	{
+		p = new Person;
+	}
+};
+```
+- 成员函数
 ```cpp
 
 ```

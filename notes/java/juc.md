@@ -39,7 +39,7 @@ public interface Runnable {
 	public abstract void run();  
 }
 ```
-- Runnable 作为 Thread 要执行的任务传入
+- `Runnable` 作为 `Thread` 要执行的任务传入
 ```java
 Runnable r = () -> ...;  
   
@@ -50,8 +50,8 @@ public Thread(Runnable target, String name) {
     init(null, target, name, 0);  
 }
 ```
-### 2.1.3 Callable
-- Callable 有返回值
+### 2.1.3 Callable & FutureTask
+- `Callable` 有返回值
 - Callable.java
 ```java
 @FunctionalInterface  
@@ -59,4 +59,23 @@ public interface Callable<V> {
 	V call() throws Exception;  
 }
 ```
+- `FutureTask` 实现了 `RunnableFuture`
+- `RunnableFuture` 继承了 `Runnable` 和 `Future`
+```java
+// 定义一个 FutureTask
+FutureTask<Integer> task = new FutureTask<>(new Callable<Integer>() {  
+    @Override  
+    public Integer call() throws Exception {...}  
+});
 
+// FutureTask 的构造器可以传入 Callable 对象
+public FutureTask(Callable<V> callable) {  
+    if (callable == null)  
+        throw new NullPointerException();  
+    this.callable = callable;  
+    this.state = NEW; 
+}
+// 将 FutureTask 传入 Thread 构造方法中执行
+new Thread(task);
+
+```

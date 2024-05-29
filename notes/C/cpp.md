@@ -386,6 +386,61 @@ class Person
 }
 ```
 #### 2.4.3.2 this 指针
+- 本质是指针常量，不能修改指向 type* const p
 ```cpp
+class Person
+{
+public:
+	int age;
+	Person(int age)
+	{
+		this->age = age;
+	}
+	// 返回引用避免值传递
+	Person& add_age(Person p)
+	{
+		this->age += p.age;
+		// 返回对象本身用 *this
+		return *this;
+	}
+	void show_class()
+	{
+		cout << "Person" << endl;
+	}
+	void show_age()
+	{
+		cout << age << endl;
+	}
+};
+// 空指针可以访问成员，确保 this 不为 NULL 即可
+void test()
+{
+	Person *p = NULL;
+	p->show_class(); // 正常运行
+	p->show_age(); // age 前默认有 this，会报空指针
+}
+```
+#### 2.4.3.3 const 修饰成员函数
+- 常函数
+	- 常函数内不可修改成员属性
+	- 成员属性声明时加 `mutable` 关键字，在常函数中可以修改
+- 常对象只能调用常函数
+```cpp
+class Person
+{
+public:
+	int age;
+	mutable int num;
 
+	void show_person() const
+	{	
+		// 函数不加 const 时，this 指针相当于 Person * const this
+		// 函数加了 const 后，相当于 const Person * const this
+		// 指针指向的值也不能修改
+		age = 20; // 不能修改
+		num = 20; // 加了 mutable 后可以修改
+		cout << age << endl;
+	}
+	
+};
 ```

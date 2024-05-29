@@ -327,3 +327,46 @@ public:
 };
 ```
 #### 2.4.2.5 静态成员
+- 在成员变量和成员函数前加上 `static`
+- 静态成员变量
+	- 所有对象共享统一份数据
+	- 在编译阶段分配内存
+	- 类内声明，类外初始化
+- 静态成员函数
+	- 所有对象共享同一个函数
+	- 静态成员函数
+```cpp
+class Person
+{
+public:
+	static int age;
+	// 静态函数
+	static void func()
+	{
+		cout << "static func..." << endl;
+	}
+private:
+	// 静态变量也有访问权限
+	static int num;
+};
+
+// 类外初始化
+int Person::age = 10;
+int Person::num = 20;
+
+void test()
+{
+	Person p;
+	cout << p.age << endl;
+	cout << p.num << endl; // 访问不到
+
+	Person p1;
+	p1.age = 20; // p1 修改数据后，p 也会变
+	// 两种访问方式
+	cout << p.age << endl;
+	cout << Person::age << endl;
+
+	p.func();
+	Person::func();
+}
+```

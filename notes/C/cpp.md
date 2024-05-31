@@ -515,5 +515,15 @@ public:
 ```
 - 成员函数
 ```cpp
-
+class Person
+{
+	// 指明方法所属类
+	friend void Parent::show_person();
+public:
+	int age;
+	Person();
+private:
+	string pwd;
+};
 ```
+### 2.4.5 运算符重载

@@ -527,3 +527,40 @@ private:
 };
 ```
 ### 2.4.5 运算符重载
+- 运算符重载也可以进行函数重载
+- '+'的重载
+```cpp
+// 成员函数重载
+class Person
+{
+public:
+	int age;
+	int num;
+
+	// 将方法命名为 operator+
+	// 本质是 p1.operator+(p2)
+	Person operator+ (Person& p)
+	{
+		Person tmp;
+		tmp.age = this->age + p.age;
+		tmp.num = this->num + p.num;
+		return tmp;
+	}
+};
+
+// 全局函数重载
+Person operator+ (Person& p1, Person& p2) {...}
+
+int main()
+{
+	Person p1;
+	Person p2;
+	Person p3 = p1 + p2; // 可以直接通过 '+' 运算 
+}
+```
+- '<<'的重载
+```cpp
+// 要保证 cout 在左边，不能通过成员函数调
+// 只能作为全局函数
+
+```

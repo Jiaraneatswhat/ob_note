@@ -582,5 +582,48 @@ MyInteger& operator++ ()
 }
 
 // 重载后置 '++'
+// 后置需要返回值，不能返回局部变量引用
+MyInteger operator++ (int) // int 代表占位参数，表明是后置
+{
+	MyInteger tmp = *this;
+	value++;
+	return tmp;
+}
+```
+- '='的重载
+	- `c++` 会给一个类添加 4 个函数
+		- 默认空构造函数
+		- 默认空析构函数
+		- 默认拷贝构造函数，对属性进行值拷贝
+		- 赋值运算符 `operator=`, 对属性进行值拷贝 
+```cpp
+// 默认的'='会造成浅拷贝问题
+class Person
+{
+public:
+	Person(int age)
+	{
+		age_ptr = new int(age);
+	}
+	int *age_ptr;
+	~Person()
+	{
+		if (age_ptr)
+		{
+			delete age_ptr;
+			age_ptr = NULL;
+		}
+	}
+};
 
+void test1()
+{
+	Person p1(18);
+	cout << *p1.age_ptr << endl;
+	Person p2(20);
+	cout << *p2.age_ptr << endl;
+	// '=' 将 age 的地址传给 p2, 释放时就会出现问题
+	p2 = p1;
+	cout << *p2.age_ptr << endl;
+}
 ```

@@ -560,7 +560,27 @@ int main()
 ```
 - '<<'的重载
 ```cpp
+// 类似重写 toString(), 通过 cout 输出自己想要的对象
 // 要保证 cout 在左边，不能通过成员函数调
 // 只能作为全局函数
+// cout 的类型是 ostream
+// 要实现 cout << xxx << endl 的效果，返回值需要是 cout
+ostream& operator<< (ostream &cout, Person& p)
+{
+	cout << p.age << " " << p.num << endl;
+	return cout;
+} 
+```
+- ‘++’的重载
+```cpp
+// 返回引用保证一直操作同一个数据
+// 重载前置 '++'
+MyInteger& operator++ ()
+{
+	value++;
+	return *this;
+}
+
+// 重载后置 '++'
 
 ```

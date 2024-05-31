@@ -614,6 +614,18 @@ public:
 			age_ptr = NULL;
 		}
 	}
+	// 返回本身用于连等
+	Person& operator= (Person& p)
+	{	
+		// 先清除自己的属性
+		if (age_ptr)
+		{
+			delete age_ptr;
+			age_ptr = NULL;
+		}
+		age_ptr = new int(*p.age_ptr);
+		return *this;
+	}
 };
 
 void test1()
@@ -625,5 +637,11 @@ void test1()
 	// '=' 将 age 的地址传给 p2, 释放时就会出现问题
 	p2 = p1;
 	cout << *p2.age_ptr << endl;
+	Person p3(20);
+	p3 = p2 = p1;
 }
+```
+- 关系运算符重载
+```cpp
+// 类似 java 的 Coparable
 ```

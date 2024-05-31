@@ -643,5 +643,42 @@ void test1()
 ```
 - 关系运算符重载
 ```cpp
-// 类似 java 的 Coparable
+// 类似 java 的 Coparator 接口，自定义比较方式
+bool operator== (Person& p)
+{
+	return this->name == p.name && this->age == p.age;
+}
+bool operator< (Person& p)
+{
+	return this->age < p.age;
+}
 ```
+- 函数调用运算符'()'重载
+```cpp
+// 重载后的使用方式类似函数的调用，也被称为仿函数
+class MyPrint
+{
+public:
+	void operator() (string str)
+	{
+		cout << str << endl;
+	}
+};
+
+class MyAdd
+{
+public:
+	int operator() (int a, int b)
+	{
+		return a + b;
+	}
+};
+
+void test1()
+{	
+	// 可以通过匿名对象调用
+	MyPrint() ("hello");
+	cout << MyAdd() (1, 3) << endl;
+}
+```
+### 2.4.6 继承

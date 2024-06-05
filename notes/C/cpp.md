@@ -682,3 +682,38 @@ void test1()
 }
 ```
 ### 2.4.6 继承
+```cpp
+class BasePage
+{
+public:
+	void header()
+	{
+		cout << "首页" << endl;
+	}
+	void footer()
+	{
+		cout << "帮助中心" << endl;
+	}
+	void left()
+	{
+		cout << "分类列表" << endl;
+	}
+};
+
+// 继承父类
+class Java : public BasePage
+{
+public:
+	void content()
+	{
+		cout << "javaPage" << endl;
+	}
+};
+```
+#### 2.4.6.1 继承方式
+- 公共继承
+- 保护继承
+- 私有继承
+```cpp
+
+```

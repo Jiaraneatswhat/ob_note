@@ -151,3 +151,29 @@ dict1.update(dict2) # 将 dict2 中的 kv 对添加到 dict1 中
 dict1.pop('a') # 根据 k 删除 kv 对
 dict1.popitem() # 删除最后一个 kv 对
 ```
+# 2 流程控制，推导式，迭代器与生成器
+## 2.1 流程控制
+- if 语句
+```python
+if ...:
+	...
+elif ...:
+	...
+else:
+	...
+```
+- while
+```python
+while ...:
+	...
+
+# while 也可以搭配 else，在退出循环后执行:
+while ...:
+	...
+else:
+	...
+```
+- for
+```python
+for _ in range()
+```

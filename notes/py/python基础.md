@@ -259,3 +259,42 @@ def fibonacci(n):
         cnt += 1
 tuple(fibonacci(10))
 ```
+# 3 函数
+- 传入不可变类型是值传递，可变类型是引用传递
+```python
+def add_num(lst):
+	lst.append([1, 1])
+	print(id(lst)) # id 返回对象地址
+	return lst
+
+lst = [1, 2, 3]
+add_num(lst)
+print(id(lst)) # [[1, 2, 3, [1, 1]]] 地址与 add_num() 中相同
+```
+- 默认参数
+```python
+def sum(a, b = 10):
+	...
+```
+- 不定长参数
+```python
+# 加了 * 的参数用 tuple 存储
+def print_nums(a, *b):
+	print(a, b)
+
+print_nums(1, 2) # 1 (2,)
+print_nums(1, 5, 7) # 1 (5, 7)
+
+# 加了 ** 的参数用 dict 存储
+def print_dict(a, **b):
+	print(a, b)
+
+print_dict(1) # 1
+# 传入时用 ‘key=value’
+print_dict(1, k1='v1', a=1) # 1 {'k1': 'v1', 'a': '1'}
+```
+- lambda 函数
+```python
+f = lambda a, b: a ** b
+f(2, 3) # 8
+```

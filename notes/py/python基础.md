@@ -298,3 +298,63 @@ print_dict(1, k1='v1', a=1) # 1 {'k1': 'v1', 'a': '1'}
 f = lambda a, b: a ** b
 f(2, 3) # 8
 ```
+# 4 OOP
+- 空参构造
+```python
+# 定义一个 Person 类：
+class Person:
+	name = 'bob'
+	gender = 'male'
+	age = 24
+	# 方法中第一个参数必须为 self(或其他)，类似 this
+	def print_person(self):
+		print(self.name, self.gender, self.age)
+		
+# 自动调用空参方法 __init__()
+p = Person()
+print_person(p)
+```
+- 显式构造
+```python
+class Person:
+	name = ''
+	gender = ''
+	age = 0
+	def __init__(self, name, gender. age):
+		self.name = name
+		...		
+```
+- 继承
+```python
+class Student:
+	score = 0
+
+	def __init__(self, name, gender, age ,score):
+		# 在构造器第一行调父类构造实现继承
+		Person.__init__(self, name, gender, age)
+		self.score = score
+	# 可以重写父类方法
+	def print_person(self)：
+		...
+```
+- 私有属性和方法
+```python
+class Site:
+	def __init__(self, name, url):
+		self.name = name
+		self.__url = url # __表示私有属性
+	def who(self):
+		print(self.name)
+		print(self.__url)
+	def __foo(self):
+		print('私有方法')
+	def foo(self):
+		print('公共方法')
+
+s = Site('百度', 'www.baidu.com')
+s.who() # 百度 www.baidu.com
+s.foo() # 公共方法
+s.__foo() # 私有方法报错
+
+s._Site__foo() # 名称重整调用私有方法
+```

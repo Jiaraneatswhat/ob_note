@@ -209,3 +209,53 @@ class tuple(Sequence[_T_co]): # Sequence 是容器类的抽象基类
 
 tuple(tuple1) # (0, 1, 2, 3, 4)
 ```
+## 2.3 迭代器
+```python
+# builtins.py 中定义了获取迭代器的方法:
+@overload
+def iter(__object: SupportsIter[_SupportsNextT]) -> _SupportsNextT: ...
+@overload
+def iter(__object: _GetItemIterable[_T]) -> Iterator[_T]: ...
+@overload
+def iter(__object: Callable[[], _T | None], __sentinel: None) -> Iterator[_T]: ...
+@overload
+def iter(__object: Callable[[], _T], __sentinel: object) -> Iterator[_T]: ...
+
+# 通过 list 获取一个迭代器
+itr = iter([1, 3, 5, 7]) # 返回一个 list_iterator
+next(itr) # 通过 next 迭代，迭代结束时抛出 StopIteration 异常
+
+# next(iterator[, default]) 也可以传入一个 default，在迭代结束时返回
+```
+- 创建自己的迭代器
+```python
+class MyNumbers:
+	# 需要实现 __iter__() 和 __next__()
+    def __iter__(self):
+	    # 初始值
+	    self.value = 1
+	    return self
+	def __next__(self):
+		x = self.value
+		self.value += 1
+	    return x
+
+my_class = MyNumbers()
+itr = iter(my_class)
+[next(itr) for i in range(10)]
+```
+## 2.4 生成器
+```python
+# 使用 yield 的函数称为生成器，返回值是一个迭代器
+def fibonacci(n): 
+    a, b, cnt = 0, 1, 0
+    while True:
+        if (cnt > n):
+            return
+        # 遇到 yield 时暂停执行，将 yield 后的表达式返回
+        yield a
+        # 调用 next() 或 for 循环时，从暂停的位置执行到下一个 yield
+        a, b = b, a + b
+        cnt += 1
+tuple(fibonacci(10))
+```

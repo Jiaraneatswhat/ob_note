@@ -182,3 +182,30 @@ else:
 ```
 ## 2.2 推导式
 ### 2.2.1 list
+```python
+list1 = ['a', 'b', 'c', 'd', 'e']
+list2 = [e for e in list1] # ['a', 'b', 'c', 'd', 'e']
+
+list3 = [i for i in range(5)] # [0, 1, 2, 3, 4]
+
+# 搭配 if-else
+list4 = [i for i in range(10) if i % 2 == 0] # [0, 2, 4, 6, 8]
+list5 = [i for i in range(10) if i % 2 == 0 else i * 2]
+```
+### 2.2.2 set
+```python
+set1 = {i for i in (1, 3, 5, 7)}
+set2 = {i for i in range(5) if i % 2 == 0 else 2 * i}
+```
+### 2.2.3 tuple
+```python
+# 直接用 '()' 返回的是生成器
+tuple1 = (i for i in range(5))
+type(tuple1) # <generator object <genexpr> at ...>
+
+# 需要调 tuple 的构造器
+class tuple(Sequence[_T_co]): # Sequence 是容器类的抽象基类
+    ...
+
+tuple(tuple1) # (0, 1, 2, 3, 4)
+```

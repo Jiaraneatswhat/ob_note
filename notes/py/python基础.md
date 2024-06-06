@@ -175,5 +175,10 @@ else:
 ```
 - for
 ```python
-for _ in range()
+for _ in range(start, end, step)
+	...
+else:
+	...
 ```
+## 2.2 推导式
+### 2.2.1 list

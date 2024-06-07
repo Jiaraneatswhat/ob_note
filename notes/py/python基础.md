@@ -501,7 +501,7 @@ a[a < 5] # [1, 2, 3, 4]
 a[a%2==0] # [2, 4, 6, 8, 10, 12]
 
 ```
-### 5.1.5 从现有 array 创建另一个
+### 5.1.5 stack & split
 ```python
 a1 = np.array([[1, 1],
 			[2, 2]])
@@ -523,7 +523,7 @@ np.hstack((a1, a2))
 # def hsplit(ary, indices_or_sections)
 x = np.arange(16.0).reshape(4, 4)
 
-np.hsplit(x, 2)
+np.hsplit(x, 2) # 将 array 划分为 [:2], [2:] 两部分
 # [array([[  0.,   1.],
 #        [  4.,   5.],
 #        [  8.,   9.],
@@ -532,4 +532,21 @@ np.hsplit(x, 2)
 #        [  6.,   7.],
 #        [10.,  11.],
 #        [14.,  15.]])]
+
+np.hsplit(x, np.array([3, 6])) # 分为 [:3], [3: 6], [6:] 三部分
+#[array([[ 0.,   1.,   2.],
+#        [ 4.,   5.,   6.],
+#        [ 8.,   9.,  10.],
+#        [12.,  13.,  14.]]),
+#  array([[ 3.],
+#        [ 7.],
+#        [11.],
+#        [15.]]),
+#  array([], shape=(4, 0), dtype=float64)] 不含元素的空 array
+
+# np.vsplit() 类似
+```
+### 5.1.6 array 的运算
+```python
+
 ```

@@ -509,5 +509,27 @@ a1 = np.array([[1, 1],
 a2 = np.array([[3, 3],
 			[4, 4]])
 
+# def vstack(tup)
+np.vstack((a1, a2))
+# array([[1, 1],
+#       [2, 2],
+#       [3, 3],
+#       [4, 4]])
 
+np.hstack((a1, a2))
+#  array([[1, 1, 3, 3],
+#        [2, 2, 4, 4]])
+
+# def hsplit(ary, indices_or_sections)
+x = np.arange(16.0).reshape(4, 4)
+
+np.hsplit(x, 2)
+# [array([[  0.,   1.],
+#        [  4.,   5.],
+#        [  8.,   9.],
+#        [12.,  13.]]),
+#  array([[  2.,   3.],
+#        [  6.,   7.],
+#        [10.,  11.],
+#        [14.,  15.]])]
 ```

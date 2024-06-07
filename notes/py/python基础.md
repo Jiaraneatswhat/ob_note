@@ -584,6 +584,15 @@ np.multiply(a, b) # array([1, 4, 9], [4, 10, 18])
 
 # 矩阵的转置
 arr = np.arange(6).reshape((2, 3))
-arr.transpose()
+"""
+class ndarray(_ArrayOrScalarCommon, Generic[_ShapeType, _DType_co]):
+	@overload
+	def transpose(self: _ArraySelf, axes: None | _ShapeLike, /) -> _ArraySelf: ...
 
+class _ArrayOrScalarCommon:
+	@property  
+	def T(self: _ArraySelf) -> _ArraySelf: ...
+"""
+arr.transpose()
+arr.T
 ```

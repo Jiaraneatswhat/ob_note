@@ -564,9 +564,18 @@ data * 1.6 # array([1.6, 3.2])
 ```
 ## 5.7 矩阵乘法
 ```python
-# def dot(a, b, out=None)
+# def dot(a, b, out=None), 用于 1d-array 的点积
 a = np.array([1, 3])
 b = np.array([2, 4])
-np.dot(a, b) # 
+np.dot(a, b) # 14
+
+# 两个 2d-array 通过 matmul() 或 a @ b 计算
+x = np.array([[1, 2, 3], [4, 5, 6]])
+y = np.array([[6, 23], [-1, 7], [8, 9]])
+np.matmul(x, y) # 等价于 x @ y
+
+# multiply() 计算对应位置的乘积
+np.multiply(a, b) # array([2, 12])
+# 大小不一样sh
 
 ```

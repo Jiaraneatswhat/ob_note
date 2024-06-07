@@ -406,4 +406,29 @@ np.linspace(0, 10, num=5) # array([ 0. , 2.5, 5. , 7.5, 10. ])
 ### 5.1.2 元素操作
 ```python
 arr = np.array([2, 1, 5, 3, 7])
+
+"""
+	def sort(a, axis=-1, kind=None, order=None)
+		axis： 默认 -1, 表示最后一个 axis
+		kind：排序算法，默认快排
+	默认升序排序，返回一个 copy
+"""
+np.sort(arr) # array([1, 2, 3, 5, 7])
+
+# def argsort(a, axis=-1, kind=None, order=None)
+# 返回索引 array：
+np.argsort([5, 3, 9]) # [3, 5, 9] 对应索引 [1, 0, 2]
+
+# 指定 axis 进行排序
+x = np.array([[0, 3], [2, 2]])
+np.argsort(x, axis=0) # 垂直方向
+# array([[0, 1],
+#      [1, 0]])
+
+np.argsort(x, axis=1) # 水平方向
+# array([[0, 1],
+#      [0, 1]])
+
+# 拼接两个 array
+
 ```

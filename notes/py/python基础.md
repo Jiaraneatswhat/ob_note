@@ -370,8 +370,7 @@ class Person:
 Person(10) + Person(20) # age = 30
 ```
 # 5 NumPy
-## 5.1 ndarray
-### 5.1.1 创建 ndarray
+## 5.1 创建 ndarray
 ```python
 # def array(...) -> ndarray: ...
 np.array([1, 2, 3])
@@ -403,7 +402,7 @@ np.arane(2, 9, 2) # array([2, 4, 6, 8])
 # 将区间分为 num 份
 np.linspace(0, 10, num=5) # array([ 0. , 2.5, 5. , 7.5, 10. ])
 ```
-### 5.1.2 元素操作
+## 5.2 元素操作
 ```python
 arr = np.array([2, 1, 5, 3, 7])
 
@@ -434,7 +433,7 @@ x = np.array([[1, 2], [3, 4]])
 y = np.array([[5, 6]])
 np.concatenate((x, y), axis=0) # 竖直拼接
 ```
-### 5.1.3 shape 相关
+## 5.3 shape 相关
 ```python
 arr = ([[[0, 1, 2, 3],
 		[4, 5, 6, 7]],
@@ -491,7 +490,7 @@ a[:, np.newaxis] # 列向量 (3, 1)
 np.expand(a, axis=1) # (3, 1)
 np.expand(a, axis=0) # (1, 3)
 ```
-### 5.1.4 索引和切片
+## 5.4 索引和切片
 ```python
 # 基本的索引切片与 python 相同
 a = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]])
@@ -501,7 +500,7 @@ a[a < 5] # [1, 2, 3, 4]
 a[a%2==0] # [2, 4, 6, 8, 10, 12]
 
 ```
-### 5.1.5 stack & split
+## 5.5 stack & split
 ```python
 a1 = np.array([[1, 1],
 			[2, 2]])
@@ -546,7 +545,7 @@ np.hsplit(x, np.array([3, 6])) # 分为 [:3], [3: 6], [6:] 三部分
 
 # np.vsplit() 类似
 ```
-### 5.1.6 array 的运算
+## 5.6 array 的运算
 ```python
 arr1 = np.array([1, 2])
 arr2 = np.ones(2)
@@ -557,4 +556,17 @@ arr1.sum() # 3
 arr3 = np.array([[1, 2], [3, 4]])
 arr3.sum(axis=0) # array([4, 6])
 arr3.sum(axis=1) # array([3, 7])
+
+# 广播：array 和单个数运算
+data = np.array([1.0, 2.0])
+# 将 1.6 扩展到 data 的大小再计算
+data * 1.6 # array([1.6, 3.2])
+```
+## 5.7 矩阵乘法
+```python
+# def dot(a, b, out=None)
+a = np.array([1, 3])
+b = np.array([2, 4])
+np.dot(a, b) # 
+
 ```

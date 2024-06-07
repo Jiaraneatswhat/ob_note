@@ -462,5 +462,24 @@ arr.shape # (3, 2, 4)
 
 # reshape
 a = np.arange(6) # arrat([0, 1, 2, 3, 4, 5])
+# ndarray 中的 reshape()
+"""
+@overload  
+class ndarray:
+	def reshape(self, shape: _ShapeLike, /, *, 
+	order: _OrderACF = ...  ) -> ndarray[Any, _DType_co]: ...
+"""
 b = a.reshape(3, 2)
+
+# numpy 中的 reshape()
+# def reshape(a, newshape, order='C')
+np.reshape(a, shape)
+
+# 1d array 转 2d array
+# 1d array
+a = np.array([1, 2, 3])
+a.shape # (3,)
+b = np.array([[1, 2, 3]])
+b.shape # (1, 3)
+
 ```

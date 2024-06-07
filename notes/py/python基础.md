@@ -482,4 +482,7 @@ a.shape # (3,)
 b = np.array([[1, 2, 3]])
 b.shape # (1, 3)
 
+# 1d array 扩展为行向量
+a[np.newaxis, :]
+a[:, np.newaxis] # 列向量 (3, 1)
 ```

@@ -375,13 +375,35 @@ Person(10) + Person(20) # age = 30
 ```python
 # def array(...) -> ndarray: ...
 np.array([1, 2, 3])
+# 指定元素类型:
+np.array([1, 2, 3], dtype=np.int64)
 
-# 创建全 0 array
 # def zeros(...) -> ndarray: ...
-np.zeros()
-
-
+np.zeros(shape) # 创建 shape 形的全 0 array 
+# array([0., 0., ...])
+# 创建 shape 与元素类型均与 a 相同的 ndarray
+np.zeros_like(a) 
 
 # 全 1 array
-# def ones()
+# def ones(shape, ...) -> ndarray: ...
+np.ones(shape)
+np.ones_like(arr)
+
+# def empty(...) -> ndarray: ...
+np.empty(shape)
+np.empty_like(arr) # 创建随机数占位的 ndarray
+
+# 通过 range 创建 ndarray
+# def arange(stop, dtype=..., *, like=...): ...
+# def arange(start, stop, step=..., dtype=..., *, like=...): ...
+np.arange(5) # array([0, 1, 2, 3, 4])
+np.arane(2, 9, 2) # array([2, 4, 6, 8])
+
+# def linspace(start, stop, num=50, ...)
+# 将区间分为 num 份
+np.linspace(0, 10, num=5) # array([ 0. , 2.5, 5. , 7.5, 10. ])
+```
+### 5.1.2 元素操作
+```python
+arr = np.array([2, 1, 5, 3, 7])
 ```

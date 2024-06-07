@@ -358,3 +358,14 @@ s.__foo() # 私有方法报错
 
 s._Site__foo() # 名称重整调用私有方法
 ```
+- 运算符重载
+```python
+class Person:
+	age = 0
+	def __init__(self, age):
+		self.age = age
+
+	def __add__(self, p) # 年龄求和
+		return Person(self.age + p.age)
+Person(10) + Person(20) # age = 30
+```

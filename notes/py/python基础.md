@@ -548,5 +548,13 @@ np.hsplit(x, np.array([3, 6])) # 分为 [:3], [3: 6], [6:] 三部分
 ```
 ### 5.1.6 array 的运算
 ```python
+arr1 = np.array([1, 2])
+arr2 = np.ones(2)
+arr1 + arr2 # array([2, 3])
+arr1 / arr1 # array([1., 1.])
+arr1.sum() # 3
 
+arr3 = np.array([[1, 2], [3, 4]])
+arr3.sum(axis=0) # array([4, 6])
+arr3.sum(axis=1) # array([3, 7])
 ```

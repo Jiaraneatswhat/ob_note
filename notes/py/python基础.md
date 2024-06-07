@@ -485,4 +485,19 @@ b.shape # (1, 3)
 # 1d array 扩展为行向量
 a[np.newaxis, :]
 a[:, np.newaxis] # 列向量 (3, 1)
+
+# 使用 expand_dims() 扩展维度
+# def expand_dims(a, axis)
+np.expand(a, axis=1) # (3, 1)
+np.expand(a, axis=0) # (1, 3)
+```
+### 5.1.4 索引和切片
+```python
+# 基本的索引切片与 python 相同
+a = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]])
+
+# 通过表达式筛选元素
+a[a < 5] # [1, 2, 3, 4]
+a[a%2==0] # [2, 4, 6, 8, 10, 12]
+
 ```

@@ -430,5 +430,37 @@ np.argsort(x, axis=1) # 水平方向
 #      [0, 1]])
 
 # 拼接两个 array
+x = np.array([[1, 2], [3, 4]])
+y = np.array([[5, 6]])
+np.concatenate((x, y), axis=0) # 竖直拼接
+```
+### 5.1.3 shape 相关
+```python
+arr = ([[[0, 1, 2, 3],
+		[4, 5, 6, 7]],
+		
+		[[0, 1, 2, 3],
+		[4, 5, 6, 7]],
+		
+		[[0, 1, 2, 3],
+		[4, 5, 6, 7]]])
 
+"""
+class ndarray(_ArrayOrScalarCommon, Generic[_ShapeType, _DType_co]):
+	@property
+    def ndim(self) -> int: ...
+    @property
+    def size(self) -> int: ...
+	@property
+    def shape(self) -> _Shape: ...
+    _Shape定义在_shape.py中： _Shape = Tuple[int, ...]
+"""
+
+arr.ndim # 3
+arr.size # 元素个数 24
+arr.shape # (3, 2, 4)
+
+# reshape
+a = np.arange(6) # arrat([0, 1, 2, 3, 4, 5])
+b = a.reshape(3, 2)
 ```

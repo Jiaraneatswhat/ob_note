@@ -369,3 +369,19 @@ class Person:
 		return Person(self.age + p.age)
 Person(10) + Person(20) # age = 30
 ```
+# 5 NumPy
+## 5.1 ndarray
+### 5.1.1 创建 ndarray
+```python
+# def array(...) -> ndarray: ...
+np.array([1, 2, 3])
+
+# 创建全 0 array
+# def zeros(...) -> ndarray: ...
+np.zeros()
+
+
+
+# 全 1 array
+# def ones()
+```

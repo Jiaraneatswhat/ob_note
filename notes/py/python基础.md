@@ -596,3 +596,32 @@ class _ArrayOrScalarCommon:
 arr.transpose()
 arr.T
 ```
+# 6. Pandas
+## 6.1 数据类型
+```python
+# Series
+class Series(base.IndexOpsMixin, NDFrame):
+	def __init__(
+        self,
+        data=None,
+        index=None,
+        dtype: Dtype | None = None,
+        name=None,
+        copy: bool = False,
+        fastpath: bool = False,
+    ): ...
+    # data : array-like, Iterable, dict, or scalar value
+    # index : array-like or Index (1d)
+
+s1 = pd.Series([1, 3, 5, -9])
+0   1 
+1   3 
+2   5 
+3  -9 
+dtype: int64
+
+# 通过 values 属性获取值
+s1.values # array([ 1, 3, 5, -9], dtype=int64)
+
+
+```

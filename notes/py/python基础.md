@@ -598,6 +598,7 @@ arr.T
 ```
 # 6. Pandas
 ## 6.1 数据类型
+### 6.1.1 Series
 ```python
 # Series
 class Series(base.IndexOpsMixin, NDFrame):
@@ -650,4 +651,39 @@ dtype: int64
 # 判断索引是否存在
 'a' in s2 # True
 
+# 用 dict 创建 Series
+data = {'a': 1, 'b': 2, 'c': 5, 'd': 9}
+pd.Series(data)
+a   1
+b   2
+c   5
+d   9
+dtype: int64
+
+# 可以传入一个索引来替换索引顺序，不存在对应索引的数据会变为 NaN
+s2 = pd.Series(data, index=['b', 'e', 'a', 'c'])
+b   2
+e   NaN
+a   1
+c   5
+dtype: int64
+
+# 通过 isnull() 判空
+pd.isnull(s2)
+a   False 
+b   False 
+c   False 
+d   False 
+dtype: bool
+
+# 可以给 Series 自身和 index 指定 name
+s2.name = 'data'
+s2.index.name = 'attr'
+attr
+b      2
+e      NaN
+a      1
+c      5
+Name: data, dtype: int64
 ```
+### 6.1.2

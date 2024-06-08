@@ -613,6 +613,7 @@ class Series(base.IndexOpsMixin, NDFrame):
     # data : array-like, Iterable, dict, or scalar value
     # index : array-like or Index (1d)
 
+# 默认索引从 0 开始
 s1 = pd.Series([1, 3, 5, -9])
 0   1 
 1   3 
@@ -623,5 +624,30 @@ dtype: int64
 # 通过 values 属性获取值
 s1.values # array([ 1, 3, 5, -9], dtype=int64)
 
+# 通过 index 属性获取索引
+# 返回一个 RangeIndex 对象
+s1.index
+RangeIndex(start=0, stop=4, step=1)
+
+# 指定索引
+s2 = pd.Series([1, 3, 6, 2], index=['a', 'b', 'c', 'd'])
+# 非数值索引的类型是 Index
+Index(['a', 'b', 'c', 'd'], dtype='object')
+
+# 类似 dict 的索引
+s2['a'] # 1
+s2['b'] # 3
+s2[['b', 'd']] # 索引多个值
+b   3
+d   2
+dtype: int64
+
+# 过滤
+s2[s2 > 3]
+c    6 
+dtype: int64
+
+# 判断索引是否存在
+'a' in s2 # True
 
 ```

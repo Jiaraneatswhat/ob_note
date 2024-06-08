@@ -686,4 +686,28 @@ a      1
 c      5
 Name: data, dtype: int64
 ```
-### 6.1.2
+### 6.1.2 DataFrame
+```python
+class DataFrame(NDFrame, OpsMixin):
+	def __init__(
+        self,
+        data=None,
+        index: Axes | None = None,
+        columns: Axes | None = None,
+        dtype: Dtype | None = None,
+        copy: bool | None = None,
+    ): ...
+    # data: ndarray (structured or homogeneous), Iterable, dict, or DataFrame
+    # index: Index or array-like
+    # columns: Index or array-like
+
+# 用 dict 创建一个 df
+d = {'col1': [1, 2], 'col2': [3, 4]}
+df = pd.DataFrame(data=d)
+	 col1   col2
+0      1      3
+1      2      4
+
+# head() 和 tail() 可以获取 df 的前(后) n 行数据
+def head(self: NDFrameT, n: int = 5) -> NDFrameT:
+```

@@ -709,5 +709,25 @@ df = pd.DataFrame(data=d)
 1      2      4
 
 # head() 和 tail() 可以获取 df 的前(后) n 行数据
+# 默认 5 行，底层调 iloc
 def head(self: NDFrameT, n: int = 5) -> NDFrameT:
+	return self.iloc[:n]
+	
+def tail(self: NDFrameT, n: int = 5) -> NDFrameT:
+	if n == 0:
+		return self.iloc[0:0]
+	return self.iloc[-n:]
+
+df.head()
+
+# 指定 col 创建 df
+data = {'state': ['Ohio', 'Ohio', 'Ohio', 'Nevada', 'Nevada', 'Nevada'],
+        'year': [2000, 2001, 2002, 2001, 2002, 2003],
+        'pop': [1.5, 1.7, 3.6, 2.4, 2.9, 3.2]}
+pd.DataFrame(data, columns=['year', 'state', 'pop'])
+	year    state    pop
+0    2000    Ohio    1.5  
+1    ...
+
+# 传入不存在的 col 时，对应的值会变为 NaN
 ```

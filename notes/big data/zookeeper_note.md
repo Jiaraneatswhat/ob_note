@@ -1190,7 +1190,7 @@ get 查看节点存储内容
 - 4 选举机制
 	- `QuorumPeer` 进程启动后，首先从磁盘恢复数据到内存，初始化的 `ServerState` 是 `LOOKING`
 	- 准备选举
-		- 产生一个 Vote 对象，传入自己的 `myid`
+		- 产生一个 `Vote` 对象，传入自己的 `myid`
 		- 选择选举算法，配置类 `QuorumPeerConfig` 中设置为 `FastLeaderElection`
 		- `FastLeaderElection` 实例化时
 			- 创建两个阻塞队列 `sendQueue` 和 `recvQueue` 用于存放选票

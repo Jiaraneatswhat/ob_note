@@ -2766,7 +2766,7 @@ deleteall
 - 最后将数据写入到 `MemStore` (4.4.5)
 ## 9.3 读流程
 - 缓存 `meta` 表为止的步骤与写流程相同
-- 向待写入表发起 Get 请求
+- 向待写入表发起 `Get` 请求
 - `Server` 收到 `Get` 请求，创建 `MemStore` 和 `StoreFile` 的 `Scanner`
 	- `MemStore` 的 `Scanner` 在内存中直接读取
 	- `StoreFile` 的 `Scanner` 

@@ -2940,7 +2940,7 @@ public void runMailboxLoop() throws Exception {
 - Flink 中有四种 Graph：
 	- **StreamGraph**：提交 Job 后生成的最初的 DAG 图
 	- **JobGraph**：经过算子链之后生成 `JobGrpah`
-	- **ExecutionGraph**：`JobMaster` 将 `StreamGraph` 根据并行度进行 `SubTask` 的拆分，并明确上下游算子间数据的传输方式，形成 `ExecutionGraph`
+	- **ExecutionGraph**：`JobMaster` 将 `JobGraph` 根据并行度进行 `SubTask` 的拆分，并明确上下游算子间数据的传输方式，形成 `ExecutionGraph`
 	- **PhysicalGraph**：将 `ExecutionGraph` 发送给 `TaskManager` 后，`TaskManager` 根据图上的部署运行每个 `SubTask`，此时 `SubTask` 变为 `Task`，最终的物理执行流程称为 `Physical Graph`
 ## 2.1 StreamGraph
 - **StreamNode**：代表 operator 的类，存在并发度、入边、出边等属性

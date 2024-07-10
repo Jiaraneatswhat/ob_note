@@ -6273,7 +6273,7 @@ SET execution.savepoint.path='...' # 之前保存的路径
 	- `1 CPU` `4G` 
 ## 9.2 状态及 Checkpoint 调优
 ### 9.2.1 RocksDB 大状态调优
-- `RocksDB` 是内存 + 内盘，可以存储大状态
+- `RocksDB` 是内存 + 磁盘，可以存储大状态
 #### 9.2.1.1 开启 State 访问性能监控
 - 可以查看有状态算子的读写时间
 - 提交时使用参数 `-Dstate.backend.latency-track.keyed-state-enabled=true`

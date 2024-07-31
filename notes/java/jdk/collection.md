@@ -148,7 +148,7 @@ public HashMap(int initialCapacity, float loadFactor) {
 final V putVal(int hash, K key, V value, boolean onlyIfAbsent,  
                boolean evict) {  
     Node<K,V>[] tab; Node<K,V> p; int n, i; 
-    // 初始化 table 为 null，见 4.2
+    // 初始化 table 为 null
     if ((tab = table) == null || (n = tab.length) == 0)  
         n = (tab = resize()).length;
     // 如果 (n - 1) & hash 处有没有桶，即 table 中对应 key 的桶为 null

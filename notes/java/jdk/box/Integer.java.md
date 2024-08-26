@@ -154,5 +154,34 @@ public static String toString(int i) {
     return new String(buf, true);  
 }
 
-
+public static String toString(int i, int radix) {  
+	// [2, 32]
+    if (radix < Character.MIN_RADIX || radix > Character.MAX_RADIX)  
+        radix = 10;  
+  
+    /* Use the faster version */  
+    if (radix == 10) {  
+        return toString(i);  
+    }  
+  
+    char buf[] = new char[33];  
+    boolean negative = (i < 0);  
+    int charPos = 32;  
+  
+    if (!negative) {  
+        i = -i;  
+    }  
+  
+    while (i <= -radix) {  
+        buf[charPos--] = digits[-(i % radix)];  
+        i = i / radix;  
+    }  
+    buf[charPos] = digits[-i];  
+  
+    if (negative) {  
+        buf[--charPos] = '-';  
+    }  
+  
+    return new String(buf, charPos, (33 - charPos));  
+}
 ```

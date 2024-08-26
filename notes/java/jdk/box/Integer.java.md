@@ -86,11 +86,47 @@ public Integer(String s) throws NumberFormatException {
     this.value = parseInt(s, 10);  
 }
 ```
-# 3 methods
+# 3 inner class
+```java
+private static class IntegerCache {  
+    static final int low = -128;  
+    static final int high;  
+    static final Integer cache[];  
+  
+    static {  
+        // high value may be configured by property  
+        int h = 127;  
+        String integerCacheHighPropValue =  
+            sun.misc.VM.getSavedProperty("java.lang.Integer.IntegerCache.high");  
+        if (integerCacheHighPropValue != null) {  
+            try {  
+                int i = parseInt(integerCacheHighPropValue);  
+                i = Math.max(i, 127);  
+                // Maximum array size is Integer.MAX_VALUE  
+                h = Math.min(i, Integer.MAX_VALUE - (-low) -1);  
+            } catch( NumberFormatException nfe) {  
+                // If the property cannot be parsed into an int, ignore it.  
+            }  
+        }  
+        high = h;  
+  
+        cache = new Integer[(high - low) + 1];  
+        int j = low;  
+        for(int k = 0; k < cache.length; k++)  
+            cache[k] = new Integer(j++);  
+  
+        // range [-128, 127] must be interned (JLS7 5.1.7)  
+        assert IntegerCache.high >= 127;  
+    }  
+  
+    private IntegerCache() {}  
+}
+```
+# 4 methods
 
 ![[integer_methods.jpg]]
-## 3.1 toString 类
-### 3.1.1 getChars()
+## 4.1 toString 类
+### 4.1.1 getChars()
 ```java
 // 将数字转为字符存在 buf 中
 static void getChars(int i, int index, char[] buf) {  
@@ -130,7 +166,7 @@ static void getChars(int i, int index, char[] buf) {
     }  
 }
 ```
-### 3.1.2 stringSize()
+### 4.1.2 stringSize()
 ```java
 static int stringSize(int x) {  
     for (int i=0; ; i++) 
@@ -139,7 +175,7 @@ static int stringSize(int x) {
             return i+1;  
 }
 ```
-### 3.1.3 toString()
+### 4.1.3 toString()
 ```java
 public String toString() {  
     return toString(value);  

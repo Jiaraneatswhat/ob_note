@@ -17,13 +17,13 @@ public abstract class Number implements java.io.Serializable {
 ```java
 // 转二进制是 1000 0000 0000 0000 0000 0000 0000 0000
 // 高位 1 表示负数，-2^31
-@Native public static final int   MIN_VALUE = 0x80000000;
+@Native public static final int MIN_VALUE = 0x80000000;
 
 // 0111 1111... 2^31 - 1
-@Native public static final int   MAX_VALUE = 0x7fffffff;
+@Native public static final int MAX_VALUE = 0x7fffffff;
 
 // int 对应的 JVM 中的 Class 对象
-public static final Class<Integer>  TYPE = (Class<Integer>) Class.getPrimitiveClass("int");
+public static final Class<Integer> TYPE = (Class<Integer>) Class.getPrimitiveClass("int");
 
 // 所有可以表示数字的字符
 // 用于进制转换，int 支持二进制到 36 进制，因此包括 0-9 以及 a-z

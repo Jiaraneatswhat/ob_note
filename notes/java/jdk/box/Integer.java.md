@@ -68,10 +68,10 @@ final static char [] DigitOnes = {
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',  
     } ;
 
-// 存放数字
+// 存放对应的 int 值
 private final int value;
 
-// int 的字节数
+// int 的 bit 数
 @Native public static final int SIZE = 32;
 
 public static final int BYTES = SIZE / Byte.SIZE;

@@ -90,8 +90,9 @@ public Integer(String s) throws NumberFormatException {
 
 ![[integer_methods.jpg]]
 ## 3.1 toString 类
-### 3.1.1 getChar()
+### 3.1.1 getChars()
 ```java
+// 将数字转为字符存在 buf 中
 static void getChars(int i, int index, char[] buf) {  
     int q, r;  
     int charPos = index;  
@@ -103,6 +104,7 @@ static void getChars(int i, int index, char[] buf) {
     }  
   
     // Generate two digits per iteration  
+    // 每次循环取两位
     while (i >= 65536) {  
         q = i / 100;  
     // really: r = i - (q * 100);  
@@ -111,9 +113,12 @@ static void getChars(int i, int index, char[] buf) {
         buf [--charPos] = DigitOnes[r];  
         buf [--charPos] = DigitTens[r];  
     }  
-  
+
+	// 每次循环取一位
     // Fall thru to fast mode for smaller numbers  
-    // assert(i <= 65536, i);    for (;;) {  
+    // assert(i <= 65536, i);    
+    for (;;) {  
+	    // 54249 >>> 19 = 0.1xxxxxx
         q = (i * 52429) >>> (16+3);  
         r = i - ((q << 3) + (q << 1));  // r = i-(q*10) ...  
         buf [--charPos] = digits [r];  
@@ -125,37 +130,29 @@ static void getChars(int i, int index, char[] buf) {
     }  
 }
 ```
-
-
-
+### 3.1.2 stringSize()
 ```java
-public static String toString(int i, int radix) {  
-    if (radix < Character.MIN_RADIX || radix > Character.MAX_RADIX)  
-        radix = 10;  
-  
-    /* Use the faster version */  
-    if (radix == 10) {  
-        return toString(i);  
-    }  
-  
-    char buf[] = new char[33];  
-    boolean negative = (i < 0);  
-    int charPos = 32;  
-  
-    if (!negative) {  
-        i = -i;  
-    }  
-  
-    while (i <= -radix) {  
-        buf[charPos--] = digits[-(i % radix)];  
-        i = i / radix;  
-    }  
-    buf[charPos] = digits[-i];  
-  
-    if (negative) {  
-        buf[--charPos] = '-';  
-    }  
-  
-    return new String(buf, charPos, (33 - charPos));  
+static int stringSize(int x) {  
+    for (int i=0; ; i++) 
+	    // 循环比较 
+        if (x <= sizeTable[i])  
+            return i+1;  
 }
+```
+### 3.1.3 toString()
+```java
+public String toString() {  
+    return toString(value);  
+}
+
+public static String toString(int i) {  
+    if (i == Integer.MIN_VALUE)  
+        return "-2147483648";  
+    int size = (i < 0) ? stringSize(-i) + 1 : stringSize(i);  
+    char[] buf = new char[size];  
+    getChars(i, size, buf);  
+    return new String(buf, true);  
+}
+
+
 ```

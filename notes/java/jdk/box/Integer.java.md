@@ -239,5 +239,63 @@ public static String toString(int i, int radix) {
 ```
 ### 4.1.4 numberOfLeadingZeros()
 ```java
+// 计算最高位 1 前 0 的个数
+public static int numberOfLeadingZeros(int i) {  
+    // HD, Figure 5-6  
+    // 全部为 0 返回 32
+    if (i == 0)  
+        return 32; 
+    // 至少有 1 个 0 
+    int n = 1;  
+    /**
+	  分组计算 0 的个数:
+	  
+      00000000 00000000 00000000 00000001 
+      右移 16 位为 0, 说明最高两个字节全为 0，让 n += 16，左移 16 位
+      00000000 00000001 00000000 00000000
+      右移 24 位为 0，说明第三个字节也为 0，让 n += 8，左移 8 位
+      00000001 00000000 00000000 00000000
+      右移 28 位为 0，说明最后一个字节的高四位也为 0，让 n += 4，左移 4 位
+      00010000 00000000 00000000 00000000
+      右移 30 位为 0，n += 2, 左移两位
+      01000000 00000000 00000000 00000000
+      
+      剩下的两位有三种情况: 01, 10, 11
+      01 的情况下，右移 31 位等于 0, 此时 n 不变
+      1x 的情况下, 右移 31 位得到 1，n -= 1
+    */
+    if (i >>> 16 == 0) { n += 16; i <<= 16; }  
+    if (i >>> 24 == 0) { n +=  8; i <<=  8; }  
+    if (i >>> 28 == 0) { n +=  4; i <<=  4; }  
+    if (i >>> 30 == 0) { n +=  2; i <<=  2; }  
+    n -= i >>> 31;  
+    return n;  
+}
 
+// 同上
+public static int numberOfTrailingZeros(int i) {  
+    // HD, Figure 5-14  
+    int y;  
+    if (i == 0) return 32;  
+    int n = 31;  
+    y = i <<16; if (y != 0) { n = n - 16; i = y; }  
+    y = i << 8; if (y != 0) { n = n - 8; i = y; }  
+    y = i << 4; if (y != 0) { n = n - 4; i = y; }  
+    y = i << 2; if (y != 0) { n = n - 2; i = y; }  
+    return n - ((i << 1) >>> 31);  
+}
+```
+### 4.1.5 formatUnsignedInt()
+```java
+static int formatUnsignedInt(int val, int shift, char[] buf, int offset, int len) {  
+    int charPos = len;  
+    int radix = 1 << shift;  
+    int mask = radix - 1;  
+    do {  
+        buf[offset + --charPos] = Integer.digits[val & mask];  
+        val >>>= shift;  
+    } while (val != 0 && charPos > 0);  
+  
+    return charPos;  
+}
 ```

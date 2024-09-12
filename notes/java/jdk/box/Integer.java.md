@@ -438,12 +438,33 @@ public static int bitCount(int i) {
 	  0x3f -> 0000 0000 0000 1111 0000 1111 0000 1111 
 	*/
     // HD, Figure 5-2  
-    
+    // 分组计算 1 的个数，通过与运算屏蔽掉移位后的高位数字
     i = i - ((i >>> 1) & 0x55555555);  
     i = (i & 0x33333333) + ((i >>> 2) & 0x33333333);  
     i = (i + (i >>> 4)) & 0x0f0f0f0f;  
     i = i + (i >>> 8);  
     i = i + (i >>> 16);  
     return i & 0x3f;  
+}
+```
+### 4.3.2 signum()
+```java
+public static int signum(int i) {  
+    // HD, Section 2-7  
+    // 位运算操作的是补码，负数取反加一得到补码
+    // 负数右移补 1
+    return (i >> 31) | (-i >>> 31);  
+}
+```
+### 4.3.3 reverse()
+```java
+public static int reverse(int i) {  
+    // HD, Figure 7-1  
+    i = (i & 0x55555555) << 1 | (i >>> 1) & 0x55555555;  
+    i = (i & 0x33333333) << 2 | (i >>> 2) & 0x33333333;  
+    i = (i & 0x0f0f0f0f) << 4 | (i >>> 4) & 0x0f0f0f0f;  
+    i = (i << 24) | ((i & 0xff00) << 8) |  
+        ((i >>> 8) & 0xff00) | (i >>> 24);  
+    return i;  
 }
 ```

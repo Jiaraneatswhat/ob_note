@@ -96,20 +96,21 @@ private static class IntegerCache {
     static {  
         // high value may be configured by property  
         int h = 127;  
-        String integerCacheHighPropValue =  
-            sun.misc.VM.getSavedProperty("java.lang.Integer.IntegerCache.high");  
+        String integerCacheHighPropValue = sun.misc.VM.getSavedProperty("java.lang.Integer.IntegerCache.high");  
         if (integerCacheHighPropValue != null) {  
+        // 如果从配置中读取到了值
             try {  
                 int i = parseInt(integerCacheHighPropValue);  
+                // 保证上限 h 不低于 127
                 i = Math.max(i, 127);  
                 // Maximum array size is Integer.MAX_VALUE  
+                // 不超过最大数组大小
                 h = Math.min(i, Integer.MAX_VALUE - (-low) -1);  
             } catch( NumberFormatException nfe) {  
                 // If the property cannot be parsed into an int, ignore it.  
             }  
         }  
         high = h;  
-  
         cache = new Integer[(high - low) + 1];  
         int j = low;  
         for(int k = 0; k < cache.length; k++)  
@@ -146,15 +147,22 @@ static void getChars(int i, int index, char[] buf) {
     // really: r = i - (q * 100);  
         r = i - ((q << 6) + (q << 5) + (q << 2));  
         i = q;  
+        // 99 为例, DigitOnes 和 DigitTens 中的第 99 个元素都是 9
         buf [--charPos] = DigitOnes[r];  
         buf [--charPos] = DigitTens[r];  
     }  
 
 	// 每次循环取一位
     // Fall thru to fast mode for smaller numbers  
-    // assert(i <= 65536, i);    
+    assert(i <= 65536, i);    
     for (;;) {  
-	    // 54249 >>> 19 = 0.1xxxxxx
+	    /**
+         * 6554 / 2^16 = 0.100006103515625
+         * 13108 / 2^17 = 0.1000006103515625
+         * 26215 / 2^18 = 0.100000228881835938
+         * 54249 / 2^19 = 0.10000038146972656 -> 从精度上考虑 19 最合适
+         * 104858 / 2^20 = 0.1000003815
+	    */
         q = (i * 52429) >>> (16+3);  
         r = i - ((q << 3) + (q << 1));  // r = i-(q*10) ...  
         buf [--charPos] = digits [r];  
@@ -177,38 +185,46 @@ static int stringSize(int x) {
 ```
 ### 4.1.3 toString()
 ```java
-public String toString() {  
+public String toString() {
+	// 调用自身静态的 toString 方法
     return toString(value);  
 }
 
 public static String toString(int i) {  
+	// 等于最小值时直接返回对应的字符串
     if (i == Integer.MIN_VALUE)  
-        return "-2147483648";  
+        return "-2147483648";
+    // 计算 size 创建 buf  
     int size = (i < 0) ? stringSize(-i) + 1 : stringSize(i);  
     char[] buf = new char[size];  
-    getChars(i, size, buf);  
+    getChars(i, size, buf);
+    // 填充 buf 后调构造器创建字符串  
     return new String(buf, true);  
 }
 
+// 指定进制数时
 public static String toString(int i, int radix) {  
-	// [2, 32]
+	// 判断 radix 是否属于 [2, 32]
     if (radix < Character.MIN_RADIX || radix > Character.MAX_RADIX)  
         radix = 10;  
   
     /* Use the faster version */  
+    // 十进制下调普通的 toString
     if (radix == 10) {  
         return toString(i);  
     }  
-  
+	// 32 位 + 符号位
     char buf[] = new char[33];  
     boolean negative = (i < 0);  
     int charPos = 32;  
-  
+
+	// 转为负数防止溢出
     if (!negative) {  
         i = -i;  
     }  
   
     while (i <= -radix) {  
+	    // 从 digits 数组中取出对应字符
         buf[charPos--] = digits[-(i % radix)];  
         i = i / radix;  
     }  
@@ -220,4 +236,8 @@ public static String toString(int i, int radix) {
   
     return new String(buf, charPos, (33 - charPos));  
 }
+```
+### 4.1.4 numberOfLeadingZeros()
+```java
+
 ```

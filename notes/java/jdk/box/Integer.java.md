@@ -374,20 +374,54 @@ public static int parseInt(String s, int radix) throws NumberFormatException
         while (i < len) {  
             // Accumulating negatively avoids surprises near MAX_VALUE  
             digit = Character.digit(s.charAt(i++),radix);  
-            if (digit < 0) {  
-                throw NumberFormatException.forInputString(s);  
-            }  
-            if (result < multmin) {  
-                throw NumberFormatException.forInputString(s);  
-            }  
+            // 结果是否超出范围
+            if (digit < 0) {...}  
+            if (result < multmin) {...} 
+            // 百位数 * 10 * 10 + 十位数 * 10 
             result *= radix;  
-            if (result < limit + digit) {  
-                throw NumberFormatException.forInputString(s);  
-            }  
+            if (result < limit + digit) {...}  
+            // 个位数
             result -= digit;  
         }  
     } else {// 长度不合法抛异常
     }  
     return negative ? result : -result;  
 }
+```
+### 4.2.2 parseUnsignedInt()
+```java
+public static int parseUnsignedInt(String s) throws NumberFormatException {  
+    return parseUnsignedInt(s, 10);  
+}
+
+public static int parseUnsignedInt(String s, int radix)  
+            throws NumberFormatException {  
+    if (s == null)  {...}  
+  
+    int len = s.length();  
+    if (len > 0) {  
+        char firstChar = s.charAt(0);  
+        if (firstChar == '-') {  
+	        // 无符号数不带符号，抛异常     
+        } else {  
+	        // 在有符号 int 的范围内，调有符号的 parse 方法
+            if (len <= 5 || // Integer.MAX_VALUE in Character.MAX_RADIX is 6 digits  
+                (radix == 10 && len <= 9) ) { // Integer.MAX_VALUE in base 10 is 10 digits  
+                return parseInt(s, radix);  
+            } else {  
+	            // 作为 long 进行解析
+                long ell = Long.parseLong(s, radix);  
+                if ((ell & 0xffff_ffff_0000_0000L) == 0) {  
+	                // 不超过 uint 的最大值时强转为 int 返回
+                    return (int) ell;  
+                } else {  
+                    throw new ...}  
+            }  
+        }  
+    } else {...}  
+}
+```
+## 4.3 位运算类
+### 4.3.1 
+```java
 ```

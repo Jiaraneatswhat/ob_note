@@ -237,7 +237,7 @@ public static String toString(int i, int radix) {
     return new String(buf, charPos, (33 - charPos));  
 }
 ```
-### 4.1.4 numberOfLeadingZeros()
+### 4.1.4 numberOfLeading(Trailing)Zeros()
 ```java
 // 计算最高位 1 前 0 的个数
 public static int numberOfLeadingZeros(int i) {  
@@ -287,15 +287,107 @@ public static int numberOfTrailingZeros(int i) {
 ```
 ### 4.1.5 formatUnsignedInt()
 ```java
+// shift 是进制数以 2 为底的对数
 static int formatUnsignedInt(int val, int shift, char[] buf, int offset, int len) {  
     int charPos = len;  
     int radix = 1 << shift;  
     int mask = radix - 1;  
     do {  
+	    // 通过与 mask 进行与运算，将 val 按 shift 进行分组，每次取出对应的字符后移位，处理下一组
         buf[offset + --charPos] = Integer.digits[val & mask];  
         val >>>= shift;  
     } while (val != 0 && charPos > 0);  
   
     return charPos;  
+}
+```
+### 4.1.6 toUnsignegString0()
+```java
+private static String toUnsignedString0(int val, int shift) {  
+    // assert shift > 0 && shift <=5 : "Illegal shift value";  
+    // 32 - 0 的个数得到有效位数 mag
+    int mag = Integer.SIZE - Integer.numberOfLeadingZeros(val);  
+    int chars = Math.max(((mag + (shift - 1)) / shift), 1);  
+    char[] buf = new char[chars];  
+  
+    formatUnsignedInt(val, shift, buf, 0, chars);  
+  
+    // Use special constructor which takes over "buf".  
+    return new String(buf, true);  
+}
+```
+### 4.1.7 toBinary(Octal, Hex)String
+```java
+// 仅传入的 shift 不同
+public static String toBinaryString(int i) {  
+    return toUnsignedString0(i, 1);  
+}
+
+public static String toOctalString(int i) {  
+    return toUnsignedString0(i, 3);  
+}
+
+public static String toHexString(int i) {  
+    return toUnsignedString0(i, 4);  
+}
+```
+## 4.2 parse 类
+### 4.2.1 parseInt()
+```java
+public static int parseInt(String s) throws NumberFormatException {  
+	// 不传进制数，默认 10
+    return parseInt(s,10);  
+}
+
+public static int parseInt(String s, int radix) throws NumberFormatException  
+{  
+    // 判空
+    if (s == null) {...}  
+	// 进制数合法性
+    if (radix < Character.MIN_RADIX) {...}  
+    if (radix > Character.MAX_RADIX) {...}  
+  
+    int result = 0;  
+    boolean negative = false;  
+    int i = 0, len = s.length();  
+    int limit = -Integer.MAX_VALUE;  
+    int multmin;  
+    int digit;  
+  
+    if (len > 0) {  
+        char firstChar = s.charAt(0);  
+        // '+' 对应 ascii 43, '-' 对应 45, '0' 对应 48
+        // 判断是否为 '+', ‘-’
+        if (firstChar < '0') { // Possible leading "+" or "-"  
+            if (firstChar == '-') {  
+                negative = true;  
+                limit = Integer.MIN_VALUE;  
+            } else if (firstChar != '+')  
+                throw NumberFormatException.forInputString(s);  
+  
+            if (len == 1) // 不能仅为一个正负号
+                throw NumberFormatException.forInputString(s); 
+            // 开始处理第一个字符 
+            i++;  
+        }  
+        multmin = limit / radix;  
+        while (i < len) {  
+            // Accumulating negatively avoids surprises near MAX_VALUE  
+            digit = Character.digit(s.charAt(i++),radix);  
+            if (digit < 0) {  
+                throw NumberFormatException.forInputString(s);  
+            }  
+            if (result < multmin) {  
+                throw NumberFormatException.forInputString(s);  
+            }  
+            result *= radix;  
+            if (result < limit + digit) {  
+                throw NumberFormatException.forInputString(s);  
+            }  
+            result -= digit;  
+        }  
+    } else {// 长度不合法抛异常
+    }  
+    return negative ? result : -result;  
 }
 ```

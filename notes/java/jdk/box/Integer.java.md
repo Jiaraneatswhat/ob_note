@@ -331,6 +331,20 @@ public static String toHexString(int i) {
     return toUnsignedString0(i, 4);  
 }
 ```
+### 4.1.8 toUnsignedString()
+```java
+public static String toUnsignedString(int i) {  
+    return Long.toString(toUnsignedLong(i));  
+}
+
+public static String toUnsignedString(int i, int radix) {  
+    return Long.toUnsignedString(toUnsignedLong(i), radix);  
+}
+
+public static long toUnsignedLong(int x) {  
+    return ((long) x) & 0xffffffffL;  
+}
+```
 ## 4.2 parse 类
 ### 4.2.1 parseInt()
 ```java

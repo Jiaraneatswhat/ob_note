@@ -86,3 +86,19 @@ public static Short decode(String nm) throws NumberFormatException {
     return valueOf((short)i);  
 }
 ```
+## 4.4 toUnsignedInt()
+```java
+public static int toUnsignedInt(short x) {  
+    return ((int) x) & 0xffff;  
+}
+```
+## 4.5 toUnsignedLong()
+```java
+public static long toUnsignedLong(short x) {  
+    return ((long) x) & 0xffffL;  
+}
+```
+## 4.6 reverseBytes()
+```java
+
+```

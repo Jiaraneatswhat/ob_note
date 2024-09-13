@@ -95,9 +95,147 @@ static int stringSize(long x) {
     long p = 10;  
     for (int i = 1; i < 19; i++) {  
         if (x < p)  
-            return i;  
+            return i;
+		// p 循环乘 10 直到找到最相近的
         p = 10 * p;  
     }  
+    // 否则返回 long 的最大位数 19
     return 19;  
+}
+```
+### 4.1.3 toString()
+```java
+public String toString() {  
+    return toString(value);  
+}
+
+public static String toString(long i) {  
+    if (i == Long.MIN_VALUE)  
+        return "-9223372036854775808";  
+    int size = (i < 0) ? stringSize(-i) + 1 : stringSize(i);  
+    char[] buf = new char[size];  
+    getChars(i, size, buf);  
+    return new String(buf, true);  
+}
+
+// 指定进制数
+public static String toString(long i, int radix) {  
+    if (radix < Character.MIN_RADIX || radix > Character.MAX_RADIX)  
+        radix = 10;  
+    if (radix == 10)  
+        return toString(i);  
+    char[] buf = new char[65];  
+    int charPos = 64;  
+    boolean negative = (i < 0);  
+  
+    if (!negative) {  
+        i = -i;  
+    }  
+  
+    while (i <= -radix) {  
+        buf[charPos--] = Integer.digits[(int)(-(i % radix))];  
+        i = i / radix;  
+    }  
+    buf[charPos] = Integer.digits[(int)(-i)];  
+  
+    if (negative) {  
+        buf[--charPos] = '-';  
+    }  
+  
+    return new String(buf, charPos, (65 - charPos));  
+}
+```
+### 4.1.4 numberOfLeading(Trailing)Zeros()
+```java
+public static int numberOfLeadingZeros(long i) {  
+    // HD, Figure 5-6  
+     if (i == 0)  
+        return 64;  
+    int n = 1;  
+    int x = (int)(i >>> 32);  
+    if (x == 0) { n += 32; x = (int)i; }  
+    if (x >>> 16 == 0) { n += 16; x <<= 16; }  
+    if (x >>> 24 == 0) { n +=  8; x <<=  8; }  
+    if (x >>> 28 == 0) { n +=  4; x <<=  4; }  
+    if (x >>> 30 == 0) { n +=  2; x <<=  2; }  
+    n -= x >>> 31;  
+    return n;  
+}
+
+public static int numberOfTrailingZeros(long i) {  
+    // HD, Figure 5-14  
+    int x, y;  
+    if (i == 0) return 64;  
+    int n = 63;  
+    y = (int)i; if (y != 0) { n = n -32; x = y; } else x = (int)(i>>>32);  
+    y = x <<16; if (y != 0) { n = n -16; x = y; }  
+    y = x << 8; if (y != 0) { n = n - 8; x = y; }  
+    y = x << 4; if (y != 0) { n = n - 4; x = y; }  
+    y = x << 2; if (y != 0) { n = n - 2; x = y; }  
+    return n - ((x << 1) >>> 31);  
+}
+```
+### 4.1.5 formatUnsignedLong()
+```java
+static int formatUnsignedLong(long val, int shift, char[] buf, int offset, int len) {  
+    int charPos = len;  
+    int radix = 1 << shift;  
+    int mask = radix - 1;  
+    do {  
+        buf[offset + --charPos] = Integer.digits[((int) val) & mask];  
+        val >>>= shift;  
+    } while (val != 0 && charPos > 0);  
+  
+    return charPos;  
+}
+```
+### 4.1.6 toUnsignedString0()
+```java
+static String toUnsignedString0(long val, int shift) {  
+    // assert shift > 0 && shift <=5 : "Illegal shift value";  
+    int mag = Long.SIZE - Long.numberOfLeadingZeros(val);  
+    int chars = Math.max(((mag + (shift - 1)) / shift), 1);  
+    char[] buf = new char[chars];  
+  
+    formatUnsignedLong(val, shift, buf, 0, chars);  
+    return new String(buf, true);  
+}
+```
+### 4.1.7 toUnsignedString()
+```java
+public static String toUnsignedString(long i) {  
+    return toUnsignedString(i, 10);  
+}
+
+public static String toUnsignedString(long i, int radix) {  
+    if (i >= 0)  
+        return toString(i, radix);  
+    else {  
+        switch (radix) {  
+        case 2:  
+            return toBinaryString(i);  
+  
+        case 4:  
+            return toUnsignedString0(i, 2);  
+  
+        case 8:  
+            return toOctalString(i);  
+  
+        case 10:  
+            /*  
+             * We can get the effect of an unsigned division by 10             * on a long value by first shifting right, yielding a             * positive value, and then dividing by 5.  This             * allows the last digit and preceding digits to be             * isolated more quickly than by an initial conversion             * to BigInteger.             */            long quot = (i >>> 1) / 5;  
+            long rem = i - quot * 10;  
+            return toString(quot) + rem;  
+  
+        case 16:  
+            return toHexString(i);  
+  
+        case 32:  
+            return toUnsignedString0(i, 5);  
+  
+        default:  
+            return toUnsignedBigInteger(i).toString(radix);  
+        }  
+    }  
 }
 ```

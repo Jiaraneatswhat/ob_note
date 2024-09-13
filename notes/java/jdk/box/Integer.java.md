@@ -536,5 +536,88 @@ public static Integer valueOf(String s) throws NumberFormatException {
     return Integer.valueOf(parseInt(s, 10));  
 }
 
+// 对于不超出范围的数直接从 Cache 中取出对应对象, 否则创建一个新的对象
+public static Integer valueOf(int i) {  
+    if (i >= IntegerCache.low && i <= IntegerCache.high)  
+        return IntegerCache.cache[i + (-IntegerCache.low)];  
+    return new Integer(i);  
+}
+```
+### 4.4.2 decode()
+```java
+// 将二、八、十六进制字符串解析为 Integer
+public static Integer decode(String nm) throws NumberFormatException {  
+    int radix = 10;  
+    int index = 0;  
+    boolean negative = false;  
+    Integer result;  
+  
+    if (nm.length() == 0)  
+        throw new NumberFormatException("Zero length string");  
+    char firstChar = nm.charAt(0);  
+    // Handle sign, if present  
+    if (firstChar == '-') {  
+        negative = true;  
+        index++;  
+    } else if (firstChar == '+')  
+        index++;  
+  
+    // Handle radix specifier, if present  
+    // 十六进制
+    if (nm.startsWith("0x", index) || nm.startsWith("0X", index)) {  
+        index += 2;  
+        radix = 16;  
+    }  
+    else if (nm.startsWith("#", index)) {  
+        index ++;  
+        radix = 16;  
+    } 
+    // 以 0 开头且不是一个单独的 0, 说明是八进制
+    else if (nm.startsWith("0", index) && nm.length() > 1 + index) {  
+        index ++;  
+        radix = 8;  
+    }  
+  
+    if (nm.startsWith("-", index) || nm.startsWith("+", index))  
+        throw new NumberFormatException("Sign character in wrong position");  
+  
+    try {  
+        result = Integer.valueOf(nm.substring(index), radix);  
+        result = negative ? Integer.valueOf(-result.intValue()) : result;  
+    } catch (NumberFormatException e) {  
+        // If number is Integer.MIN_VALUE, we'll end up here. The next line  
+        // handles this case, and causes any genuine format error to be        // rethrown.        
+        String constant = negative ? ("-" + nm.substring(index))  
+                                   : nm.substring(index);  
+        result = Integer.valueOf(constant, radix);  
+    }  
+    return result;  
+}
+```
+### 4.4.3 getInteger()
+```java
+// 获取系统属性对应的 Integer 的值
+public static Integer getInteger(String nm) {  
+    return getInteger(nm, null);  
+}
 
+public static Integer getInteger(String nm, int val) {  
+    Integer result = getInteger(nm, null);  
+    return (result == null) ? Integer.valueOf(val) : result;  
+}
+
+public static Integer getInteger(String nm, Integer val) {  
+    String v = null;  
+    try {  
+        v = System.getProperty(nm);  
+    } catch (IllegalArgumentException | NullPointerException e) {  
+    }  
+    if (v != null) {  
+        try {  
+            return Integer.decode(v);  
+        } catch (NumberFormatException e) {  
+        }  
+    }  
+    return val;  
+}
 ```

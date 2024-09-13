@@ -483,3 +483,7 @@ public static int reverseBytes(int i) {
            ((i << 24));  
 }
 ```
+### 4.3.5 highestOneBit()
+```java
+
+```

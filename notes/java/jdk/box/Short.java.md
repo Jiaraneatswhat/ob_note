@@ -100,5 +100,7 @@ public static long toUnsignedLong(short x) {
 ```
 ## 4.6 reverseBytes()
 ```java
-
+public static short reverseBytes(short i) {  
+    return (short) (((i & 0xFF00) >> 8) | (i << 8));  
+}
 ```

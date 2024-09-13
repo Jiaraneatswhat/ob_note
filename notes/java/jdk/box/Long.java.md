@@ -201,7 +201,36 @@ static String toUnsignedString0(long val, int shift) {
     return new String(buf, true);  
 }
 ```
-### 4.1.7 toUnsignedString()
+### 4.1.7 toBinary(Octal, Hex)String
+```java
+public static String toBinaryString(long i) {  
+    return toUnsignedString0(i, 1);  
+}
+
+public static String toOctalString(long i) {  
+    return toUnsignedString0(i, 3);  
+}
+
+public static String toHexString(long i) {  
+    return toUnsignedString0(i, 4);  
+}
+```
+### 4.1.8 toUnsignedBigInteger() [[BigInteger.java]]
+```java
+private static BigInteger toUnsignedBigInteger(long i) {  
+    if (i >= 0L)  
+        return BigInteger.valueOf(i);  
+    else {  
+        int upper = (int) (i >>> 32);  
+        int lower = (int) i;  
+  
+        // return (upper << 32) + lower  
+        return (BigInteger.valueOf(Integer.toUnsignedLong(upper))).shiftLeft(32).  
+            add(BigInteger.valueOf(Integer.toUnsignedLong(lower)));  
+    }  
+}
+```
+### 4.1.9 toUnsignedString()
 ```java
 public static String toUnsignedString(long i) {  
     return toUnsignedString(i, 10);  
@@ -210,6 +239,7 @@ public static String toUnsignedString(long i) {
 public static String toUnsignedString(long i, int radix) {  
     if (i >= 0)  
         return toString(i, radix);  
+    // 小于 0 
     else {  
         switch (radix) {  
         case 2:  
@@ -222,10 +252,9 @@ public static String toUnsignedString(long i, int radix) {
             return toOctalString(i);  
   
         case 10:  
-            /*  
-             * We can get the effect of an unsigned division by 10             * on a long value by first shifting right, yielding a             * positive value, and then dividing by 5.  This             * allows the last digit and preceding digits to be             * isolated more quickly than by an initial conversion             * to BigInteger.             */            long quot = (i >>> 1) / 5;  
+	        long quot = (i >>> 1) / 5; // 除以 10
             long rem = i - quot * 10;  
-            return toString(quot) + rem;  
+            return toString(quot) + rem; // 字符串拼接余数
   
         case 16:  
             return toHexString(i);  
@@ -238,4 +267,8 @@ public static String toUnsignedString(long i, int radix) {
         }  
     }  
 }
+```
+## 4.2 parse 类
+```java
+
 ```

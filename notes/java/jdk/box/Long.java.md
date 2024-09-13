@@ -275,3 +275,94 @@ public static int compareUnsigned(long x, long y) {
     return compare(x + MIN_VALUE, y + MIN_VALUE);  
 }
 ```
+### 4.2.2 parseLong()
+```java
+public static long parseLong(String s) throws NumberFormatException {  
+    return parseLong(s, 10);  
+}
+
+public static long parseLong(String s, int radix)  
+          throws NumberFormatException  
+{  
+    if (s == null) { throw new ...}  
+    if (radix < Character.MIN_RADIX) { throw new ...}  
+    if (radix > Character.MAX_RADIX) { throw new ...}  
+  
+    long result = 0;  
+    boolean negative = false;  
+    int i = 0, len = s.length();  
+    long limit = -Long.MAX_VALUE;  
+    long multmin;  
+    int digit;  
+  
+    if (len > 0) {  
+        char firstChar = s.charAt(0);  
+        if (firstChar < '0') { // Possible leading "+" or "-"  
+            if (firstChar == '-') {  
+                negative = true;  
+                limit = Long.MIN_VALUE;  
+            } else if (firstChar != '+')  
+                throw NumberFormatException.forInputString(s);  
+  
+            if (len == 1) // Cannot have lone "+" or "-"  
+                throw NumberFormatException.forInputString(s);  
+            i++;  
+        }  
+        multmin = limit / radix;  
+        while (i < len) {  
+            // Accumulating negatively avoids surprises near MAX_VALUE  
+            digit = Character.digit(s.charAt(i++),radix);  
+            if (digit < 0) {  
+                throw NumberFormatException.forInputString(s);  
+            }  
+            if (result < multmin) {  
+                throw NumberFormatException.forInputString(s);  
+            }  
+            result *= radix;  
+            if (result < limit + digit) {  
+                throw NumberFormatException.forInputString(s);  
+            }  
+            result -= digit;  
+        }  
+    } else {  
+        throw NumberFormatException.forInputString(s);  
+    }  
+    return negative ? result : -result;  
+}
+```
+### 4.2.3parseUnsignedLong()
+```java
+public static long parseUnsignedLong(String s) throws NumberFormatException {  
+    return parseUnsignedLong(s, 10);  
+}
+
+public static long parseUnsignedLong(String s, int radix)  
+            throws NumberFormatException {  
+    if (s == null)  {throw new ...}  
+  
+    int len = s.length();  
+    if (len > 0) {  
+        char firstChar = s.charAt(0);  
+        if (firstChar == '-') { throw new ...} else {  
+            if (len <= 12 || // Long.MAX_VALUE in Character.MAX_RADIX is 13 digits  
+                (radix == 10 && len <= 18) ) { // Long.MAX_VALUE in base 10 is 19 digits  
+                return parseLong(s, radix);  
+            }  
+            // [0, len - 2] 解析为 first 
+            long first = parseLong(s.substring(0, len - 1), radix);  
+            // len - 1 处的字符解析为 second
+            int second = Character.digit(s.charAt(len - 1), radix);  
+            if (second < 0) { throw new ...}  
+            long result = first * radix + second;  
+            if (compareUnsigned(result, first) < 0) {  
+                /*  
+                 * The maximum unsigned value, (2^64)-1, takes at                 * most one more digit to represent than the                 * maximum signed value, (2^63)-1.  Therefore,                 * parsing (len - 1) digits will be appropriately                 * in-range of the signed parsing.  In other                 * words, if parsing (len -1) digits overflows                 * signed parsing, parsing len digits will                 * certainly overflow unsigned parsing.                 *                 * The compareUnsigned check above catches                 * situations where an unsigned overflow occurs                 * incorporating the contribution of the final                 * digit.                 */                throw new NumberFormatException(String.format("String value %s exceeds " +  
+                                                              "range of unsigned long.", s));  
+            }  
+            return result;  
+        }  
+    } else {  
+        throw NumberFormatException.forInputString(s);  
+    }  
+}
+```

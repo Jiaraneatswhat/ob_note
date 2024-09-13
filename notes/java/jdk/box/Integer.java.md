@@ -485,5 +485,31 @@ public static int reverseBytes(int i) {
 ```
 ### 4.3.5 highestOneBit()
 ```java
-
+public static int highestOneBit(int i) {  
+	// 返回最高位的 1, 其他全为 0 的值 
+    // HD, Figure 3-1  
+    /**
+	    1001 0000 | 0100 1000 -> 1101 1000
+	    1101 1000 | 0011 0110 -> 1111 1110
+	    1111 1110 | 0000 1111 -> 1111 1111
+	    ...
+	    1111 1111 - 0111 1111 = 1000 0000
+    */
+    i |= (i >>  1);  
+    i |= (i >>  2);  
+    i |= (i >>  4);  
+    i |= (i >>  8);  
+    i |= (i >> 16);  
+    return i - (i >>> 1);  
+}
+```
+### 4.3.6 lowestOneBit()
+```java
+public static int lowestOneBit(int i) {  
+    // HD, Section 2-1  
+    /**
+		0011 & 11111111 11111111 11111111 00001101 = 0...0001
+    */
+    return i & -i;  
+}
 ```

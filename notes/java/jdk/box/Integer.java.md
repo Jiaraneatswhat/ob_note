@@ -513,3 +513,28 @@ public static int lowestOneBit(int i) {
     return i & -i;  
 }
 ```
+### 4.3.7 rotateLeft(Right)()
+```java
+// 循环移位
+public static int rotateLeft(int i, int distance) {  
+	// >>> -a = >>> 32 - a
+    return (i << distance) | (i >>> -distance);  
+}
+
+public static int rotateRight(int i, int distance) {  
+    return (i >>> distance) | (i << -distance);  
+}
+```
+## 4.4 获取 Integer 相关
+### 4.4.1 valueOf()
+```java
+public static Integer valueOf(String s, int radix) throws NumberFormatException {  
+    return Integer.valueOf(parseInt(s,radix));  
+}
+
+public static Integer valueOf(String s) throws NumberFormatException {  
+    return Integer.valueOf(parseInt(s, 10));  
+}
+
+
+```

@@ -269,6 +269,9 @@ public static String toUnsignedString(long i, int radix) {
 }
 ```
 ## 4.2 parse 类
+### 4.2.1 compareUnsigned()
 ```java
-
+public static int compareUnsigned(long x, long y) {  
+    return compare(x + MIN_VALUE, y + MIN_VALUE);  
+}
 ```

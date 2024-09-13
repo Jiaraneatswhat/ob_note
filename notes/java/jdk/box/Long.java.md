@@ -330,7 +330,7 @@ public static long parseLong(String s, int radix)
     return negative ? result : -result;  
 }
 ```
-### 4.2.3parseUnsignedLong()
+### 4.2.3 parseUnsignedLong()
 ```java
 public static long parseUnsignedLong(String s) throws NumberFormatException {  
     return parseUnsignedLong(s, 10);  
@@ -354,15 +354,174 @@ public static long parseUnsignedLong(String s, int radix)
             int second = Character.digit(s.charAt(len - 1), radix);  
             if (second < 0) { throw new ...}  
             long result = first * radix + second;  
-            if (compareUnsigned(result, first) < 0) {  
-                /*  
-                 * The maximum unsigned value, (2^64)-1, takes at                 * most one more digit to represent than the                 * maximum signed value, (2^63)-1.  Therefore,                 * parsing (len - 1) digits will be appropriately                 * in-range of the signed parsing.  In other                 * words, if parsing (len -1) digits overflows                 * signed parsing, parsing len digits will                 * certainly overflow unsigned parsing.                 *                 * The compareUnsigned check above catches                 * situations where an unsigned overflow occurs                 * incorporating the contribution of the final                 * digit.                 */                throw new NumberFormatException(String.format("String value %s exceeds " +  
-                                                              "range of unsigned long.", s));  
-            }  
+            // 检查 result 是否溢出
+            if (compareUnsigned(result, first) < 0) { throw new ... }  
             return result;  
         }  
     } else {  
         throw NumberFormatException.forInputString(s);  
     }  
+}
+```
+## 4.3 位运算类
+### 4.3.1 bitCount()
+```java
+public static int bitCount(long i) {  
+   // HD, Figure 5-14  
+   i = i - ((i >>> 1) & 0x5555555555555555L);  
+   i = (i & 0x3333333333333333L) + ((i >>> 2) & 0x3333333333333333L);  
+   i = (i + (i >>> 4)) & 0x0f0f0f0f0f0f0f0fL;  
+   i = i + (i >>> 8);  
+   i = i + (i >>> 16);  
+   i = i + (i >>> 32);  
+   return (int)i & 0x7f;  
+}
+```
+### 4.3.2 signum()
+```java
+public static int signum(long i) {  
+    // HD, Section 2-7  
+    return (int) ((i >> 63) | (-i >>> 63));  
+}
+```
+### 4.3.3 reverse()
+```java
+public static long reverse(long i) {  
+    // HD, Figure 7-1  
+    i = (i & 0x5555555555555555L) << 1 | (i >>> 1) & 0x5555555555555555L;  
+    i = (i & 0x3333333333333333L) << 2 | (i >>> 2) & 0x3333333333333333L;  
+    i = (i & 0x0f0f0f0f0f0f0f0fL) << 4 | (i >>> 4) & 0x0f0f0f0f0f0f0f0fL;  
+    i = (i & 0x00ff00ff00ff00ffL) << 8 | (i >>> 8) & 0x00ff00ff00ff00ffL;  
+    i = (i << 48) | ((i & 0xffff0000L) << 16) |  
+        ((i >>> 16) & 0xffff0000L) | (i >>> 48);  
+    return i;  
+}
+```
+### 4.3.4 reverseBytes()
+```java
+public static long reverseBytes(long i) {  
+    i = (i & 0x00ff00ff00ff00ffL) << 8 | (i >>> 8) & 0x00ff00ff00ff00ffL;  
+    return (i << 48) | ((i & 0xffff0000L) << 16) |  
+        ((i >>> 16) & 0xffff0000L) | (i >>> 48);  
+}
+```
+### 4.3.5 highest(lowest)OneBit
+```java
+public static long highestOneBit(long i) {  
+    // HD, Figure 3-1  
+    i |= (i >>  1);  
+    i |= (i >>  2);  
+    i |= (i >>  4);  
+    i |= (i >>  8);  
+    i |= (i >> 16);  
+    i |= (i >> 32);  
+    return i - (i >>> 1);  
+}
+
+public static long lowestOneBit(long i) {  
+    // HD, Section 2-1  
+    return i & -i;  
+}
+```
+### 4.3.6 rotateLeft(Right)
+```java
+public static long rotateLeft(long i, int distance) {  
+    return (i << distance) | (i >>> -distance);  
+}
+
+public static long rotateRight(long i, int distance) {  
+    return (i >>> distance) | (i << -distance);  
+}
+```
+## 4.4 获取 Long 相关
+### 4.4.1 valueOf()
+```java
+public static Long valueOf(String s, int radix) throws NumberFormatException {  
+    return Long.valueOf(parseLong(s, radix));  
+}
+
+public static Long valueOf(String s) throws NumberFormatException  
+{  
+    return Long.valueOf(parseLong(s, 10));  
+}
+
+public static Long valueOf(long l) {  
+    final int offset = 128;  
+    if (l >= -128 && l <= 127) { // will cache  
+        return LongCache.cache[(int)l + offset];  
+    }  
+    return new Long(l);  
+}
+```
+### 4.4.2 decode()
+```java
+public static Long decode(String nm) throws NumberFormatException {  
+    int radix = 10;  
+    int index = 0;  
+    boolean negative = false;  
+    Long result;  
+  
+    if (nm.length() == 0) throw new ...  
+    char firstChar = nm.charAt(0);  
+    // Handle sign, if present  
+    if (firstChar == '-') {  
+        negative = true;  
+        index++;  
+    } else if (firstChar == '+')  
+        index++;  
+  
+    // Handle radix specifier, if present  
+    if (nm.startsWith("0x", index) || nm.startsWith("0X", index)) {  
+        index += 2;  
+        radix = 16;  
+    }  
+    else if (nm.startsWith("#", index)) {  
+        index ++;  
+        radix = 16;  
+    }  
+    else if (nm.startsWith("0", index) && nm.length() > 1 + index) {  
+        index ++;  
+        radix = 8;  
+    }  
+  
+    if (nm.startsWith("-", index) || nm.startsWith("+", index))  
+        throw new NumberFormatException("Sign character in wrong position");  
+  
+    try {  
+        result = Long.valueOf(nm.substring(index), radix);  
+        result = negative ? Long.valueOf(-result.longValue()) : result;  
+    } catch (NumberFormatException e) {  
+        // 发生溢出时先转为 String 再解析  
+        String constant = negative ? ("-" + nm.substring(index))  
+                                   : nm.substring(index);  
+        result = Long.valueOf(constant, radix);  
+    }  
+    return result;  
+}
+```
+### 4.4.3 getLong()
+```java
+public static Long getLong(String nm) {  
+    return getLong(nm, null);  
+}
+
+public static Long getLong(String nm, long val) {  
+    Long result = Long.getLong(nm, null);  
+    return (result == null) ? Long.valueOf(val) : result;  
+}
+
+public static Long getLong(String nm, Long val) {  
+    String v = null;  
+    try {  
+        v = System.getProperty(nm);  
+    } catch (IllegalArgumentException | NullPointerException e) {  
+    }  
+    if (v != null) {  
+        try {  
+            return Long.decode(v);  
+        } catch (NumberFormatException e) {  
+        }  
+    }  
+    return val;  
 }
 ```

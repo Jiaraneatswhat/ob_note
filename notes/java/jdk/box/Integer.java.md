@@ -331,7 +331,7 @@ public static String toHexString(int i) {
     return toUnsignedString0(i, 4);  
 }
 ```
-### 4.1.8 toUnsignedString()
+### 4.1.8 toUnsignedString() [[Lon]]
 ```java
 public static String toUnsignedString(int i) {  
     return Long.toString(toUnsignedLong(i));  

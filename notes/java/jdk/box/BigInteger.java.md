@@ -27,7 +27,16 @@ private static final int TOOM_COOK_SQUARE_THRESHOLD = 216;
 
 // 使用 Burnikel-Ziegler 除法的除数位数阈值
 static final int BURNIKEL_ZIEGLER_THRESHOLD = 80;
+
 // Burnikel-Ziegler 的 offset
 // 除数位数超过了 Burnikel-Ziegler 阈值，被除数位数超过了除数位数 + offset，使用 Burnikel-Ziegler 除法
 static final int BURNIKEL_ZIEGLER_OFFSET = 40;
+
+// 使用 Schoenhage recursive base conversion 的阈值
+private static final int SCHOENHAGE_BASE_CONVERSION_THRESHOLD = 20;
+
+private static final int MULTIPLY_SQUARE_THRESHOLD = 20;
+
+// Montgomery 乘法的阈值
+private static final int MONTGOMERY_INTRINSIC_THRESHOLD = 512;
 ```

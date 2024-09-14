@@ -128,6 +128,28 @@ private static final ObjectStreamField[] serialPersistentFields = {
     };
 ```
 # 2 constructor
+## 2.1 前置方法
+### 2.1.1 stripLeadingZeroBytes()
 ```java
-
+private static int[] stripLeadingZeroBytes(byte a[]) {  
+    int byteLength = a.length;  
+    int keep;  
+  
+    // Find first nonzero byte  
+    for (keep = 0; keep < byteLength && a[keep] == 0; keep++)  
+        ;  
+  
+    // Allocate new array and copy relevant part of input array  
+    int intLength = ((byteLength - keep) + 3) >>> 2;  
+    int[] result = new int[intLength];  
+    int b = byteLength - 1;  
+    for (int i = intLength-1; i >= 0; i--) {  
+        result[i] = a[b--] & 0xff;  
+        int bytesRemaining = b - keep + 1;  
+        int bytesToTransfer = Math.min(3, bytesRemaining);  
+        for (int j=8; j <= (bytesToTransfer << 3); j += 8)  
+            result[i] |= ((a[b--] & 0xff) << j);  
+    }  
+    return result;  
+}
 ```

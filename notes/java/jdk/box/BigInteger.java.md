@@ -134,18 +134,17 @@ private static final ObjectStreamField[] serialPersistentFields = {
 private static int[] stripLeadingZeroBytes(byte a[]) {  
     int byteLength = a.length;  
     int keep;  
-  
     // 找到第一个非 0 的索引 keep
     for (keep = 0; keep < byteLength && a[keep] == 0; keep++);  
     // 根据 keep 和字节数组长度计算出对应的 int 数组长度
     int intLength = ((byteLength - keep) + 3) >>> 2;  
     int[] result = new int[intLength];  
     int b = byteLength - 1;  
-    for (int i = intLength-1; i >= 0; i--) {  
+    for (int i = intLength - 1; i >= 0; i--) {  
         result[i] = a[b--] & 0xff;  
         int bytesRemaining = b - keep + 1;  
         int bytesToTransfer = Math.min(3, bytesRemaining);  
-        for (int j=8; j <= (bytesToTransfer << 3); j += 8)  
+        for (int j = 8; j <= (bytesToTransfer << 3); j += 8)  
             result[i] |= ((a[b--] & 0xff) << j);  
     }  
     return result;  

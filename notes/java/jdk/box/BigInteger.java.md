@@ -137,7 +137,7 @@ private static int[] stripLeadingZeroBytes(byte a[]) {
   
     // 找到第一个非 0 的索引 keep
     for (keep = 0; keep < byteLength && a[keep] == 0; keep++);  
-    // Allocate new array and copy relevant part of input array  
+    // 根据 keep 和字节数组长度计算出对应的 int 数组长度
     int intLength = ((byteLength - keep) + 3) >>> 2;  
     int[] result = new int[intLength];  
     int b = byteLength - 1;  

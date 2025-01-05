@@ -93,6 +93,12 @@ Card(rank='2', suit='hearts')
 - 特殊方法是由解释器调用的，不能写 `my_object.__len__()` 而是 `len(my_object)`，如果 `my_object` 是用户定义类的实例，那么 Python 就会调用你实现的 `__len__` 方法
 - 对于一些内置类型如 `list, str, bytearray` 或 Numpy 数组时，Python 在底层存放这些可变大小的集合时使用的是 C 中的 `struct` 叫做 `PyVarObject`，这个对象包含一个 `ob_size` 属性，维护了集合中元素的数目。因此 `len(my_object)` 会从 `ob_size` 属性中获取值，比起调用方法来要快很多
 - 大部分情况下，特殊方法是隐式调用的，例如语句 `for i in x`：它实际上会调用 `iter(x)`，迭代器就会调用 `x.__iter__()` 或 `x.__getitem__()`
-- 
+## Emulating Numeric Types
+- 我们实现一个类来代表二维向量，支持加法运算，求模，标量乘法
+<font color='darkred'>Example 1-2</font>. 二维向量
+```python
+
+```
+
 
 

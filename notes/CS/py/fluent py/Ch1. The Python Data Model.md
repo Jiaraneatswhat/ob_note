@@ -144,4 +144,18 @@ Vector(9, 12)
 - 有时 `__repr__` 方法返回的字符串足够友好，无须再定义 `__str__` 方法，因为继承 `object` 的类最终会调用 `__repr__` 方法
 ## Boolean Value of a Custom Type
 - Python 在决定一个对象 `x` 是 `True` 还是 `False` 时会调用 `bool(x)`
-- 用户定义的类的实例默认为真，除非实现了 `__bool__` 或 `__len__`
+- 用户定义的类的实例默认为真，除非实现了 `__bool__` 或 `__len__`，`bool(x)` 首先会调用 `x.__bool__()`，如果没有实现这个方法，就会根据 `x.__len__()` 返回值是否为 `0` 来决定真假 
+## Collection API
+-------------------------------------------------------------------
+Fig. 1-2 基本集合类型的 UML 类图
+![[Fig. 1-2.png]]
+- 顶部的三个抽象基类都只有一个特殊方法，而抽象基类 `Collection` 统一了这三个基本接口，每个集合都应该实现：
+	- `Iterable`：支持 `for`，拆包和其他迭代方式
+	- `Sized`：支持内置函数 `len`
+	- `Container`：支持运算符 `in`
+- `Collection` 的三个重要的专用接口：
+	- `Sequence`：规范 `str` 和 `list` 等内置类型的接口
+	- `Mapping`：由 `dict, collections.defaultdict` 等实现
+	- `Set`：内置类型 `set` 和 `frozenset` 的接口 
+- 只有 `Sequence` 实现了 `Reversible`，因为它要支持任意顺序排列内容
+- `Set` 抽象基类中的所有特殊方法实现的都是中缀运算符

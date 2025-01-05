@@ -34,13 +34,15 @@ class FrenchDeck:
 
     def __getitem__(self, position):
         return self._cards[position]
-
-# 与普通集合类似，通过 len() 方法可以计算出卡牌的数目：
+```
+- 与普通集合类似，通过 len() 方法可以计算出卡牌的数目：
+```python
 >>> deck = FrenckDeck()
 >>> len(deck)
 52
-
-# 实现了 __getitem__ 方法让我们可以索引卡牌：
+```
+- 实现了 __getitem__ 方法让我们可以索引卡牌：
+```python
 >>> deck[0]
 Card(rank='2', suit='spades')
 
@@ -50,7 +52,31 @@ Card(rank='2', suit='spades')
 Card(rank='9', suit='spades')
 
 # 可以看出使用特殊方法的两个好处：不用记标准操作的方法名; 不用重复造轮子
+# 由于 __getitem__ 将操作交给了 self._cards 的 [] 运算符，我们的牌组就可以自动支持切片：
+>>> deck[:3]
+[Card(rank='2', suit='spades'), Card(rank='3', suit='spades'), Card(rank='4', suit='spades')]
 
+>>> deck[12::13]
+[Card(rank='A', suit='spades'), Card(rank='A', suit='diamonds'), Card(rank='A', suit='clubs'), Card(rank='A', suit='hearts')]
+```
+- 同时牌组也支持迭代:
+```python
+>>> for card in deck:
+...    print(card)
+Card(rank='2', suit='spades') 
+Card(rank='3', suit='spades')
+...
 
+# 迭代通常是隐式的，如果一个集合没有 __contains__ 方法，那么 in 操作就会进行顺序扫描，对于我们的牌组来说：
+>>> Card('Q', 'hearts') in deck
+True
+```
+- 对于排序操作，这里实现一个排序方法：
+```python
+suit_values = dict(spades=3, hearts=2, diamonds=1, clubs=0)
+
+def spades_high(card):
+	rank_value = FrenchDeck.ranks.index(card.rank)
+	return rank_value * len(suit_values) + suit_values[card.suit]
 ```
 

@@ -1,3 +1,4 @@
+## A Pythonic Card Deck
 - 当我们想让对象支持且能够与基本语言结构互动时可以实现特殊方法，这些结构有：
 	- 集合
 	- 访问属性
@@ -35,13 +36,13 @@ class FrenchDeck:
     def __getitem__(self, position):
         return self._cards[position]
 ```
-- 与普通集合类似，通过 len() 方法可以计算出卡牌的数目：
+- 与普通集合类似，通过 `len()` 方法可以计算出卡牌的数目：
 ```python
 >>> deck = FrenckDeck()
 >>> len(deck)
 52
 ```
-- 实现了 __getitem__ 方法让我们可以索引卡牌：
+- 实现了 `__getitem__` 方法让我们可以索引卡牌：
 ```python
 >>> deck[0]
 Card(rank='2', suit='spades')
@@ -76,7 +77,22 @@ True
 suit_values = dict(spades=3, hearts=2, diamonds=1, clubs=0)
 
 def spades_high(card):
+	# 获取卡牌对应索引, 2 为 0, 3 为 1, ...
 	rank_value = FrenchDeck.ranks.index(card.rank)
 	return rank_value * len(suit_values) + suit_values[card.suit]
+
+# 定义了排序方法后，通过 sorted() 方法排序：
+>>> for card in sorted(deck, key=spades_high):
+...     print(card)
+Card(rank='2', suit='clubs') 
+Card(rank='2', suit='diamonds') 
+Card(rank='2', suit='hearts')
+...
 ```
+## How Special Methods Are Used
+- 特殊方法是由解释器调用的，不能写 `my_object.__len__()` 而是 `len(my_object)`，如果 `my_object` 是用户定义类的实例，那么 Python 就会调用你实现的 `__len__` 方法
+- 对于一些内置类型如 `list, str, bytearray` 或 Numpy 数组时，Python 在底层存放这些可变大小的集合时使用的是 C 中的 `struct` 叫做 `PyVarObject`，这个对象包含一个 `ob_size` 属性，维护了集合中元素的数目。因此 `len(my_object)` 会从 `ob_size` 属性中获取值，比起调用方法来要快很多
+- 大部分情况下，特殊方法是隐式调用的，例如语句 `for i in x`：它实际上会调用 `iter(x)`，迭代器就会调用 `x.__iter__()` 或 `x.__getitem__()`
+- 
+
 

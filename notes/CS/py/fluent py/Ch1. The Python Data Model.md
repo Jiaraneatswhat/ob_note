@@ -97,8 +97,51 @@ Card(rank='2', suit='hearts')
 - 我们实现一个类来代表二维向量，支持加法运算，求模，标量乘法
 <font color='darkred'>Example 1-2</font>. 二维向量
 ```python
+import math
 
+class Vector:
+
+    def __init__(self, x=0, y=0):
+        self.x = x
+        self.y = y
+
+    def __repr__(self):
+        # !r 等价于 %r, 表示用 repr() 处理 self.x
+        return f'Vector({self.x!r}, {self.y!r})'
+        
+    def __abs__(self):
+        # 返回欧氏范数 i.e. \sqrt{x_1^2 + x_2^2 + ...}
+        return math.hypot(self.x, self.y)
+
+    def __bool__(self):
+	    return bool(abs(self))
+
+    def __add__(self, other):
+        x = self.x + other.x
+        y = self.y + other.y
+        return Vector(x, y)
+
+    def __mul__(self, scalar):
+        return Vector(self.x * scalar, self.y * scalar)
 ```
+- 可以直接使用 `+` 运算符, `abs()` 方法来对 `Vector` 类进行计算
+```python
+>>> v1 = Vector(2, 4)
+>>> v2 = Vector(2, 1)
+>>> v1 + v2
+Vector(4, 5)
 
+>>> v = Vector(3, 4)
+>>> abs(v)
+5.0
 
-
+>>> v * 3
+Vector(9, 12)
+```
+## String Representation
+-  `__repr__` 这个特殊方法由内置的 `repr` 方法调用，用于获取对象的字符串表达形式。不实现 `__repr__` 时控制台会打印出对象地址 (类似 `Java` 需要重写 `toString()` 方法)
+- 与之对比，`__str__` 由内置的 `str()` 方法调用，由 `print` 函数隐式调用
+- 有时 `__repr__` 方法返回的字符串足够友好，无须再定义 `__str__` 方法，因为继承 `object` 的类最终会调用 `__repr__` 方法
+## Boolean Value of a Custom Type
+- Python 在决定一个对象 `x` 是 `True` 还是 `False` 时会调用 `bool(x)`
+- 用户定义的类的实例默认为真，除非实现了 `__bool__` 或 `__len__`

@@ -116,5 +116,40 @@ array('I', [36, 162, 163, 165, 8364, 164])
 ```
 <font color='darkred'>Example 2-6</font>. 使用生成器表达式计算笛卡尔积
 ```python
-
+>>> colors = ['black', 'white']
+>>> sizes = ['S', 'M', 'L']
+# 生成器表达式会逐项地产生元素，而不是整个列表
+>>> for tshirt in (f'{c} {s}' for c in colors for s in sizes):
+... print(tshirt)
+...
+black S
+black M
+black L
+white S
+white M
+white L
+```
+# Tuples Are Not Just Immutable Lists
+## Tuples as Records
+- 元组可以存放记录，元组中的一个项对应一个字段的数据，项的位置决定数据的意义
+<font color='darkred'>Example 2-7</font>. 把元组当作记录使用
+```python
+# 经纬度
+>>> lax_coordinates = (33.9425, -118.408056)
+# chg: 人口变化百分比
+>>> city, year, pop, chg, area = ('Tokyo', 2003, 32_450, 0.66, 8014)
+>>> traveler_ids = [('USA', '31195855'), ('BRA', 'CE342567'),
+... ('ESP', 'XDA205856')]
+>>> for passport in sorted(traveler_ids):
+... print('%s/%s' % passport)
+...
+BRA/CE342567
+ESP/XDA205856
+USA/31195855
+>>> for country, _ in traveler_ids:
+... print(country)
+...
+USA
+BRA
+ESP
 ```

@@ -38,11 +38,27 @@ Fig. 2-2 collections.abc 的一些类的简化 UML 类图 (父类在左侧，斜
 ![[fig 2..2.png]]
 # List Comprehensions and Generator Expressions
 ## List Comprehensions and Readability
+- 使用列表推导式速度更快：
 <font color='darkred'>Example 2-1</font>. 从字符串中构建 Unicode 码点列表
 ```python
 >>> symbols = '$¢£¥€¤'
 >>> codes = []
 >>> for symbol in symbols:
 ...     codes.append(ord(symbol))
+...
 >>> codes
+[36, 162, 163, 165, 8364, 164]
+```
+<font color='darkred'>Example 2-2</font>. 从列表推导式中构建 Unicode 码点列表
+```python
+>>> symbols = '$¢£¥€¤'
+>>> codes = [ord(symbol) for symbol in symbols]
+>>> codes
+[36, 162, 163, 165, 8364, 164]
+```
+- 列表推导式和生成器表达式的局部作用域
+	- Python 3 中的列表推导式和生成器表达式，以及 `set` 和 `dict` 的推导式，for 语句中的变量都在局部作用域内
+	- 使用海象运算符 (*Walrus operator*) `:=` 赋值的变量可以在推导式或表达式返回后继续访问——与函数中的本地变量不同
+```python
+
 ```

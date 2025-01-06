@@ -82,5 +82,24 @@ NameError: name 'c' is not defined
 >>> beyond_ascii
 [162, 163, 165, 8364, 164]
 
->>> beyond_ascii = list(filter())
+>>> beyond_ascii = list(filter(lambda c: c > 127, map(ord, symbols)))
+>>> beyond_ascii
+[162, 163, 165, 8364, 164]
 ```
+## Cartesian Products
+- 列表推导式可以从两个以上的可迭代对象的笛卡尔积中构建列表，笛卡尔积的每一项元素是 `tuple`，得到的列表长度等于输入的每个可迭代对象的长度的乘积
+<font color='darkred'>Example 2-4</font>. 从列表推导式中构建一个笛卡尔积
+```python
+>>> colors = ['black', 'white']
+>>> sizes = ['S', 'M', 'L']
+>>> tshirts = [(color, size) for color in colors for size in sizes]
+>>> tshirts
+[('black', 'S'), ('black', 'M'), ('black', 'L'), ('white', 'S'),
+('white', 'M'), ('white', 'L')]
+
+>>> tshirts = [(color, size) for size in sizes for color in colors]
+>>> tshirts
+[('black', 'S'), ('white', 'S'), ('black', 'M'), ('white', 'M'), ('black', 'L'), ('white', 'L')]
+```
+## Generator Expressions
+- 列表推导式也可以生成元组，数组或其他类型的

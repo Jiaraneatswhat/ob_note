@@ -102,4 +102,19 @@ NameError: name 'c' is not defined
 [('black', 'S'), ('white', 'S'), ('black', 'M'), ('white', 'M'), ('black', 'L'), ('white', 'L')]
 ```
 ## Generator Expressions
-- 列表推导式也可以生成元组，数组或其他类型的
+- 列表推导式也可以生成元组，数组或其他类型的序列，但是生成器表达式可以节省内存，因为它会通过迭代器一个接一个地生成元素，而不是构建整个列表提供给其他构造函数
+<font color='darkred'>Example 2-5</font>. 从生成器表达式中构建一个元组和数组
+```python
+>>> symbols = '$¢£¥€¤'
+>>> tuple(ord(symbol) for symbol in symbols)
+(36, 162, 163, 165, 8364, 164)
+
+>>> import array
+# array 构造函数接受两个参数，因此生成器表达式两侧需要圆括号
+>>> array.array('I', (ord(symbol) for symbol in symbols))
+array('I', [36, 162, 163, 165, 8364, 164])
+```
+<font color='darkred'>Example 2-6</font>. 使用生成器表达式计算笛卡尔积
+```python
+
+```

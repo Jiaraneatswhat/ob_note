@@ -15,4 +15,12 @@ Fig. 2-1 tuple 和 array 简化的内存图，各含三个元素
 - 因此扁平序列更加紧凑，但是只能存储一些原始机器值，如 `bytes, integers, floats`
 - 内存中的每个 Python 对象都有着标记元数据的 `header`，最简单的 Python 对象 `float`，包含值字段和两个元数据字段：
 	- ob_refcnt: 对象的引用数
-	- ob_type: 
+	- ob_type: 对象类型的指针
+	- ob_fval: 存放值的 C `double` 变量
+- 在 64 位设备中每个字段占 8 个字节
+- 另外也可按可变性对序列类型进行分组:
+	- *Mutable sequences*
+		- `list, bytearray, array.array, collections.deque`
+	- *Immutable sequences*
+		- `tuple, str, bytes`
+- <font color='darkred'>Fig. 2-2</font> 可视化了可变序列如何从不可变序列中继承所有的方法，实现了几个其他的方法。内置的具体序列类型不是 `Sequence` 和 `MutableSequence` 抽象基类的子类

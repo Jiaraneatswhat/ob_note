@@ -60,5 +60,27 @@ Fig. 2-2 collections.abc 的一些类的简化 UML 类图 (父类在左侧，斜
 	- Python 3 中的列表推导式和生成器表达式，以及 `set` 和 `dict` 的推导式，for 语句中的变量都在局部作用域内
 	- 使用海象运算符 (*Walrus operator*) `:=` 赋值的变量可以在推导式或表达式返回后继续访问——与函数中的本地变量不同
 ```python
+>>> x = 'ABC'
+>>> codes = [ord(x) for x in x]
+>>> x
+'ABC'
+>>> codes
+[65, 66, 67]
 
+>>> codes = [last := ord(c) for c in x]
+>>> last # last 仍然能够访问 
+67
+>>> c # c 不会保留
+NameError: name 'c' is not defined
+```
+## Listcomps Versus map and filter
+- 列表推导式可以实现 map 和 filter 函数的全部功能，而不像 lambda 表达式那样晦涩
+<font color='darkred'>Example 2-3</font>. 从列表推导式和 map/filter 函数中构建同一个列表
+```python
+>>> symbols = '$¢£¥€¤'
+>>> beyond_ascii = [ord(s) for s in symbols if ord(s) > 127]
+>>> beyond_ascii
+[162, 163, 165, 8364, 164]
+
+>>> beyond_ascii = list(filter())
 ```

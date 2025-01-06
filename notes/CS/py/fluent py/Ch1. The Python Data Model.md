@@ -1,4 +1,4 @@
-## A Pythonic Card Deck
+# A Pythonic Card Deck
 - 当我们想让对象支持且能够与基本语言结构互动时可以实现特殊方法，这些结构有：
 	- 集合
 	- 访问属性
@@ -89,11 +89,11 @@ Card(rank='2', suit='diamonds')
 Card(rank='2', suit='hearts')
 ...
 ```
-## How Special Methods Are Used
+# How Special Methods Are Used
 - 特殊方法是由解释器调用的，不能写 `my_object.__len__()` 而是 `len(my_object)`，如果 `my_object` 是用户定义类的实例，那么 Python 就会调用你实现的 `__len__` 方法
 - 对于一些内置类型如 `list, str, bytearray` 或 Numpy 数组时，Python 在底层存放这些可变大小的集合时使用的是 C 中的 `struct` 叫做 `PyVarObject`，这个对象包含一个 `ob_size` 属性，维护了集合中元素的数目。因此 `len(my_object)` 会从 `ob_size` 属性中获取值，比起调用方法来要快很多
 - 大部分情况下，特殊方法是隐式调用的，例如语句 `for i in x`：它实际上会调用 `iter(x)`，迭代器就会调用 `x.__iter__()` 或 `x.__getitem__()`
-## Emulating Numeric Types
+# Emulating Numeric Types
 - 我们实现一个类来代表二维向量，支持加法运算，求模，标量乘法
 <font color='darkred'>Example 1-2</font>. 二维向量
 ```python
@@ -138,14 +138,14 @@ Vector(4, 5)
 >>> v * 3
 Vector(9, 12)
 ```
-## String Representation
+# String Representation
 -  `__repr__` 这个特殊方法由内置的 `repr` 方法调用，用于获取对象的字符串表达形式。不实现 `__repr__` 时控制台会打印出对象地址 (类似 `Java` 需要重写 `toString()` 方法)
 - 与之对比，`__str__` 由内置的 `str()` 方法调用，由 `print` 函数隐式调用
 - 有时 `__repr__` 方法返回的字符串足够友好，无须再定义 `__str__` 方法，因为继承 `object` 的类最终会调用 `__repr__` 方法
-## Boolean Value of a Custom Type
+# Boolean Value of a Custom Type
 - Python 在决定一个对象 `x` 是 `True` 还是 `False` 时会调用 `bool(x)`
 - 用户定义的类的实例默认为真，除非实现了 `__bool__` 或 `__len__`，`bool(x)` 首先会调用 `x.__bool__()`，如果没有实现这个方法，就会根据 `x.__len__()` 返回值是否为 `0` 来决定真假 
-## Collection API
+# Collection API
 -------------------------------------------------------------------
 Fig. 1-2 基本集合类型的 UML 类图
 ![[Fig 1-2.png]]
@@ -159,7 +159,7 @@ Fig. 1-2 基本集合类型的 UML 类图
 	- `Set`：内置类型 `set` 和 `frozenset` 的接口 
 - 只有 `Sequence` 实现了 `Reversible`，因为它要支持任意顺序排列内容
 - `Set` 抽象基类中的所有特殊方法实现的都是中缀运算符
-## Overview of Special Methods
+# Overview of Special Methods
 -------------------------------------------------------------------
 Table 1-1. 特殊方法名称 (不含运算符)
 ![[Table 1-2.png]]

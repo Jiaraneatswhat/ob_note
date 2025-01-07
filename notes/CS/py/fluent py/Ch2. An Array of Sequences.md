@@ -319,5 +319,21 @@ case [str(name), _, _, (float(lat), float(lon))]:
 ```
 - 如果想略过中间几项，只匹配第一项为 str，最后一项为包含两个 float 的 tuple 的序列：
 ```python
-case [str(name), *_, float()]
+case [str(name), *_, (float(lat), float(lon))]
 ```
+## Pattern Matching Sequences in an Interpreter
+- <font color='darkred'>lis.py</font> 是 Lisp 语言的 Scheme 方言的一个解释器，<font color='darkred'>Example 2-11</font> 是其中的一个 `evaluate` 函数：
+```python
+def evaluate(exp: Expression, env: Environment) -> Any:
+	"Evaluate an expression in an environment."
+	if isinstance(exp, Symbol): # variable reference
+		return env[exp]
+	...
+	elif exp[0] == 'quote':    # (quote exp)
+		(_, x) = exp
+		return x
+	...
+```
+其中检查了 `list` 中的第一个元素，并将 `list` 进行拆包，通过 `_` 忽略第一个元素
+- 用 match/case 来重构上例中的方法：
+<font color='darkred'>Example 2-1</font>

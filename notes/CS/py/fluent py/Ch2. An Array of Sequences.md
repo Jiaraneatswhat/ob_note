@@ -268,4 +268,17 @@ New York-Newark   |  40.8086  |  -74.0204
 São Paulo         |  -23.5478 |  -46.6358
 ```
 ## Pattern Matching with Sequences
-
+- Python 3.10 最显著的功能是使用 `match/case` 进行模式匹配：
+<font color='darkred'>Example 2-9</font> 是嵌套拆包的一个例子：
+```python
+def handle_command(self, messgae):
+	match message:
+		case ['BEEPER', frequency, times]:
+			self.beep(times, frequency)
+			...
+		# 默认的 case 子句
+		case _: 
+			raise InvalidCommand(message)
+```
+- match 的一大改进是<font color='red'>析构</font> (deconstructing)，析构广泛用于支持模式匹配的语言中——例如 Scala
+<font color='darkred'>Example 2-10</font> 是嵌套拆包的一个例子：

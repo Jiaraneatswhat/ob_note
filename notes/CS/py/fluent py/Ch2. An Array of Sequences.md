@@ -385,4 +385,45 @@ TypeError: can only assign an iterable
 ```
 # Using + and * with Sequences
 ## Building Lists of Lists
-- 有时我们需要初始化一个
+- 有时我们需要初始化一个有着特定数目的嵌套 `list` 的 `list`
+<font color='darkred'>Example 2-14</font>. 一个列表中嵌套 3 个长度为 3 的列表，可以表示井字棋 (tic-tac-toe) 棋盘
+```python
+>>> board = [['_'] * 3 for i in range(3)]
+>>> board
+[['_', '_', '_'], ['_', '_', '_'], ['_', '_', '_']]
+>>> board[1][2] = 'X'
+>>> board
+[['_', '_', '_'], ['_', '_', 'X'], ['_', '_', '_']]
+```
+<font color='darkred'>Example 2-15</font>. 在一个列表中 3 次引用同一个列表是没有意义的
+```python
+>>> weird_board = [['_'] * 3] * 3
+>>> weird_board
+[['_', '_', '_'], ['_', '_', '_'], ['_', '_', '_']]
+# 所有引用都指向同一个数组，因此所有的元素都发生了变化
+>>> weird_board[1][2] = 'O'
+>>> weird_board
+[['_', '_', 'O'], ['_', '_', 'O'], ['_', '_', 'O']]
+```
+## Augmented Assignment with Sequences
+- 使得 `+=` 工作的特殊方法是 `__iadd__`，即就地求和
+- 如果 `__iadd__` 没有实现，那么就会转回调用 `__add__`
+```python
+>>> a += b
+# 如果 a 实现了 __iadd__，那就会调用
+# 如果 a 是可变序列 (list, bytearray, array.array)，那么就地修改 a
+# 如果没有实现 __iadd__, 那么该式等价于 a = a + b
+```
+- 以上内容也适用于 `__imul__` 和 `*=` 运算符
+## A += Assignment Puzzler
+<font color='darkred'>Example 2-16</font>. 一个谜题
+```python
+>>> t = (1, 2, [30, 40])
+>>> t[2] += [50, 60]
+>>> t
+```
+运算结果是 ( )
+- A: `t` 变成 `(1, 2, [30, 40, 50, 60])`
+- B: TypeError: 'tuple' object does not support item assignment
+- C: 以上都不对
+- D: A

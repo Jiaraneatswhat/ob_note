@@ -181,7 +181,8 @@ Fig. 2-4 元组本身是不变的，但是只意味着其中的引用会始终�
 ## Comparing Tuple and List Methods
 --------------------------------------------------------------------
 Table 2-1. `list` 和 `tuple` 的方法和属性
-![[table 2-1.png]]
+![[table 2-1_1.png]]
+![[table 2-1_2.png]]
 # Unpacking Sequences and Iterables
 - 拆包可以避免从序列中通过索引来提取元素，减少出错的可能；拆包的目标可以是任何可迭代的对象——包括不支持 `'[]'` 索引的迭代器
 - 唯一的要求是可迭代对象每次只能产生一个元素，但是使用 `'*'` 可以一次捕获剩余全部元素
@@ -280,7 +281,7 @@ def handle_command(self, messgae):
 		case _: 
 			raise InvalidCommand(message)
 ```
-- match 的一大改进是<font color='red'>析构</font> (deconstructing)，析构广泛用于支持模式匹配的语言中——例如 Scala
+- `match` 的一大改进是<font color='red'>析构</font> (deconstructing)，析构广泛用于支持模式匹配的语言中——例如 Scala
 <font color='darkred'>Example 2-10</font> 展示了析构的操作，重写了 <font color='darkred'>Example 2-8</font> 中的一些部分：
 ```python
 metro_areas = [
@@ -299,8 +300,8 @@ def main():
 			case [name, _, _, (lat, lon)] if lon <= 0:
 				print(f'{name:15} | {lat:9.4f} | {lon:9.4f}')
 ```
-- 序列模式可以匹配 collections.abc.Sequence 的大部分实际子类或虚拟子类，`str, bytes, bytearray` 除外
-- 在 match/case 上下文中，`str, bytes, bytearray` 不被视为序列，因为这些类型被当做是原子值对待，要想使用必须先在 `match` 语句中进行转换
+- 序列模式可以匹配 `collections.abc.Sequence` 的大部分实际子类或虚拟子类，`str, bytes, bytearray` 除外
+- 在 `match/case` 上下文中，`str, bytes, bytearray` 不被视为序列，因为这些类型被当做是原子值对待，要想使用必须先在 `match` 语句中进行转换
 - 在标准库中，这些类型与序列模式兼容：
 	- list
 	- memoryview
@@ -317,7 +318,7 @@ case [name, _, _, (lat, lon) as coord]:
 ```python
 case [str(name), _, _, (float(lat), float(lon))]: 
 ```
-- 如果想略过中间几项，只匹配第一项为 str，最后一项为包含两个 float 的 tuple 的序列：
+- 如果想略过中间几项，只匹配第一项为 `str`，最后一项为包含两个 `float` 的 `tuple` 的序列：
 ```python
 case [str(name), *_, (float(lat), float(lon))]
 ```
@@ -546,6 +547,7 @@ deque([40, 30, 20, 10, 3, 4, 5, 6, 7, 8], maxlen=10)
 Table 2-4. list 和 deque 的方法
 ![[table 2-4.png]] 
 - Python 标准库还实现了其他的队列：
-	- queue: 提供了同步的类如 `SimpleQueue, Queue, LifoQueue` 以及 `PriorityQueue`
-	- multiprocessing: 实现了无界的 Sim
-	- 
+	- queue: 提供了同步的类如 `SimpleQueue`, `Queue`, `LifoQueue` 以及 `PriorityQueue `
+	- multiprocessing: 实现了无界的 `SimpleQueue` 和有界的 `Queue`
+	- asyncio: 提供了 `Queue`, `LifoQueue`, `PriorityQueue` 和 `JoinableQueue`
+	- heapq: `heapq` 没有实现队列类，但是提供了 `heappush` 和 `heappop` 等函数，可以把可变序列当作堆队列或优先级队列使用

@@ -462,5 +462,44 @@ TypeError: 'tuple' object does not support item assignment
 	- 字节码是一个分析程序内部的好工具
 # When a List Is Not the Answer
 ## Arrays
-- 如果一个 list 只包含数字，那么 array.array 是一个更有效的替代选择，数组支持所有的可变序列操作 (`.pop, .insert, .extend`)，以及快速读取和存储的方法，例如 `.frombytes, .tofile`
-- 创建 array 对象时提供一个类型代码，一个que'ding
+- 如果一个 `list` 只包含数字，那么`array.array` 是一个更有效的替代选择，数组支持所有的可变序列操作 (`.pop, .insert, .extend`)，以及快速读取和存储的方法，例如 `.frombytes, .tofile`
+- 创建 `array` 对象时提供一个类型代码 (`typecode`)，一个确定底层使用什么 C 类型存储数组元素的字母，例如 b 对应的是 C 中的 `signed char` 类型。如果使用 `array('b')` 创建一个数组，那么数组中的每一项都用一个字节存储，都被解释为整数。对于大型数值序列，这样可以节省大量内存
+<font color='darkred'>Example 2-19</font>. 创建，保存，加载一个大型浮点数组
+```python
+>>> from array import array
+>>> from random import random
+    # 创建双精度浮点数数组
+>>> floats = array('d', (random() for i in range(10**7)))
+>>> floats[-1]
+0.07802343889111107
+
+>>> fp = open('floats.bin', 'wb')
+    # 将数组存在二进制文件中
+>>> floats.tofile(fp)
+>>> fp.close()
+	# 创建一个空数组
+>>> floats2 = array('d')
+>>> fp = open('floats.bin', 'rb')
+    # 从文件中读取
+>>> floats2.fromfile(fp, 10**7)
+>>> fp.close()
+>>> floats2[-1]
+0.07802343889111107
+>>> floats2 == floats
+True
+```
+--------------------------------------------------------------------
+Table 2-3. list 和 array 中的方法与属性比较
+![[table 2-3.png]]
+## Memory Views
+- 内置的 `memoryview` 类是一个共享内存的序列类型，可以在不拷贝字节的情况下进行切片
+- `memoryview` 在数据结构 (PIL(Python Imaging Library) 图像, SQLite, NumPy 数组) 间共享内存，而不是事先复制
+- `memoryview.cast` 方法以多个字节为单位进行读写，而不移动位，最终返回一个分享同一块内存的 `memoryview` 对象
+<font color='darkred'>Example 2-20</font> 展示了如何在同一个 6 字节数组上创建多个大小的视图：
+```python
+>>> from array import array
+>>> octets = array('B', range(6))
+
+```
+
+

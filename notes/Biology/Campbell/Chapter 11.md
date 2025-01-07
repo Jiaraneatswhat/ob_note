@@ -49,4 +49,5 @@
 - The pathways leading to calcium release involve two other second messengers, **inositol trisphosphate** ($\text{IP}_3$) and diacylglycerol ($\text{DAG}$).
 --------------------------------------------------------------------
 <font color='skyblue'>Fig 11.14</font> Calcium and IP $_3$ in signaling pathways
-![[Fig 11.14.png]]
+![[Fig 11.14.png]] 
+# CONCEPT 11.4 as

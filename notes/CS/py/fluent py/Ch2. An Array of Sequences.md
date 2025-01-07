@@ -545,7 +545,8 @@ deque([40, 30, 20, 10, 3, 4, 5, 6, 7, 8], maxlen=10)
 ```
 --------------------------------------------------------------------
 Table 2-4. list 和 deque 的方法
-![[table 2-4.png]] 
+![[table 2-4_1.png]] 
+![[table 2-4_2.png]]
 - Python 标准库还实现了其他的队列：
 	- queue: 提供了同步的类如 `SimpleQueue`, `Queue`, `LifoQueue` 以及 `PriorityQueue `
 	- multiprocessing: 实现了无界的 `SimpleQueue` 和有界的 `Queue`

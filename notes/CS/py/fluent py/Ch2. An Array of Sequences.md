@@ -422,8 +422,45 @@ TypeError: can only assign an iterable
 >>> t[2] += [50, 60]
 >>> t
 ```
-运算结果是 ( )
+运算结果是 ( D )
 - A: `t` 变成 `(1, 2, [30, 40, 50, 60])`
-- B: TypeError: 'tuple' object does not support item assignment
+- B: `TypeError: 'tuple' object does not support item assignment`
 - C: 以上都不对
-- D: A
+- D: A 和 B
+```python
+# 输出为：
+>>> t = (1, 2, [30, 40])
+>>> t[2] += [50, 60]
+Traceback (most recent call last):
+File "<stdin>", line 1, in <module>
+TypeError: 'tuple' object does not support item assignment
+>>> t
+(1, 2, [30, 40, 50, 60])
+```
+对字节码进行分析：
+<font color='darkred'>Example 2-18</font>. `s[a] += b` 的字节码 
+```python
+# dis 用于获取字节码
+>>> dis.dis('s[a] += b')
+1        0 LOAD_NAME        0 (s)
+        3 LOAN_NAME        1 (a)
+        6 DUP_TOP_TWO
+        # BINARY_SUBSCR 根据索引获取值，将 s[a] 放在栈顶
+        7 BINARY_SUBSCR
+        8 LOAD_NAME        2 (b)
+        # 执行加法，如果栈顶指向可变对象那么操作就会成功
+        11 INPLACE_ADD
+        12 ROT_THREE
+        # 将栈顶的值赋给 s[a]
+        13 STORE_SUBSCR
+        14 LOAD_CONST      0 (None)
+        17 RETURN_VALUE 
+```
+- 从中可以总结出：
+	- 不要在元组中存放可变的元素
+	- 增量赋值不是原子操作——在操作后会抛出异常
+	- 字节码是一个分析程序内部的好工具
+# When a List Is Not the Answer
+## Arrays
+- 如果一个 list 只包含数字，那么 array.array 是一个更有效的替代选择，数组支持所有的可变序列操作 (`.pop, .insert, .extend`)，以及快速读取和存储的方法，例如 `.frombytes, .tofile`
+- 创建 array 对象时提供一个类型代码，一个que'ding

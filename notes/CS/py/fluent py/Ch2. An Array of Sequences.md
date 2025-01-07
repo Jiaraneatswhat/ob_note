@@ -321,19 +321,9 @@ case [str(name), _, _, (float(lat), float(lon))]:
 ```python
 case [str(name), *_, (float(lat), float(lon))]
 ```
-## Pattern Matching Sequences in an Interpreter
-- <font color='darkred'>lis.py</font> 是 Lisp 语言的 Scheme 方言的一个解释器，<font color='darkred'>Example 2-11</font> 是其中的一个 `evaluate` 函数：
-```python
-def evaluate(exp: Expression, env: Environment) -> Any:
-	"Evaluate an expression in an environment."
-	if isinstance(exp, Symbol): # variable reference
-		return env[exp]
-	...
-	elif exp[0] == 'quote':    # (quote exp)
-		(_, x) = exp
-		return x
-	...
-```
-其中检查了 `list` 中的第一个元素，并将 `list` 进行拆包，通过 `_` 忽略第一个元素
-- 用 match/case 来重构上例中的方法：
-<font color='darkred'>Example 2-1</font>
+# Slicing
+## Why Slices and Ranges Exclude the Last Item
+- 切片和区间排除最后一项与 Python，C 和其他语言中从 `0` 开始的索引相匹配，有以下好处：
+	- 只知道停止位置时，可以很容易地得到切片或区间的长度
+	- 知道起始和停止位置时，可以很容易地计算长度：`stop - start`
+	- 给定任意一个索引 `x`，可以很容易地

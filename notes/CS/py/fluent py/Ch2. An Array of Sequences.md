@@ -281,4 +281,43 @@ def handle_command(self, messgae):
 			raise InvalidCommand(message)
 ```
 - match 的一大改进是<font color='red'>析构</font> (deconstructing)，析构广泛用于支持模式匹配的语言中——例如 Scala
-<font color='darkred'>Example 2-10</font> 是嵌套拆包的一个例子：
+<font color='darkred'>Example 2-10</font> 展示了析构的操作，重写了 <font color='darkred'>Example 2-8</font> 中的一些部分：
+```python
+metro_areas = [
+('Tokyo', 'JP', 36.933, (35.689722, 139.691667)),
+('Delhi NCR', 'IN', 21.935, (28.613889, 77.208889)),
+('Mexico City', 'MX', 20.142, (19.433333, -99.133333)),
+('New York-Newark', 'US', 20.104, (40.808611, -74.020386)),
+('São Paulo', 'BR', 19.649, (-23.547778, -46.635833)),
+]
+
+def main():
+	print(f'{"":15} | {"latitude":>9} | {"longtitue":>9}')
+	for record in metro_areas:
+		# match 匹配的对象是 metro_areas 中的每一个元组
+		match record:
+			case [name, _, _, (lat, lon)] if lon <= 0:
+				print(f'{name:15} | {lat:9.4f} | {lon:9.4f}')
+```
+- 序列模式可以匹配 collections.abc.Sequence 的大部分实际子类或虚拟子类，`str, bytes, bytearray` 除外
+- 在 match/case 上下文中，`str, bytes, bytearray` 不被视为序列，因为这些类型被当做是原子值对待，要想使用必须先在 `match` 语句中进行转换
+- 在标准库中，这些类型与序列模式兼容：
+	- list
+	- memoryview
+	- array.array
+	- tuple
+	- range
+	- collecitions.deque
+- 与拆包不同，模式不会析构序列以外的可迭代对象
+- 模式中的任意一部分可以使用关键字 as 绑定到变量上：
+```python
+case [name, _, _, (lat, lon) as coord]: 
+```
+- 也可以添加类型信息让模式更具体：
+```python
+case [str(name), _, _, (float(lat), float(lon))]: 
+```
+- 如果想略过中间几项，只匹配第一项为 str，最后一项为包含两个 float 的 tuple 的序列：
+```python
+case [str(name), *_, float()]
+```

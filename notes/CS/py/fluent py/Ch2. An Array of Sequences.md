@@ -216,4 +216,47 @@ Table 2-1. `list` 和 `tuple` 的方法和属性
 >>> a, b, *rest = range(2)
 (0, 1, [])
 ```
-- 在并行赋值时，`'*'` 可以用于任意wei
+- 在并行赋值时，`'*'` 可以用于任意位置的单个变量
+```python
+>>> a, *body, c, d = range(5)
+>>> a, body, c, d
+(0, [1, 2], 3, 4)
+```
+## Unpacking with * in Function Calls and Sequence Literals
+- 在函数调用中，可以多次使用 `'*'`
+```python
+def fun(a, b, c, d, *rest):
+...    	return a, b, c, d, rest
+...
+>>> fun(*[1, 2], 3, *range(4, 7)) # 将 [1, 2] 和 range(4, 7) 拆包传入
+(1, 2, 3, 4, (5, 6))
+```
+- `'*'` 也可以用来定义 `list, tuple` 或 `set` 字面量:
+```python
+>>> * range(4), 4
+(0, 1, 2, 3, 4)
+>>> [*range(4), 4]
+[0, 1, 2, 3, 4]
+>>> {*range(4), 4, *(5, 6, 7)}
+{0, 1, 2, 3, 4, 5, 6, 7}
+```
+## Nested Unpacking
+<font color='darkred'>Example 2-8</font> 是嵌套拆包的一个例子：
+```python
+metro_areas = [
+('Tokyo', 'JP', 36.933, (35.689722, 139.691667)),
+('Delhi NCR', 'IN', 21.935, (28.613889, 77.208889)),
+('Mexico City', 'MX', 20.142, (19.433333, -99.133333)),
+('New York-Newark', 'US', 20.104, (40.808611, -74.020386)),
+('São Paulo', 'BR', 19.649, (-23.547778, -46.635833)),
+]
+
+def main():
+	print(f'{"":15} | {"latitude":>9} | {"longtitue":>9}')
+	for name, _, _, (lat, lon) in metro_areas:
+		if lon <= 0:
+			print(f'{name:15} | {lat:9.4f} | {lon:9.4f}')
+
+if __name__ = '__main__':
+	main()
+```

@@ -499,7 +499,53 @@ Table 2-3. list 和 array 中的方法与属性比较
 ```python
 >>> from array import array
 >>> octets = array('B', range(6))
+>>> m1 = memoryview(octets)
+>>> m1.tolist()
+[0, 1, 2, 3, 4, 5]
 
+>>> m2 = m1.cast('B', [2, 3])
+>>> m2.tolist()
+[[0, 1, 2], [3, 4, 5]]
+
+>>> m3 = m1.cast('B', [3, 2])
+>>> m3.tolist()
+[[0, 1], [2, 3], [4, 5]]
+
+>>> m2[1,1] = 22
+>>> m3[1,1] = 33
+>>> octets
+array('B', [0, 1, 2, 33, 22, 5])
 ```
-
-
+## Deques and Other Queues
+- `collections.deque` 是一个线程安全的双端队列，可以在两端快速插入和移除元素
+<font color='darkred'>Example 2-23</font>. `deque` 的使用
+```python
+>>> from collections import deque
+>>> dq = deque(range(10), maxlen=10)
+>>> dq
+deque([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], maxlen=10)
+# 循环右移 n 位 (n > 0) 或循环左移 n 位 (n < 0)
+>>> dq.rotate(3)
+>>> dq
+deque([7, 8, 9, 0, 1, 2, 3, 4, 5, 6], maxlen=10)
+>>> dq.rotate(-4)
+>>> dq
+deque([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], maxlen=10)
+>>> dq.appendleft(-1)
+>>> dq
+deque([-1, 1, 2, 3, 4, 5, 6, 7, 8, 9], maxlen=10)
+>>> dq.extend([11, 22, 33])
+>>> dq
+deque([3, 4, 5, 6, 7, 8, 9, 11, 22, 33], maxlen=10)
+    # 后进先出
+>>> dq.extendleft([10, 20, 30, 40])
+>>> dq
+deque([40, 30, 20, 10, 3, 4, 5, 6, 7, 8], maxlen=10)
+```
+--------------------------------------------------------------------
+Table 2-4. list 和 deque 的方法
+![[table 2-4.png]] 
+- Python 标准库还实现了其他的队列：
+	- queue: 提供了同步的类如 `SimpleQueue, Queue, LifoQueue` 以及 `PriorityQueue`
+	- multiprocessing: 实现了无界的 Sim
+	- 

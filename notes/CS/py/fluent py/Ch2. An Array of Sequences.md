@@ -253,10 +253,19 @@ metro_areas = [
 
 def main():
 	print(f'{"":15} | {"latitude":>9} | {"longtitue":>9}')
+	# 将最后一个字段赋给了嵌套的元组，拆包坐标
 	for name, _, _, (lat, lon) in metro_areas:
 		if lon <= 0:
 			print(f'{name:15} | {lat:9.4f} | {lon:9.4f}')
 
 if __name__ = '__main__':
 	main()
+
+# 输出如下：
+			    |  latitude |  longitude
+Mexico City       |  19.4333  |  -99.1333
+New York-Newark   |  40.8086  |  -74.0204
+São Paulo         |  -23.5478 |  -46.6358
 ```
+## Pattern Matching with Sequences
+

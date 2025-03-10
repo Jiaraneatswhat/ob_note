@@ -50,4 +50,4 @@
 --------------------------------------------------------------------
 <font color='skyblue'>Fig 11.14</font> Calcium and IP $_3$ in signaling pathways
 ![[Fig 11.14.png]] 
-# CONCEPT 11.4 as
+# CONCEPT 11.4 

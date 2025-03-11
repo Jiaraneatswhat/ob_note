@@ -77,7 +77,7 @@ public void run() {
 }
 ```
 - 将任务和线程分开，更容易与线程池等配合
-### 2.1.3 Callable & FutureTask
+### 2.1.3 Callable 和 FutureTask 配合 Thread
 - `Callable` 有返回值
 - Callable.java
 ```java
@@ -120,4 +120,64 @@ public FutureTask(Callable<V> callable) {
 new Thread(task).start;
 // get 方法阻塞等待返回结果
 task.get()
+```
+- `FutureTask` 的状态变化
+```java
+
+ NEW (0)  ------> COMPLETING (1) --------> NORMAL (2)
+    |                   \
+    |                    ---> EXCEPTIONAL (3)
+    |
+    -----> CANCELLED (4)
+    -----> INTERRUPTING (5) ----> INTERRUPTED (6)
+
+// 创建 FutureTask 对象时，state 设置为 NEW
+// 在执行 run 方法时：
+public void run() {  
+    try {  
+        Callable<V> c = callable;  
+        if (c != null && state == NEW) {  
+            V result;  
+            boolean ran;  
+            try {  
+	            // 调用 Callable 的 call 方法
+                result = c.call();  
+                ran = true;  
+            }
+            if (ran)  
+	            // 执行结束，准备转换状态
+                set(result);  
+        }  
+    } finally {...}  
+}
+
+protected void set(V v) {  
+    if (UNSAFE.compareAndSwapInt(this, stateOffset, NEW, COMPLETING)) { 
+	    // 计算结果保存在 outcome 中 
+        outcome = v;  
+        // 状态转为 true
+        UNSAFE.putOrderedInt(this, stateOffset, NORMAL); // final state  
+        finishCompletion();  
+    }  
+}
+
+// 使用 get 获取结果
+public V get() throws InterruptedException, ExecutionException {  
+    int s = state;  
+    // 还未完成则等待
+    if (s <= COMPLETING)  
+        s = awaitDone(false, 0L);  
+    // 异常，完成，或是取消在 report 中进一步判断
+    return report(s);  
+}
+
+private V report(int s) throws ExecutionException {  
+    Object x = outcome;  
+    // 正常结束则返回
+    if (s == NORMAL)  
+        return (V)x;  
+    if (s >= CANCELLED)  
+        throw new CancellationException();  
+    throw new ExecutionException((Throwable)x);  
+}
 ```

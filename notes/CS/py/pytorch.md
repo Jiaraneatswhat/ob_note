@@ -766,8 +766,7 @@ class CrossEntropyLoss(weight=None,
 ```
 # 10 Optimizer
 
-<img src="D:\Doc\ob_note\images_dl\optimizers.gif" style="zoom:60%;" />
-
+![[optimizers.gif]]
 - Adagrad, Adadelta 和 RMSprop 几乎直接朝正确方向前进
 - Momentum 和 NAG 偏离了轨道，但 NAG 很快就可以纠正
 

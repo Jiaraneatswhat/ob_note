@@ -86,8 +86,22 @@ public interface Callable<V> {
 	V call() throws Exception;  
 }
 ```
-- `FutureTask` 实现了 `RunnableFuture`
-- `RunnableFuture` 继承了 `Runnable` 和 `Future`
+- FutureTask.java
+```java
+// FutureTask 实现了 RunnableFuture
+public class FutureTask<V> implements RunnableFuture<V> {...}
+
+// RunnableFuture 继承了 Runnable 和 Future
+public interface RunnableFuture<V> extends Runnable, Future<V> {  
+	void run();  
+}
+
+// Future 接口的 get 方法可以返回执行结果
+public interface Future<V> {
+	V get() throws InterruptedException, ExecutionException;
+}
+```
+- 使用
 ```java
 // 定义一个 FutureTask
 FutureTask<Integer> task = new FutureTask<>(new Callable<Integer>() {  
@@ -103,6 +117,7 @@ public FutureTask(Callable<V> callable) {
     this.state = NEW; 
 }
 // 将 FutureTask 传入 Thread 构造方法中执行
-new Thread(task);
-
+new Thread(task).start;
+// get 方法阻塞等待返回结果
+task.get()
 ```

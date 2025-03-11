@@ -48,8 +48,9 @@ Runnable r = () -> ...;
 Thread t = new Thread(r, "thread_name");
 
 // Thread 的构造方法中可以传入 Runnable
-public Thread(Runnable target, String name) {  
-    init(null, target, name, 0);  
+// 默认线程名 "Thread-"
+public Thread(Runnable target) {  
+    init(null, target, "Thread-" + nextThreadNum(), 0);  
 }
 
 private void init(ThreadGroup g, Runnable target, String name,  
@@ -60,60 +61,22 @@ private void init(ThreadGroup g, Runnable target, String name,
 private void init(ThreadGroup g, Runnable target, String name,  
                   long stackSize, AccessControlContext acc,  
                   boolean inheritThreadLocals) {  
-    if (name == null) {  
-        throw new NullPointerException("name cannot be null");  
-    }  
-  
-    this.name = name;  
-  
-    Thread parent = currentThread();  
-    SecurityManager security = System.getSecurityManager();  
-    if (g == null) {  
-        /* Determine if it's an applet or not */  
-  
-        /* If there is a security manager, ask the security manager           what to do. */        if (security != null) {  
-            g = security.getThreadGroup();  
-        }  
-  
-        /* If the security doesn't have a strong opinion of the matter  
-           use the parent thread group. */        if (g == null) {  
-            g = parent.getThreadGroup();  
-        }  
-    }  
-  
-    /* checkAccess regardless of whether or not threadgroup is  
-       explicitly passed in. */    g.checkAccess();  
-  
-    /*  
-     * Do we have the required permissions?     */    if (security != null) {  
-        if (isCCLOverridden(getClass())) {  
-            security.checkPermission(SUBCLASS_IMPLEMENTATION_PERMISSION);  
-        }  
-    }  
-  
-    g.addUnstarted();  
-  
-    this.group = g;  
-    this.daemon = parent.isDaemon();  
-    this.priority = parent.getPriority();  
-    if (security == null || isCCLOverridden(parent.getClass()))  
-        this.contextClassLoader = parent.getContextClassLoader();  
-    else  
-        this.contextClassLoader = parent.contextClassLoader;  
-    this.inheritedAccessControlContext =  
-            acc != null ? acc : AccessController.getContext();  
+    ...
+    // 将 Runnable 对象作为 target 赋给 Thread 对象
+    // private Runnable target; target 是 Thread 的一个属性
     this.target = target;  
-    setPriority(priority);  
-    if (inheritThreadLocals && parent.inheritableThreadLocals != null)  
-        this.inheritableThreadLocals =  
-            ThreadLocal.createInheritedMap(parent.inheritableThreadLocals);  
-    /* Stash the specified stack size in case the VM cares */  
-    this.stackSize = stackSize;  
-  
+	...
     /* Set thread ID */  
     tid = nextThreadID();  
 }
+// Thread 的 run 方法会调用 Runnable 的 run 方法
+public void run() {  
+    if (target != null) {  
+        target.run();  
+    }  
+}
 ```
+- 将任务和线程分开，更容易与线程池等配合
 ### 2.1.3 Callable & FutureTask
 - `Callable` 有返回值
 - Callable.java
